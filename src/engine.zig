@@ -2,9 +2,34 @@ const std = @import("std");
 const raylib = @import("raylib");
 const builtin = @import("builtin");
 
-// Platform detection
+// ============================================================================
+// Platform Detection
+// ============================================================================
+
 const is_browser = builtin.target.os.tag == .freestanding or builtin.target.os.tag == .wasi;
 const glfw_available = !is_browser;
+
+// ============================================================================
+// Error Types
+// ============================================================================
+
+/// Engine-specific error types
+pub const EngineError = error{
+    /// Backend is not initialized
+    BackendNotInitialized,
+    /// Backend is not available on this platform
+    BackendNotAvailable,
+    /// GLFW backend is not implemented yet
+    GlfwBackendNotImplemented,
+    /// GLFW is not available on this platform
+    GlfwNotAvailable,
+    /// Invalid configuration parameters
+    InvalidConfig,
+};
+
+// ============================================================================
+// Conditional Imports
+// ============================================================================
 
 // Conditionally import zglfw
 const zglfw = if (glfw_available) @import("zglfw") else struct {
@@ -17,8 +42,27 @@ const zglfw = if (glfw_available) @import("zglfw") else struct {
     pub const pollEvents = error.GlfwNotAvailable;
 };
 
-/// Universal game engine integrating std.gpu, GLFW, and raylib functionality
-/// Supports all platforms including browsers via WebGPU, and native platforms with full low-level control
+// ============================================================================
+// Engine
+// ============================================================================
+
+/// Universal game engine integrating std.gpu, GLFW, and raylib functionality.
+///
+/// Supports all platforms including browsers via WebGPU, and native platforms
+/// with full low-level control. The engine provides a unified API that abstracts
+/// away backend-specific details while allowing access to backend-specific features
+/// when needed.
+///
+/// Example usage:
+/// ```zig
+/// var engine = try Engine.init(allocator, .{
+///     .backend = .raylib,
+///     .width = 800,
+///     .height = 600,
+///     .title = "My Game",
+/// });
+/// defer engine.deinit();
+/// ```
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     width: u32,
@@ -41,22 +85,53 @@ pub const Engine = struct {
         raylib,
     };
 
-    /// Configuration for engine initialization
+    /// Configuration for engine initialization.
+    ///
+    /// All fields have sensible defaults. The `backend` field determines which
+    /// rendering backend to use. Use `.auto` to let the engine choose the best
+    /// backend for the current platform.
     pub const Config = struct {
+        /// Backend to use. `.auto` will select the best backend for the platform.
         backend: Backend = .auto,
+        /// Window width in pixels. Must be > 0.
         width: u32 = 800,
+        /// Window height in pixels. Must be > 0.
         height: u32 = 600,
+        /// Window title. Must be a null-terminated string.
         title: [:0]const u8 = "Nyon Game",
+        /// Target FPS. Set to `null` to disable FPS limiting.
         target_fps: ?u32 = 60,
+        /// Whether the window can be resized by the user.
         resizable: bool = true,
+        /// Whether to start in fullscreen mode.
         fullscreen: bool = false,
+        /// Whether to enable VSYNC.
         vsync: bool = true,
-        samples: u32 = 0, // MSAA samples
+        /// MSAA samples (0 = disabled, 4 = 4x MSAA, etc.)
+        samples: u32 = 0,
     };
 
-    /// Initialize the engine with the specified configuration
-    /// Supports universal std.gpu, GLFW, and raylib backends
-    pub fn init(allocator: std.mem.Allocator, config: Config) !Engine {
+    /// Initialize the engine with the specified configuration.
+    ///
+    /// Validates the configuration and initializes the selected backend.
+    /// Returns an error if the configuration is invalid or backend initialization fails.
+    ///
+    /// **Backend Requirements:**
+    /// - `.raylib`: Available on native platforms only
+    /// - `.glfw`: Available on native platforms only (not fully implemented)
+    /// - `.webgpu`: Available on all platforms (not fully implemented)
+    /// - `.auto`: Automatically selects the best available backend
+    ///
+    /// **Errors:**
+    /// - `EngineError.InvalidConfig`: Configuration parameters are invalid
+    /// - `EngineError.BackendNotAvailable`: Selected backend is not available
+    /// - `EngineError.GlfwBackendNotImplemented`: GLFW backend is not implemented
+    pub fn init(allocator: std.mem.Allocator, config: Config) EngineError!Engine {
+        // Validate configuration
+        if (config.width == 0 or config.height == 0) {
+            return EngineError.InvalidConfig;
+        }
+
         var engine = Engine{
             .allocator = allocator,
             .width = config.width,
@@ -78,6 +153,21 @@ pub const Engine = struct {
             else => config.backend,
         };
 
+        // Validate backend availability
+        switch (backend) {
+            .glfw => {
+                if (!glfw_available) {
+                    return EngineError.BackendNotAvailable;
+                }
+            },
+            .raylib => {
+                if (is_browser) {
+                    return EngineError.BackendNotAvailable;
+                }
+            },
+            .webgpu, .auto => {}, // WebGPU and auto are always available
+        }
+
         // Initialize based on selected backend
         switch (backend) {
             .webgpu => try engine.initWebGpuBackend(config),
@@ -89,9 +179,13 @@ pub const Engine = struct {
         return engine;
     }
 
-    /// Initialize WebGPU backend for universal browser/native support
-    /// Note: std.gpu API is experimental and may change. This is a placeholder implementation.
-    fn initWebGpuBackend(engine: *Engine, config: Config) !void {
+    /// Initialize WebGPU backend for universal browser/native support.
+    ///
+    /// **Note:** std.gpu API is experimental and may change. This is a placeholder
+    /// implementation that will be completed when the API stabilizes.
+    ///
+    /// **Backend Requirements:** Available on all platforms
+    fn initWebGpuBackend(engine: *Engine, config: Config) EngineError!void {
         _ = config; // Config options may be used in future
         // TODO: Implement WebGPU backend when std.gpu API stabilizes
         // For now, mark as initialized but don't create context
@@ -101,12 +195,19 @@ pub const Engine = struct {
         // });
     }
 
-    /// Initialize GLFW backend for low-level control
-    /// Note: zglfw API integration is a work in progress
-    /// The GLFW wrapper namespace provides full API access via Engine.Glfw.*
-    fn initGlfwBackend(engine: *Engine, config: Config) !void {
+    /// Initialize GLFW backend for low-level control.
+    ///
+    /// **Note:** zglfw API integration is a work in progress. The GLFW wrapper
+    /// namespace provides full API access via `Engine.Glfw.*` for direct GLFW usage.
+    ///
+    /// **Backend Requirements:** Native platforms only
+    ///
+    /// **Errors:**
+    /// - `EngineError.GlfwNotAvailable`: GLFW is not available on this platform
+    /// - `EngineError.GlfwBackendNotImplemented`: GLFW backend is not fully implemented
+    fn initGlfwBackend(engine: *Engine, config: Config) EngineError!void {
         if (!glfw_available) {
-            return error.GlfwNotAvailable;
+            return EngineError.GlfwNotAvailable;
         }
 
         // TODO: Implement full GLFW backend initialization
@@ -119,11 +220,16 @@ pub const Engine = struct {
         // try zglfw.init();
         // const window = try zglfw.createWindow(...);
         // engine.glfw_window = window;
-        return error.GlfwBackendNotImplemented;
+        return EngineError.GlfwBackendNotImplemented;
     }
 
-    /// Initialize raylib backend for high-level features
-    fn initRaylibBackend(engine: *Engine, config: Config) !void {
+    /// Initialize raylib backend for high-level game development features.
+    ///
+    /// **Backend Requirements:** Native platforms only
+    ///
+    /// This is the recommended backend for most game development tasks as it
+    /// provides a complete, high-level API for graphics, audio, and input.
+    fn initRaylibBackend(engine: *Engine, config: Config) EngineError!void {
         // Configure raylib flags
         const flags = raylib.ConfigFlags{
             .fullscreen_mode = config.fullscreen,
@@ -141,7 +247,10 @@ pub const Engine = struct {
         }
     }
 
-    /// Deinitialize the engine and clean up all resources
+    /// Deinitialize the engine and clean up all resources.
+    ///
+    /// This function safely cleans up all initialized backends and releases
+    /// any allocated resources. It is safe to call even if initialization failed.
     pub fn deinit(engine: *Engine) void {
         // Clean up raylib if used
         if (engine.raylib_initialized) {
@@ -169,8 +278,12 @@ pub const Engine = struct {
         }
     }
 
-    /// Check if the window should close
-    pub fn shouldClose(engine: *Engine) bool {
+    /// Check if the window should close.
+    ///
+    /// **Backend Requirements:** Requires an initialized window backend (raylib or GLFW)
+    ///
+    /// Returns `true` if the user has requested to close the window (e.g., clicked the X button).
+    pub fn shouldClose(engine: *const Engine) bool {
         if (engine.raylib_initialized) {
             return raylib.windowShouldClose();
         } else if (engine.glfw_window) |_| {
@@ -183,7 +296,14 @@ pub const Engine = struct {
         return false; // No window initialized or headless mode
     }
 
-    /// Poll for events (required for GLFW backend)
+    /// Poll for window and input events.
+    ///
+    /// **Backend Requirements:**
+    /// - GLFW: Required to be called each frame
+    /// - raylib: Events are handled automatically, but calling this is safe
+    ///
+    /// This function should be called once per frame before processing input
+    /// or drawing. For raylib, this is optional as events are handled automatically.
     pub fn pollEvents(engine: *Engine) void {
         if (engine.glfw_window) |_| {
             if (glfw_available) {
@@ -194,7 +314,12 @@ pub const Engine = struct {
         // Raylib handles events automatically in its drawing functions
     }
 
-    /// Begin drawing frame (raylib-style API)
+    /// Begin drawing a new frame.
+    ///
+    /// **Backend Requirements:** Requires raylib backend
+    ///
+    /// This function must be called before any drawing operations. It prepares
+    /// the rendering context for drawing. Must be paired with `endDrawing()`.
     pub fn beginDrawing(engine: *Engine) void {
         if (engine.raylib_initialized) {
             raylib.beginDrawing();
@@ -202,7 +327,12 @@ pub const Engine = struct {
         // For GLFW/GPU backends, drawing is handled differently
     }
 
-    /// End drawing frame (raylib-style API)
+    /// End drawing the current frame and present it.
+    ///
+    /// **Backend Requirements:** Requires an initialized rendering backend
+    ///
+    /// This function must be called after all drawing operations are complete.
+    /// It presents the rendered frame to the screen. Must be paired with `beginDrawing()`.
     pub fn endDrawing(engine: *Engine) void {
         if (engine.raylib_initialized) {
             raylib.endDrawing();
@@ -216,19 +346,32 @@ pub const Engine = struct {
         }
     }
 
-    /// Clear background with color
+    /// Clear the background with the specified color.
+    ///
+    /// **Backend Requirements:** Requires raylib backend for full functionality
+    ///
+    /// Clears the entire screen with the given color. This should typically be
+    /// called at the start of each frame before drawing.
     pub fn clearBackground(engine: *Engine, color: raylib.Color) void {
         if (engine.raylib_initialized) {
             raylib.clearBackground(color);
         } else if (engine.webgpu_initialized) {
             // TODO: Implement WebGPU clear when std.gpu API stabilizes
-            // For now, this is a placeholder - color is unused but needed for API compatibility
+            // Color parameter is unused in this branch but needed for API compatibility
+        } else {
+            // GLFW backend requires manual OpenGL/Vulkan clearing
+            // Color parameter is unused in this branch but needed for API compatibility
         }
-        // GLFW backend requires manual OpenGL/Vulkan clearing
     }
 
-    /// Get the current window size
-    pub fn getWindowSize(engine: *Engine) struct { width: u32, height: u32 } {
+    /// Get the current window size in pixels.
+    ///
+    /// **Backend Requirements:** Works with all backends
+    ///
+    /// Returns the current window dimensions. For raylib, this reflects the
+    /// actual window size (which may differ from the initial size if resizable).
+    /// For other backends, returns the configured size.
+    pub fn getWindowSize(engine: *const Engine) struct { width: u32, height: u32 } {
         if (engine.glfw_window) |_| {
             if (glfw_available) {
                 // TODO: Implement GLFW window size retrieval when backend is implemented
@@ -248,7 +391,12 @@ pub const Engine = struct {
         return .{ .width = engine.width, .height = engine.height };
     }
 
-    /// Set target FPS
+    /// Set the target frames per second.
+    ///
+    /// **Backend Requirements:** Fully supported by raylib backend only
+    ///
+    /// Limits the frame rate to the specified FPS. Set to 0 to disable limiting.
+    /// For GLFW/WebGPU backends, this is stored but not actively enforced.
     pub fn setTargetFPS(engine: *Engine, fps: u32) void {
         engine.target_fps = fps;
         if (engine.raylib_initialized) {
@@ -257,24 +405,48 @@ pub const Engine = struct {
         // GLFW doesn't have built-in FPS limiting
     }
 
-    /// Get current FPS
-    pub fn getFPS(engine: *Engine) u32 {
+    /// Get the current frames per second.
+    ///
+    /// **Backend Requirements:** Requires raylib backend
+    ///
+    /// Returns the current FPS. For non-raylib backends, returns 0 as FPS
+    /// tracking is not implemented.
+    ///
+    /// **Note:** This function may return 0 for non-raylib backends. Consider
+    /// implementing your own FPS tracking if needed.
+    pub fn getFPS(engine: *const Engine) u32 {
         if (engine.raylib_initialized) {
             return @intCast(raylib.getFPS());
         }
         return 0; // Not available for GLFW/GPU backends
     }
 
-    /// Get frame time in seconds
-    pub fn getFrameTime(engine: *Engine) f32 {
+    /// Get the time elapsed since the last frame in seconds.
+    ///
+    /// **Backend Requirements:** Requires raylib backend
+    ///
+    /// Returns the delta time between frames. This is useful for frame-rate
+    /// independent movement and animations. For non-raylib backends, returns 0.0.
+    ///
+    /// **Note:** This function may return 0.0 for non-raylib backends. Consider
+    /// implementing your own timing if needed.
+    pub fn getFrameTime(engine: *const Engine) f32 {
         if (engine.raylib_initialized) {
             return raylib.getFrameTime();
         }
         return 0.0; // Not available for GLFW/GPU backends
     }
 
-    /// Get time since engine initialization
-    pub fn getTime(engine: *Engine) f64 {
+    /// Get the time elapsed since engine initialization in seconds.
+    ///
+    /// **Backend Requirements:** Requires raylib backend
+    ///
+    /// Returns the total time since the engine was initialized. Useful for
+    /// animations and game timing. For non-raylib backends, returns 0.0.
+    ///
+    /// **Note:** This function may return 0.0 for non-raylib backends. Consider
+    /// implementing your own timing if needed.
+    pub fn getTime(engine: *const Engine) f64 {
         if (engine.raylib_initialized) {
             return raylib.getTime();
         }
@@ -282,7 +454,17 @@ pub const Engine = struct {
     }
 };
 
-// Re-export all raylib types and functions for convenience
+// ============================================================================
+// Raylib API Re-exports
+// ============================================================================
+//
+// All raylib types, constants, and functions are re-exported here for
+// convenient access. They are organized into logical sections below.
+//
+// ============================================================================
+// Raylib Types
+// ============================================================================
+
 pub const Color = raylib.Color;
 pub const Vector2 = raylib.Vector2;
 pub const Vector3 = raylib.Vector3;
@@ -353,7 +535,18 @@ pub const MAX_TOUCH_POINTS = raylib.MAX_TOUCH_POINTS;
 pub const MAX_MATERIAL_MAPS = raylib.MAX_MATERIAL_MAPS;
 pub const MAX_SHADER_LOCATIONS = raylib.MAX_SHADER_LOCATIONS;
 
-// Re-export all raylib functions
+// ============================================================================
+// Raylib Function Namespaces
+// ============================================================================
+//
+// Raylib functions are organized into logical namespaces for better
+// discoverability and organization. Each namespace groups related functionality.
+//
+
+// ============================================================================
+// Window Management
+// ============================================================================
+
 pub const Window = struct {
     pub const init = raylib.initWindow;
     pub const close = raylib.closeWindow;
@@ -414,6 +607,12 @@ pub const Cursor = struct {
     pub const set = raylib.setMouseCursor;
 };
 
+/// Drawing mode management functions.
+///
+/// **Backend Requirements:** Requires raylib backend
+///
+/// This namespace provides functions for managing different drawing modes such as
+/// 2D mode, 3D mode, texture mode, shader mode, and blend modes.
 pub const Drawing = struct {
     pub const begin = raylib.beginDrawing;
     pub const end = raylib.endDrawing;
@@ -434,6 +633,13 @@ pub const Drawing = struct {
     pub const endVrStereoMode = raylib.endVrStereoMode;
 };
 
+/// 2D and 3D shape drawing functions.
+///
+/// **Backend Requirements:** Requires raylib backend
+///
+/// This namespace provides functions for drawing various shapes including
+/// circles, rectangles, lines, polygons, and 3D primitives. All drawing
+/// functions should be called between `Engine.beginDrawing()` and `Engine.endDrawing()`.
 pub const Shapes = struct {
     pub const drawPixel = raylib.drawPixel;
     pub const drawPixelV = raylib.drawPixelV;
@@ -599,6 +805,13 @@ pub const Images = struct {
     pub const unloadPalette = raylib.unloadImagePalette;
 };
 
+/// Text rendering and manipulation functions.
+///
+/// **Backend Requirements:** Requires raylib backend
+///
+/// This namespace provides functions for drawing text, measuring text dimensions,
+/// and manipulating text strings. Text drawing functions should be called between
+/// `Engine.beginDrawing()` and `Engine.endDrawing()`.
 pub const Text = struct {
     pub const draw = raylib.drawText;
     pub const drawEx = raylib.drawTextEx;
@@ -737,6 +950,12 @@ pub const Cameras = struct {
     pub const getScreenToWorld2D = raylib.getScreenToWorld2D;
 };
 
+/// Audio device management functions.
+///
+/// **Backend Requirements:** Requires raylib backend
+///
+/// This namespace provides functions for initializing and managing the audio device.
+/// The audio device must be initialized before loading or playing sounds.
 pub const Audio = struct {
     pub const initDevice = raylib.initAudioDevice;
     pub const closeDevice = raylib.closeAudioDevice;
@@ -813,6 +1032,12 @@ pub const AudioStreams = struct {
     pub const detachMixedProcessor = raylib.detachAudioMixedProcessor;
 };
 
+/// Input handling functions for keyboard, mouse, gamepad, touch, and gestures.
+///
+/// **Backend Requirements:** Requires raylib backend for full functionality
+///
+/// This namespace provides access to all input devices. Input state is updated
+/// automatically each frame when using the raylib backend.
 pub const Input = struct {
     pub const Keyboard = struct {
         pub const isPressed = raylib.isKeyPressed;
