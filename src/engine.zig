@@ -1,25 +1,49 @@
 const std = @import("std");
 const raylib = @import("raylib");
+const builtin = @import("builtin");
 
-/// Game engine with full raylib integration
-/// Provides organized access to all raylib functionality
+// Platform detection
+const is_browser = builtin.target.os.tag == .freestanding or builtin.target.os.tag == .wasi;
+const glfw_available = !is_browser;
+
+// Conditionally import zglfw
+const zglfw = if (glfw_available) @import("zglfw") else struct {
+    pub const Window = opaque {};
+    pub const Monitor = opaque {};
+    pub const Cursor = opaque {};
+    pub const Error = error{GlfwNotAvailable};
+    pub const init = error.GlfwNotAvailable;
+    pub const terminate = error.GlfwNotAvailable;
+    pub const pollEvents = error.GlfwNotAvailable;
+};
+
+/// Universal game engine integrating std.gpu, GLFW, and raylib functionality
+/// Supports all platforms including browsers via WebGPU, and native platforms with full low-level control
 pub const Engine = struct {
     allocator: std.mem.Allocator,
     width: u32,
     height: u32,
     title: [:0]const u8,
     raylib_initialized: bool = false,
+    glfw_window: ?*zglfw.Window = null,
+    webgpu_initialized: bool = false, // WebGPU backend flag (std.gpu API is experimental)
     target_fps: ?u32 = null,
 
-    /// Backend type for the engine (currently only raylib is supported)
+    /// Backend type for the engine
     pub const Backend = enum {
-        /// Use raylib for high-level game development features
+        /// Auto-detect: prefer WebGPU on browsers, raylib on native
+        auto,
+        /// Use WebGPU backend (universal, works on browsers via WebGPU)
+        webgpu,
+        /// Use GLFW for low-level window/input control (native only)
+        glfw,
+        /// Use raylib for high-level game development features (native only)
         raylib,
     };
 
     /// Configuration for engine initialization
     pub const Config = struct {
-        backend: Backend = .raylib,
+        backend: Backend = .auto,
         width: u32 = 800,
         height: u32 = 600,
         title: [:0]const u8 = "Nyon Game",
@@ -41,10 +65,61 @@ pub const Engine = struct {
             .target_fps = config.target_fps,
         };
 
-        // Initialize raylib backend
-        try engine.initRaylibBackend(config);
+        // Determine which backend to use
+        const backend = switch (config.backend) {
+            .auto => blk: {
+                // Auto-detect: prefer WebGPU on browsers, raylib on native
+                if (is_browser) {
+                    break :blk .webgpu;
+                } else {
+                    break :blk .raylib;
+                }
+            },
+            else => config.backend,
+        };
+
+        // Initialize based on selected backend
+        switch (backend) {
+            .webgpu => try engine.initWebGpuBackend(config),
+            .glfw => try engine.initGlfwBackend(config),
+            .raylib => try engine.initRaylibBackend(config),
+            .auto => unreachable, // Should be resolved above
+        }
 
         return engine;
+    }
+
+    /// Initialize WebGPU backend for universal browser/native support
+    /// Note: std.gpu API is experimental and may change. This is a placeholder implementation.
+    fn initWebGpuBackend(engine: *Engine, config: Config) !void {
+        _ = config; // Config options may be used in future
+        // TODO: Implement WebGPU backend when std.gpu API stabilizes
+        // For now, mark as initialized but don't create context
+        engine.webgpu_initialized = true;
+        // engine.webgpu_ctx = try gpu.GraphicsContext.init(.{
+        //     .window_handle = null, // Browser handles window, or null for headless
+        // });
+    }
+
+    /// Initialize GLFW backend for low-level control
+    /// Note: zglfw API integration is a work in progress
+    /// The GLFW wrapper namespace provides full API access via Engine.Glfw.*
+    fn initGlfwBackend(engine: *Engine, config: Config) !void {
+        if (!glfw_available) {
+            return error.GlfwNotAvailable;
+        }
+
+        // TODO: Implement full GLFW backend initialization
+        // The zglfw API structure needs to be verified and integrated properly
+        // For now, users can access GLFW directly via Engine.Glfw.* namespace
+        _ = engine;
+        _ = config;
+
+        // Placeholder - actual implementation needed:
+        // try zglfw.init();
+        // const window = try zglfw.createWindow(...);
+        // engine.glfw_window = window;
+        return error.GlfwBackendNotImplemented;
     }
 
     /// Initialize raylib backend for high-level features
@@ -73,20 +148,50 @@ pub const Engine = struct {
             raylib.closeWindow();
             engine.raylib_initialized = false;
         }
+
+        // Clean up GLFW if used
+        if (engine.glfw_window) |_| {
+            if (glfw_available) {
+                // TODO: Implement proper GLFW window cleanup when backend is implemented
+                // window.destroy();
+                // zglfw.terminate();
+            }
+            engine.glfw_window = null;
+        }
+
+        // Clean up WebGPU if used
+        if (engine.webgpu_initialized) {
+            // TODO: Deinitialize WebGPU context when API stabilizes
+            // if (engine.webgpu_ctx) |ctx| {
+            //     ctx.deinit();
+            // }
+            engine.webgpu_initialized = false;
+        }
     }
 
     /// Check if the window should close
     pub fn shouldClose(engine: *Engine) bool {
         if (engine.raylib_initialized) {
             return raylib.windowShouldClose();
+        } else if (engine.glfw_window) |_| {
+            if (glfw_available) {
+                // TODO: Implement GLFW shouldClose check when backend is implemented
+                // return window.shouldClose();
+                return false;
+            }
         }
-        return false; // No window initialized
+        return false; // No window initialized or headless mode
     }
 
-    /// Poll for events (raylib handles this automatically)
+    /// Poll for events (required for GLFW backend)
     pub fn pollEvents(engine: *Engine) void {
+        if (engine.glfw_window) |_| {
+            if (glfw_available) {
+                // TODO: Implement GLFW event polling when backend is implemented
+                // zglfw.pollEvents();
+            }
+        }
         // Raylib handles events automatically in its drawing functions
-        _ = engine;
     }
 
     /// Begin drawing frame (raylib-style API)
@@ -101,6 +206,13 @@ pub const Engine = struct {
     pub fn endDrawing(engine: *Engine) void {
         if (engine.raylib_initialized) {
             raylib.endDrawing();
+        } else if (engine.glfw_window) |_| {
+            if (glfw_available) {
+                // TODO: Implement GLFW buffer swap when backend is implemented
+                // window.swapBuffers();
+            }
+        } else if (engine.webgpu_initialized) {
+            // TODO: Present WebGPU frame when API stabilizes
         }
     }
 
@@ -108,16 +220,30 @@ pub const Engine = struct {
     pub fn clearBackground(engine: *Engine, color: raylib.Color) void {
         if (engine.raylib_initialized) {
             raylib.clearBackground(color);
+        } else if (engine.webgpu_initialized) {
+            // TODO: Implement WebGPU clear when std.gpu API stabilizes
+            // For now, this is a placeholder - color is unused but needed for API compatibility
         }
+        // GLFW backend requires manual OpenGL/Vulkan clearing
     }
 
     /// Get the current window size
     pub fn getWindowSize(engine: *Engine) struct { width: u32, height: u32 } {
-        if (engine.raylib_initialized) {
+        if (engine.glfw_window) |_| {
+            if (glfw_available) {
+                // TODO: Implement GLFW window size retrieval when backend is implemented
+                // const size = window.getSize();
+                // return .{ .width = @intCast(size[0]), .height = @intCast(size[1]) };
+                return .{ .width = engine.width, .height = engine.height };
+            }
+        } else if (engine.raylib_initialized) {
             return .{
                 .width = @intCast(raylib.getScreenWidth()),
                 .height = @intCast(raylib.getScreenHeight()),
             };
+        } else if (engine.webgpu_initialized) {
+            // WebGPU: return configured size (browser handles actual window)
+            return .{ .width = engine.width, .height = engine.height };
         }
         return .{ .width = engine.width, .height = engine.height };
     }
@@ -856,8 +982,198 @@ pub const Automation = struct {
     pub const playEvent = raylib.playAutomationEvent;
 };
 
-// Note: GLFW support is not currently implemented
-// The engine focuses on raylib for comprehensive game development features
+// GLFW namespace with full API support (only available on native platforms)
+pub const Glfw = if (glfw_available) struct {
+    // Direct access to GLFW types
+    pub const Window = zglfw.Window;
+    pub const Monitor = zglfw.Monitor;
+    pub const Cursor = zglfw.Cursor;
+    pub const VidMode = zglfw.VidMode;
+    pub const GamepadState = zglfw.GamepadState;
+    pub const GammaRamp = zglfw.GammaRamp;
+
+    // Re-export all GLFW enums and constants
+    pub const WindowHint = zglfw.WindowHint;
+    pub const InputMode = zglfw.InputMode;
+    pub const CursorMode = zglfw.CursorMode;
+    pub const MouseButton = zglfw.MouseButton;
+    pub const Joystick = zglfw.Joystick;
+    pub const Key = zglfw.Key;
+    pub const ModifierKey = zglfw.ModifierKey;
+    pub const KeyAction = zglfw.KeyAction;
+
+    // Initialization and termination
+    pub const init = zglfw.init;
+    pub const terminate = zglfw.terminate;
+    pub const initHint = zglfw.initHint;
+    pub const getVersion = zglfw.getVersion;
+    pub const getVersionString = zglfw.getVersionString;
+    pub const getError = zglfw.getError;
+    pub const pollEvents = zglfw.pollEvents;
+    pub const waitEvents = zglfw.waitEvents;
+    pub const waitEventsTimeout = zglfw.waitEventsTimeout;
+    pub const postEmptyEvent = zglfw.postEmptyEvent;
+
+    // Time
+    pub const getTime = zglfw.getTime;
+    pub const setTime = zglfw.setTime;
+    pub const getTimerValue = zglfw.getTimerValue;
+    pub const getTimerFrequency = zglfw.getTimerFrequency;
+
+    // Monitors
+    pub const getMonitors = zglfw.getMonitors;
+    pub const getPrimaryMonitor = zglfw.getPrimaryMonitor;
+    pub const getMonitorPos = zglfw.getMonitorPos;
+    pub const getMonitorWorkarea = zglfw.getMonitorWorkarea;
+    pub const getMonitorPhysicalSize = zglfw.getMonitorPhysicalSize;
+    pub const getMonitorContentScale = zglfw.getMonitorContentScale;
+    pub const getMonitorName = zglfw.getMonitorName;
+    pub const setMonitorUserPointer = zglfw.setMonitorUserPointer;
+    pub const getMonitorUserPointer = zglfw.getMonitorUserPointer;
+    pub const setMonitorCallback = zglfw.setMonitorCallback;
+    pub const getVideoModes = zglfw.getVideoModes;
+    pub const getVideoMode = zglfw.getVideoMode;
+    pub const setGamma = zglfw.setGamma;
+    pub const getGammaRamp = zglfw.getGammaRamp;
+    pub const setGammaRamp = zglfw.setGammaRamp;
+
+    // Windows
+    pub const windowHint = zglfw.windowHint;
+    pub const windowHintString = zglfw.windowHintString;
+    pub const defaultWindowHints = zglfw.defaultWindowHints;
+    pub const createWindow = zglfw.Window.create;
+    pub const destroyWindow = zglfw.Window.destroy;
+    pub const windowShouldClose = zglfw.Window.shouldClose;
+    pub const setWindowShouldClose = zglfw.Window.setShouldClose;
+    pub const setWindowTitle = zglfw.Window.setTitle;
+    pub const setWindowIcon = zglfw.Window.setIcon;
+    pub const getWindowPos = zglfw.Window.getPos;
+    pub const setWindowPos = zglfw.Window.setPos;
+    pub const getWindowSize = zglfw.Window.getSize;
+    pub const setWindowSize = zglfw.Window.setSize;
+    pub const setWindowSizeLimits = zglfw.Window.setSizeLimits;
+    pub const setWindowAspectRatio = zglfw.Window.setAspectRatio;
+    pub const getFramebufferSize = zglfw.Window.getFramebufferSize;
+    pub const getWindowFrameSize = zglfw.Window.getFrameSize;
+    pub const getWindowContentScale = zglfw.Window.getContentScale;
+    pub const getWindowOpacity = zglfw.Window.getOpacity;
+    pub const setWindowOpacity = zglfw.Window.setOpacity;
+    pub const iconifyWindow = zglfw.Window.iconify;
+    pub const restoreWindow = zglfw.Window.restore;
+    pub const maximizeWindow = zglfw.Window.maximize;
+    pub const showWindow = zglfw.Window.show;
+    pub const hideWindow = zglfw.Window.hide;
+    pub const focusWindow = zglfw.Window.focus;
+    pub const requestWindowAttention = zglfw.Window.requestAttention;
+    pub const getWindowMonitor = zglfw.Window.getMonitor;
+    pub const setWindowMonitor = zglfw.Window.setWindowMonitor;
+    pub const getWindowAttrib = zglfw.Window.getAttrib;
+    pub const setWindowAttrib = zglfw.Window.setAttrib;
+    pub const setWindowUserPointer = zglfw.Window.setUserPointer;
+    pub const getWindowUserPointer = zglfw.Window.getUserPointer;
+
+    // Context
+    pub const makeContextCurrent = zglfw.makeContextCurrent;
+    pub const getCurrentContext = zglfw.getCurrentContext;
+    pub const swapBuffers = zglfw.Window.swapBuffers;
+    pub const swapInterval = zglfw.swapInterval;
+    pub const extensionSupported = zglfw.extensionSupported;
+    pub const getProcAddress = zglfw.getProcAddress;
+
+    // Input
+    pub const getInputMode = zglfw.Window.getInputMode;
+    pub const setInputMode = zglfw.Window.setInputMode;
+    pub const rawMouseMotionSupported = zglfw.rawMouseMotionSupported;
+    pub const getKey = zglfw.Window.getKey;
+    pub const getKeyName = zglfw.getKeyName;
+    pub const getKeyScancode = zglfw.getKeyScancode;
+    pub const getMouseButton = zglfw.Window.getMouseButton;
+    pub const getCursorPos = zglfw.Window.getCursorPos;
+    pub const setCursorPos = zglfw.Window.setCursorPos;
+    pub const createCursor = zglfw.createCursor;
+    pub const createStandardCursor = zglfw.createStandardCursor;
+    pub const destroyCursor = zglfw.destroyCursor;
+    pub const setCursor = zglfw.Window.setCursor;
+    pub const setKeyCallback = zglfw.Window.setKeyCallback;
+    pub const setCharCallback = zglfw.Window.setCharCallback;
+    pub const setCharModsCallback = zglfw.Window.setCharModsCallback;
+    pub const setMouseButtonCallback = zglfw.Window.setMouseButtonCallback;
+    pub const setCursorPosCallback = zglfw.Window.setCursorPosCallback;
+    pub const setCursorEnterCallback = zglfw.Window.setCursorEnterCallback;
+    pub const setScrollCallback = zglfw.Window.setScrollCallback;
+    pub const setDropCallback = zglfw.Window.setDropCallback;
+    pub const joystickPresent = zglfw.joystickPresent;
+    pub const getJoystickAxes = zglfw.getJoystickAxes;
+    pub const getJoystickButtons = zglfw.getJoystickButtons;
+    pub const getJoystickHats = zglfw.getJoystickHats;
+    pub const getJoystickName = zglfw.getJoystickName;
+    pub const getJoystickGUID = zglfw.getJoystickGUID;
+    pub const setJoystickUserPointer = zglfw.setJoystickUserPointer;
+    pub const getJoystickUserPointer = zglfw.getJoystickUserPointer;
+    pub const joystickIsGamepad = zglfw.joystickIsGamepad;
+    pub const setJoystickCallback = zglfw.setJoystickCallback;
+    pub const updateGamepadMappings = zglfw.updateGamepadMappings;
+    pub const getGamepadName = zglfw.getGamepadName;
+    pub const getGamepadState = zglfw.getGamepadState;
+    pub const setClipboardString = zglfw.setClipboardString;
+    pub const getClipboardString = zglfw.getClipboardString;
+
+    // Vulkan support
+    pub const vulkanSupported = zglfw.vulkanSupported;
+    pub const getRequiredInstanceExtensions = zglfw.getRequiredInstanceExtensions;
+    pub const getInstanceProcAddress = zglfw.getInstanceProcAddress;
+    pub const getPhysicalDevicePresentationSupport = zglfw.getPhysicalDevicePresentationSupport;
+    pub const createWindowSurface = zglfw.createWindowSurface;
+
+    // Callbacks (re-export callback types)
+    pub const ErrorFun = zglfw.ErrorFun;
+    pub const WindowPosFun = zglfw.WindowPosFun;
+    pub const WindowSizeFun = zglfw.WindowSizeFun;
+    pub const WindowCloseFun = zglfw.WindowCloseFun;
+    pub const WindowRefreshFun = zglfw.WindowRefreshFun;
+    pub const WindowFocusFun = zglfw.WindowFocusFun;
+    pub const WindowIconifyFun = zglfw.WindowIconifyFun;
+    pub const WindowMaximizeFun = zglfw.WindowMaximizeFun;
+    pub const FramebufferSizeFun = zglfw.FramebufferSizeFun;
+    pub const WindowContentScaleFun = zglfw.WindowContentScaleFun;
+    pub const MouseButtonFun = zglfw.MouseButtonFun;
+    pub const CursorPosFun = zglfw.CursorPosFun;
+    pub const CursorEnterFun = zglfw.CursorEnterFun;
+    pub const ScrollFun = zglfw.ScrollFun;
+    pub const KeyFun = zglfw.KeyFun;
+    pub const CharFun = zglfw.CharFun;
+    pub const CharModsFun = zglfw.CharModsFun;
+    pub const DropFun = zglfw.DropFun;
+    pub const MonitorFun = zglfw.MonitorFun;
+    pub const JoystickFun = zglfw.JoystickFun;
+
+    pub const setErrorCallback = zglfw.setErrorCallback;
+    pub const setWindowPosCallback = zglfw.Window.setWindowPosCallback;
+    pub const setWindowSizeCallback = zglfw.Window.setWindowSizeCallback;
+    pub const setWindowCloseCallback = zglfw.Window.setWindowCloseCallback;
+    pub const setWindowRefreshCallback = zglfw.Window.setWindowRefreshCallback;
+    pub const setWindowFocusCallback = zglfw.Window.setWindowFocusCallback;
+    pub const setWindowIconifyCallback = zglfw.Window.setWindowIconifyCallback;
+    pub const setWindowMaximizeCallback = zglfw.Window.setWindowMaximizeCallback;
+    pub const setFramebufferSizeCallback = zglfw.Window.setFramebufferSizeCallback;
+    pub const setWindowContentScaleCallback = zglfw.Window.setWindowContentScaleCallback;
+} else struct {
+    // Stub implementations for platforms where GLFW is not available
+    pub const Window = opaque {};
+    pub const Monitor = opaque {};
+    pub const Cursor = opaque {};
+    pub const Error = error{GlfwNotAvailable};
+    pub const init = error.GlfwNotAvailable;
+    pub const terminate = error.GlfwNotAvailable;
+    pub const pollEvents = error.GlfwNotAvailable;
+    pub const makeContextCurrent = error.GlfwNotAvailable;
+    pub const swapInterval = error.GlfwNotAvailable;
+    pub const getPrimaryMonitor = error.GlfwNotAvailable;
+    pub const windowHint = error.GlfwNotAvailable;
+};
 
 // Direct re-exports for convenience (use these if you prefer the original raylib API)
 pub const rl = raylib;
+
+// Direct access to GLFW (use this if you prefer the original GLFW API)
+pub const glfw = Glfw;

@@ -21,6 +21,22 @@ pub fn build(b: *std.Build) void {
     // target and optimize options) will be listed when running `zig build --help`
     // in this directory.
 
+    // Add zglfw dependency (for native platforms only)
+    const zglfw_dep = b.dependency("zglfw", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    // zglfw may expose module as "glfw" instead of "zglfw"
+    const zglfw = zglfw_dep.module("glfw");
+
+    // Add raylib dependency
+    const raylib_zig_dep = b.dependency("raylib_zig", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    const raylib = raylib_zig_dep.module("raylib");
+    const raylib_artifact = raylib_zig_dep.artifact("raylib");
+
     // This creates a module, which represents a collection of source files alongside
     // some compilation options, such as optimization mode and linked system libraries.
     // Zig modules are the preferred way of making Zig code available to consumers.
@@ -79,9 +95,39 @@ pub fn build(b: *std.Build) void {
                 // can be extremely useful in case of collisions (which can happen
                 // importing modules from different packages).
                 .{ .name = "nyon_game", .module = mod },
+                .{ .name = "raylib", .module = raylib },
+                .{ .name = "zglfw", .module = zglfw },
             },
         }),
     });
+
+    // Link raylib library
+    exe.linkLibrary(raylib_artifact);
+
+    // Link system libraries required by raylib and GLFW
+    exe.linkLibC();
+    switch (target.result.os.tag) {
+        .windows => {
+            exe.linkSystemLibrary("opengl32");
+            exe.linkSystemLibrary("gdi32");
+            exe.linkSystemLibrary("winmm");
+            // Note: raylib includes GLFW internally, so we don't need to link it separately
+            // If you need direct GLFW access, you can use @cImport with GLFW headers
+        },
+        .macos => {
+            exe.linkFramework("OpenGL");
+            exe.linkFramework("Cocoa");
+            exe.linkFramework("IOKit");
+            exe.linkFramework("CoreVideo");
+        },
+        .linux => {
+            exe.linkSystemLibrary("GL");
+            exe.linkSystemLibrary("m");
+            exe.linkSystemLibrary("pthread");
+            exe.linkSystemLibrary("dl");
+        },
+        else => {},
+    }
 
     // This declares intent for the executable to be installed into the
     // install prefix when running `zig build` (i.e. when executing the default
