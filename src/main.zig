@@ -64,34 +64,34 @@ pub fn main() !void {
         const delta_time = engine.getFrameTime();
         var moved = false;
 
-        if (Input.Keyboard.isDown(KeyboardKey.key_w) or
-            Input.Keyboard.isDown(KeyboardKey.key_up))
+        if (Input.Keyboard.isDown(KeyboardKey.w) or
+            Input.Keyboard.isDown(KeyboardKey.up))
         {
             game_state.player_y -= game_state.player_speed * delta_time;
             moved = true;
         }
-        if (Input.Keyboard.isDown(KeyboardKey.key_s) or
-            Input.Keyboard.isDown(KeyboardKey.key_down))
+        if (Input.Keyboard.isDown(KeyboardKey.s) or
+            Input.Keyboard.isDown(KeyboardKey.down))
         {
             game_state.player_y += game_state.player_speed * delta_time;
             moved = true;
         }
-        if (Input.Keyboard.isDown(KeyboardKey.key_a) or
-            Input.Keyboard.isDown(KeyboardKey.key_left))
+        if (Input.Keyboard.isDown(KeyboardKey.a) or
+            Input.Keyboard.isDown(KeyboardKey.left))
         {
             game_state.player_x -= game_state.player_speed * delta_time;
             moved = true;
         }
-        if (Input.Keyboard.isDown(KeyboardKey.key_d) or
-            Input.Keyboard.isDown(KeyboardKey.key_right))
+        if (Input.Keyboard.isDown(KeyboardKey.d) or
+            Input.Keyboard.isDown(KeyboardKey.right))
         {
             game_state.player_x += game_state.player_speed * delta_time;
             moved = true;
         }
 
         // Keep player in bounds
-        game_state.player_x = std.math.max(game_state.player_size, std.math.min(screen_width - game_state.player_size, game_state.player_x));
-        game_state.player_y = std.math.max(game_state.player_size, std.math.min(screen_height - game_state.player_size, game_state.player_y));
+        game_state.player_x = @max(game_state.player_size, @min(screen_width - game_state.player_size, game_state.player_x));
+        game_state.player_y = @max(game_state.player_size, @min(screen_height - game_state.player_size, game_state.player_y));
 
         // Check collisions with collectible items
         for (&game_state.items) |*item| {
@@ -138,8 +138,8 @@ pub fn main() !void {
             if (!item.collected) {
                 // Pulsing animation
                 const pulse = @sin(game_state.game_time * 3.0) * 0.2 + 1.0;
-                const size = @as(i32, @intFromFloat(15.0 * pulse));
-
+                const size: f32 = 15.0 * pulse;
+                
                 Shapes.drawCircle(
                     @intFromFloat(item.x),
                     @intFromFloat(item.y),
@@ -164,13 +164,13 @@ pub fn main() !void {
         Shapes.drawCircle(
             @intFromFloat(game_state.player_x),
             @intFromFloat(game_state.player_y),
-            @intFromFloat(game_state.player_size),
+            game_state.player_size,
             player_color,
         );
         Shapes.drawCircleLines(
             @intFromFloat(game_state.player_x),
             @intFromFloat(game_state.player_y),
-            @intFromFloat(game_state.player_size),
+            game_state.player_size,
             engine_mod.Color{ .r = 255, .g = 255, .b = 255, .a = 255 },
         );
 
@@ -185,13 +185,13 @@ pub fn main() !void {
         Shapes.drawRectangleLinesEx(ui_bg, 2, engine_mod.Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
 
         // Draw score
-        var score_text: [32]u8 = undefined;
-        const score_str = try std.fmt.bufPrint(&score_text, "Score: {}", .{game_state.score});
+        var score_text: [32:0]u8 = undefined;
+        const score_str = try std.fmt.bufPrintZ(&score_text, "Score: {}", .{game_state.score});
         Text.draw(score_str, 20, 20, 20, engine_mod.Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
 
         // Draw time
-        var time_text: [32]u8 = undefined;
-        const time_str = try std.fmt.bufPrint(&time_text, "Time: {d:.1}s", .{game_state.game_time});
+        var time_text: [32:0]u8 = undefined;
+        const time_str = try std.fmt.bufPrintZ(&time_text, "Time: {d:.1}s", .{game_state.game_time});
         Text.draw(time_str, 20, 45, 20, engine_mod.Color{ .r = 200, .g = 200, .b = 255, .a = 255 });
 
         // Draw FPS
