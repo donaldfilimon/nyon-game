@@ -73,6 +73,42 @@ pub const Engine = struct {
     webgpu_initialized: bool = false, // WebGPU backend flag (std.gpu API is experimental)
     target_fps: ?u32 = null,
 
+    // ========================================================================
+    // Backend State Helpers
+    // ========================================================================
+
+    /// Check if the raylib backend is initialized.
+    ///
+    /// Returns `true` if raylib backend is active, `false` otherwise.
+    pub fn isRaylibInitialized(engine: *const Engine) bool {
+        return engine.raylib_initialized;
+    }
+
+    /// Check if the GLFW backend is initialized.
+    ///
+    /// Returns `true` if GLFW backend is active, `false` otherwise.
+    pub fn isGlfwInitialized(engine: *const Engine) bool {
+        return engine.glfw_window != null;
+    }
+
+    /// Check if the WebGPU backend is initialized.
+    ///
+    /// Returns `true` if WebGPU backend is active, `false` otherwise.
+    pub fn isWebGpuInitialized(engine: *const Engine) bool {
+        return engine.webgpu_initialized;
+    }
+
+    /// Check if any rendering backend is initialized.
+    ///
+    /// Returns `true` if at least one backend is active, `false` otherwise.
+    pub fn isBackendInitialized(engine: *const Engine) bool {
+        return engine.raylib_initialized or engine.glfw_window != null or engine.webgpu_initialized;
+    }
+
+    // ========================================================================
+    // Backend Configuration
+    // ========================================================================
+
     /// Backend type for the engine
     pub const Backend = enum {
         /// Auto-detect: prefer WebGPU on browsers, raylib on native
@@ -141,7 +177,7 @@ pub const Engine = struct {
         };
 
         // Determine which backend to use
-        const backend = switch (config.backend) {
+        const backend: Backend = switch (config.backend) {
             .auto => blk: {
                 // Auto-detect: prefer WebGPU on browsers, raylib on native
                 if (is_browser) {
@@ -169,11 +205,12 @@ pub const Engine = struct {
         }
 
         // Initialize based on selected backend
+        // Note: .auto case is already resolved above, so it won't appear here
         switch (backend) {
             .webgpu => try engine.initWebGpuBackend(config),
             .glfw => try engine.initGlfwBackend(config),
             .raylib => try engine.initRaylibBackend(config),
-            .auto => unreachable, // Should be resolved above
+            .auto => unreachable,
         }
 
         return engine;
@@ -251,15 +288,18 @@ pub const Engine = struct {
     ///
     /// This function safely cleans up all initialized backends and releases
     /// any allocated resources. It is safe to call even if initialization failed.
+    ///
+    /// **Note:** This function should be called when the engine is no longer needed,
+    /// typically using `defer` to ensure cleanup happens even if errors occur.
     pub fn deinit(engine: *Engine) void {
         // Clean up raylib if used
-        if (engine.raylib_initialized) {
+        if (engine.isRaylibInitialized()) {
             raylib.closeWindow();
             engine.raylib_initialized = false;
         }
 
         // Clean up GLFW if used
-        if (engine.glfw_window) |_| {
+        if (engine.isGlfwInitialized()) {
             if (glfw_available) {
                 // TODO: Implement proper GLFW window cleanup when backend is implemented
                 // window.destroy();
@@ -269,7 +309,7 @@ pub const Engine = struct {
         }
 
         // Clean up WebGPU if used
-        if (engine.webgpu_initialized) {
+        if (engine.isWebGpuInitialized()) {
             // TODO: Deinitialize WebGPU context when API stabilizes
             // if (engine.webgpu_ctx) |ctx| {
             //     ctx.deinit();
@@ -283,17 +323,20 @@ pub const Engine = struct {
     /// **Backend Requirements:** Requires an initialized window backend (raylib or GLFW)
     ///
     /// Returns `true` if the user has requested to close the window (e.g., clicked the X button).
+    /// Returns `false` if no window backend is initialized or in headless mode.
     pub fn shouldClose(engine: *const Engine) bool {
-        if (engine.raylib_initialized) {
+        if (engine.isRaylibInitialized()) {
             return raylib.windowShouldClose();
-        } else if (engine.glfw_window) |_| {
+        }
+        if (engine.isGlfwInitialized()) {
             if (glfw_available) {
                 // TODO: Implement GLFW shouldClose check when backend is implemented
                 // return window.shouldClose();
                 return false;
             }
         }
-        return false; // No window initialized or headless mode
+        // No window initialized or headless mode
+        return false;
     }
 
     /// Poll for window and input events.
@@ -305,7 +348,7 @@ pub const Engine = struct {
     /// This function should be called once per frame before processing input
     /// or drawing. For raylib, this is optional as events are handled automatically.
     pub fn pollEvents(engine: *Engine) void {
-        if (engine.glfw_window) |_| {
+        if (engine.isGlfwInitialized()) {
             if (glfw_available) {
                 // TODO: Implement GLFW event polling when backend is implemented
                 // zglfw.pollEvents();
@@ -316,12 +359,15 @@ pub const Engine = struct {
 
     /// Begin drawing a new frame.
     ///
-    /// **Backend Requirements:** Requires raylib backend
+    /// **Backend Requirements:** Requires raylib backend for full functionality
     ///
     /// This function must be called before any drawing operations. It prepares
     /// the rendering context for drawing. Must be paired with `endDrawing()`.
+    ///
+    /// **Note:** For GLFW/WebGPU backends, drawing is handled differently and
+    /// this function may be a no-op.
     pub fn beginDrawing(engine: *Engine) void {
-        if (engine.raylib_initialized) {
+        if (engine.isRaylibInitialized()) {
             raylib.beginDrawing();
         }
         // For GLFW/GPU backends, drawing is handled differently
@@ -334,14 +380,14 @@ pub const Engine = struct {
     /// This function must be called after all drawing operations are complete.
     /// It presents the rendered frame to the screen. Must be paired with `beginDrawing()`.
     pub fn endDrawing(engine: *Engine) void {
-        if (engine.raylib_initialized) {
+        if (engine.isRaylibInitialized()) {
             raylib.endDrawing();
-        } else if (engine.glfw_window) |_| {
+        } else if (engine.isGlfwInitialized()) {
             if (glfw_available) {
                 // TODO: Implement GLFW buffer swap when backend is implemented
                 // window.swapBuffers();
             }
-        } else if (engine.webgpu_initialized) {
+        } else if (engine.isWebGpuInitialized()) {
             // TODO: Present WebGPU frame when API stabilizes
         }
     }
@@ -352,15 +398,18 @@ pub const Engine = struct {
     ///
     /// Clears the entire screen with the given color. This should typically be
     /// called at the start of each frame before drawing.
+    ///
+    /// **Note:** For GLFW/WebGPU backends, this may be a no-op as clearing
+    /// is handled differently.
     pub fn clearBackground(engine: *Engine, color: raylib.Color) void {
-        if (engine.raylib_initialized) {
+        if (engine.isRaylibInitialized()) {
             raylib.clearBackground(color);
-        } else if (engine.webgpu_initialized) {
+        } else if (engine.isWebGpuInitialized()) {
             // TODO: Implement WebGPU clear when std.gpu API stabilizes
-            // Color parameter is unused in this branch but needed for API compatibility
+            // No operation needed for WebGPU backend
         } else {
             // GLFW backend requires manual OpenGL/Vulkan clearing
-            // Color parameter is unused in this branch but needed for API compatibility
+            // No operation needed for GLFW backend
         }
     }
 
@@ -372,22 +421,20 @@ pub const Engine = struct {
     /// actual window size (which may differ from the initial size if resizable).
     /// For other backends, returns the configured size.
     pub fn getWindowSize(engine: *const Engine) struct { width: u32, height: u32 } {
-        if (engine.glfw_window) |_| {
-            if (glfw_available) {
-                // TODO: Implement GLFW window size retrieval when backend is implemented
-                // const size = window.getSize();
-                // return .{ .width = @intCast(size[0]), .height = @intCast(size[1]) };
-                return .{ .width = engine.width, .height = engine.height };
-            }
-        } else if (engine.raylib_initialized) {
+        if (engine.isRaylibInitialized()) {
             return .{
                 .width = @intCast(raylib.getScreenWidth()),
                 .height = @intCast(raylib.getScreenHeight()),
             };
-        } else if (engine.webgpu_initialized) {
-            // WebGPU: return configured size (browser handles actual window)
-            return .{ .width = engine.width, .height = engine.height };
         }
+        if (engine.isGlfwInitialized()) {
+            if (glfw_available) {
+                // TODO: Implement GLFW window size retrieval when backend is implemented
+                // const size = window.getSize();
+                // return .{ .width = @intCast(size[0]), .height = @intCast(size[1]) };
+            }
+        }
+        // For WebGPU or uninitialized backends, return configured size
         return .{ .width = engine.width, .height = engine.height };
     }
 
@@ -399,7 +446,7 @@ pub const Engine = struct {
     /// For GLFW/WebGPU backends, this is stored but not actively enforced.
     pub fn setTargetFPS(engine: *Engine, fps: u32) void {
         engine.target_fps = fps;
-        if (engine.raylib_initialized) {
+        if (engine.isRaylibInitialized()) {
             raylib.setTargetFPS(@intCast(fps));
         }
         // GLFW doesn't have built-in FPS limiting
@@ -409,16 +456,21 @@ pub const Engine = struct {
     ///
     /// **Backend Requirements:** Requires raylib backend
     ///
-    /// Returns the current FPS. For non-raylib backends, returns 0 as FPS
-    /// tracking is not implemented.
+    /// Returns the current FPS from the raylib backend.
     ///
-    /// **Note:** This function may return 0 for non-raylib backends. Consider
-    /// implementing your own FPS tracking if needed.
-    pub fn getFPS(engine: *const Engine) u32 {
-        if (engine.raylib_initialized) {
-            return @intCast(raylib.getFPS());
+    /// **Errors:**
+    /// - `EngineError.BackendNotInitialized`: raylib backend is not initialized
+    ///
+    /// **Example:**
+    /// ```zig
+    /// const fps = try engine.getFPS();
+    /// std.debug.print("Current FPS: {}\n", .{fps});
+    /// ```
+    pub fn getFPS(engine: *const Engine) EngineError!u32 {
+        if (!engine.isRaylibInitialized()) {
+            return EngineError.BackendNotInitialized;
         }
-        return 0; // Not available for GLFW/GPU backends
+        return @intCast(raylib.getFPS());
     }
 
     /// Get the time elapsed since the last frame in seconds.
@@ -426,15 +478,21 @@ pub const Engine = struct {
     /// **Backend Requirements:** Requires raylib backend
     ///
     /// Returns the delta time between frames. This is useful for frame-rate
-    /// independent movement and animations. For non-raylib backends, returns 0.0.
+    /// independent movement and animations.
     ///
-    /// **Note:** This function may return 0.0 for non-raylib backends. Consider
-    /// implementing your own timing if needed.
-    pub fn getFrameTime(engine: *const Engine) f32 {
-        if (engine.raylib_initialized) {
-            return raylib.getFrameTime();
+    /// **Errors:**
+    /// - `EngineError.BackendNotInitialized`: raylib backend is not initialized
+    ///
+    /// **Example:**
+    /// ```zig
+    /// const delta_time = try engine.getFrameTime();
+    /// player.position += player.velocity * delta_time;
+    /// ```
+    pub fn getFrameTime(engine: *const Engine) EngineError!f32 {
+        if (!engine.isRaylibInitialized()) {
+            return EngineError.BackendNotInitialized;
         }
-        return 0.0; // Not available for GLFW/GPU backends
+        return raylib.getFrameTime();
     }
 
     /// Get the time elapsed since engine initialization in seconds.
@@ -442,15 +500,21 @@ pub const Engine = struct {
     /// **Backend Requirements:** Requires raylib backend
     ///
     /// Returns the total time since the engine was initialized. Useful for
-    /// animations and game timing. For non-raylib backends, returns 0.0.
+    /// animations and game timing.
     ///
-    /// **Note:** This function may return 0.0 for non-raylib backends. Consider
-    /// implementing your own timing if needed.
-    pub fn getTime(engine: *const Engine) f64 {
-        if (engine.raylib_initialized) {
-            return raylib.getTime();
+    /// **Errors:**
+    /// - `EngineError.BackendNotInitialized`: raylib backend is not initialized
+    ///
+    /// **Example:**
+    /// ```zig
+    /// const elapsed = try engine.getTime();
+    /// const animation_frame = @as(u32, @intFromFloat(elapsed * 10.0)) % 4;
+    /// ```
+    pub fn getTime(engine: *const Engine) EngineError!f64 {
+        if (!engine.isRaylibInitialized()) {
+            return EngineError.BackendNotInitialized;
         }
-        return 0.0; // Not available for GLFW/GPU backends
+        return raylib.getTime();
     }
 };
 
@@ -585,6 +649,10 @@ pub const Window = struct {
     pub const getScaleDPI = raylib.getWindowScaleDPI;
 };
 
+// ============================================================================
+// Monitor & Cursor Management
+// ============================================================================
+
 pub const Monitor = struct {
     pub const getCount = raylib.getMonitorCount;
     pub const getCurrent = raylib.getCurrentMonitor;
@@ -712,6 +780,10 @@ pub const Shapes = struct {
     pub const drawGrid = raylib.drawGrid;
 };
 
+// ============================================================================
+// Texture Management
+// ============================================================================
+
 pub const Textures = struct {
     pub const load = raylib.loadTexture;
     pub const loadFromImage = raylib.loadTextureFromImage;
@@ -729,6 +801,10 @@ pub const Textures = struct {
     pub const drawPro = raylib.drawTexturePro;
     pub const drawNPatch = raylib.drawTextureNPatch;
 };
+
+// ============================================================================
+// Image Processing
+// ============================================================================
 
 pub const Images = struct {
     pub const load = raylib.loadImage;
@@ -859,6 +935,10 @@ pub const Text = struct {
     pub const unloadLines = raylib.unloadTextLines;
 };
 
+// ============================================================================
+// 3D Models & Meshes
+// ============================================================================
+
 pub const Models = struct {
     pub const load = raylib.loadModel;
     pub const loadFromMesh = raylib.loadModelFromMesh;
@@ -876,6 +956,78 @@ pub const Models = struct {
     pub const unloadAnimation = raylib.unloadModelAnimation;
     pub const unloadAnimations = raylib.unloadModelAnimations;
     pub const isAnimationValid = raylib.isModelAnimationValid;
+
+    /// Load a 3D model from .obj file
+    /// Raylib automatically detects format from file extension
+    pub fn loadObj(fileName: [:0]const u8) raylib.Model {
+        return raylib.loadModel(fileName);
+    }
+
+    /// Load a 3D model from .gltf or .glb file
+    /// Raylib automatically detects format from file extension
+    pub fn loadGltf(fileName: [:0]const u8) raylib.Model {
+        return raylib.loadModel(fileName);
+    }
+
+    /// Load model with materials and animations for advanced usage
+    pub fn loadAdvanced(allocator: std.mem.Allocator, fileName: [:0]const u8) !struct { model: raylib.Model, materials: []raylib.Material, animations: []raylib.ModelAnimation } {
+        var model = raylib.loadModel(fileName);
+        errdefer raylib.unloadModel(model);
+
+        // Load materials
+        const materials = try allocator.alloc(raylib.Material, @intCast(raylib.getModelMaterialCount(model)));
+        errdefer allocator.free(materials);
+
+        // Copy materials from model
+        for (materials, 0..) |*mat, i| {
+            mat.* = model.materials[i];
+        }
+
+        // Load animations
+        var anim_count: c_uint = 0;
+        var animations: []raylib.ModelAnimation = &[_]raylib.ModelAnimation{};
+
+        // Try to load animations (may fail if none exist)
+        const temp_animations = raylib.loadModelAnimations(fileName, &anim_count) catch null;
+        if (temp_animations != null) {
+            animations = try allocator.alloc(raylib.ModelAnimation, @intCast(anim_count));
+            errdefer allocator.free(animations);
+
+            for (animations, 0..) |*anim, i| {
+                anim.* = temp_animations[i];
+            }
+            raylib.unloadModelAnimations(temp_animations, anim_count);
+        }
+
+        return .{
+            .model = model,
+            .materials = materials,
+            .animations = animations,
+        };
+    }
+
+    /// Create a model from procedural geometry
+    pub fn createProcedural(params: union(enum) {
+        cube: struct { width: f32, height: f32, depth: f32 },
+        sphere: struct { radius: f32, rings: i32 = 16, slices: i32 = 16 },
+        cylinder: struct { radius: f32, height: f32, slices: i32 = 16 },
+        plane: struct { width: f32, height: f32, res_x: i32 = 1, res_z: i32 = 1 },
+        torus: struct { radius: f32, size: f32, rad_seg: i32 = 16, sides: i32 = 16 },
+        knot: struct { radius: f32, size: f32, rad_seg: i32 = 16, sides: i32 = 16 },
+        heightmap: struct { heightmap: raylib.Image, size: raylib.Vector3 },
+    }) !raylib.Model {
+        const mesh = switch (params) {
+            .cube => |p| raylib.genMeshCube(p.width, p.height, p.depth),
+            .sphere => |p| raylib.genMeshSphere(p.radius, p.rings, p.slices),
+            .cylinder => |p| raylib.genMeshCylinder(p.radius, p.height, p.slices),
+            .plane => |p| raylib.genMeshPlane(p.width, p.height, p.res_x, p.res_z),
+            .torus => |p| raylib.genMeshTorus(p.radius, p.size, p.rad_seg, p.sides),
+            .knot => |p| raylib.genMeshKnot(p.radius, p.size, p.rad_seg, p.sides),
+            .heightmap => |p| raylib.genMeshHeightmap(p.heightmap, p.size),
+        };
+
+        return raylib.loadModelFromMesh(mesh);
+    }
 };
 
 pub const Meshes = struct {
@@ -901,13 +1053,69 @@ pub const Meshes = struct {
     pub const genCubicmap = raylib.genMeshCubicmap;
 };
 
+// ============================================================================
+// Material Management
+// ============================================================================
+
 pub const Materials = struct {
     pub const loadDefault = raylib.loadMaterialDefault;
     pub const load = raylib.loadMaterials;
     pub const unload = raylib.unloadMaterial;
     pub const setTexture = raylib.setMaterialTexture;
     pub const setMeshMaterial = raylib.setModelMeshMaterial;
+
+    /// Load a material from file with texture support
+    pub fn loadFromFile(fileName: [:0]const u8) raylib.Material {
+        return raylib.loadModel(fileName).materials[0];
+    }
+
+    /// Create a basic material with diffuse texture
+    pub fn createBasic(diffuse_texture: raylib.Texture) raylib.Material {
+        var material = raylib.loadMaterialDefault();
+        material.maps[raylib.MATERIAL_MAP_DIFFUSE].texture = diffuse_texture;
+        return material;
+    }
+
+    /// Create a PBR material (Physically Based Rendering)
+    pub fn createPBR(albedo: raylib.Texture, normal: ?raylib.Texture, metallic_roughness: ?raylib.Texture, emissive: ?raylib.Texture) raylib.Material {
+        var material = raylib.loadMaterialDefault();
+
+        // Albedo/Base color
+        material.maps[raylib.MATERIAL_MAP_ALBEDO].texture = albedo;
+
+        // Normal map
+        if (normal) |tex| {
+            material.maps[raylib.MATERIAL_MAP_NORMAL].texture = tex;
+        }
+
+        // Metallic/Roughness map
+        if (metallic_roughness) |tex| {
+            material.maps[raylib.MATERIAL_MAP_METALNESS].texture = tex;
+            material.maps[raylib.MATERIAL_MAP_ROUGHNESS].texture = tex;
+        }
+
+        // Emissive map
+        if (emissive) |tex| {
+            material.maps[raylib.MATERIAL_MAP_EMISSION].texture = tex;
+        }
+
+        return material;
+    }
+
+    /// Set material color properties
+    pub fn setColor(material: *raylib.Material, map_type: raylib.MaterialMapIndex, color: raylib.Color) void {
+        material.maps[map_type].color = color;
+    }
+
+    /// Set material float properties
+    pub fn setValue(material: *raylib.Material, map_type: raylib.MaterialMapIndex, value: f32) void {
+        material.maps[map_type].value = value;
+    }
 };
+
+// ============================================================================
+// Shader Management
+// ============================================================================
 
 pub const Shaders = struct {
     pub const load = raylib.loadShader;
@@ -923,6 +1131,10 @@ pub const Shaders = struct {
     pub const deactivate = raylib.endShaderMode;
 };
 
+// ============================================================================
+// Font Management
+// ============================================================================
+
 pub const Fonts = struct {
     pub const getDefault = raylib.getFontDefault;
     pub const load = raylib.loadFont;
@@ -936,6 +1148,10 @@ pub const Fonts = struct {
     pub const genAtlas = raylib.genImageFontAtlas;
     pub const isReady = raylib.isFontValid;
 };
+
+// ============================================================================
+// Camera Management
+// ============================================================================
 
 pub const Cameras = struct {
     pub const update = raylib.updateCamera;
@@ -980,6 +1196,10 @@ pub const Sounds = struct {
     pub const setPan = raylib.setSoundPan;
 };
 
+// ============================================================================
+// Music Streaming
+// ============================================================================
+
 pub const MusicFunctions = struct {
     pub const load = raylib.loadMusicStream;
     pub const loadFromMemory = raylib.loadMusicStreamFromMemory;
@@ -997,6 +1217,10 @@ pub const MusicFunctions = struct {
     pub const getTimeLength = raylib.getMusicTimeLength;
     pub const getTimePlayed = raylib.getMusicTimePlayed;
 };
+
+// ============================================================================
+// Wave & Audio Stream Management
+// ============================================================================
 
 pub const Waves = struct {
     pub const load = raylib.loadWave;
@@ -1098,6 +1322,10 @@ pub const Input = struct {
     };
 };
 
+// ============================================================================
+// Collision Detection
+// ============================================================================
+
 pub const Collision = struct {
     pub const checkRecs = raylib.checkCollisionRecs;
     pub const checkCircles = raylib.checkCollisionCircles;
@@ -1120,7 +1348,15 @@ pub const Collision = struct {
     pub const getRayQuad = raylib.getRayCollisionQuad;
 };
 
+// ============================================================================
+// Math Utilities
+// ============================================================================
+
 pub const Math = raylib.math;
+
+// ============================================================================
+// File I/O
+// ============================================================================
 
 pub const File = struct {
     pub const loadData = raylib.loadFileData;
@@ -1160,6 +1396,10 @@ pub const File = struct {
     pub const exportDataAsCode = raylib.exportDataAsCode;
 };
 
+// ============================================================================
+// System Utilities
+// ============================================================================
+
 pub const System = struct {
     pub const setConfigFlags = raylib.setConfigFlags;
     pub const setTraceLogLevel = raylib.setTraceLogLevel;
@@ -1191,10 +1431,18 @@ pub const System = struct {
     pub const computeSHA1 = raylib.computeSHA1;
 };
 
+// ============================================================================
+// VR Support
+// ============================================================================
+
 pub const VR = struct {
     pub const loadStereoConfig = raylib.loadVrStereoConfig;
     pub const unloadStereoConfig = raylib.unloadVrStereoConfig;
 };
+
+// ============================================================================
+// Automation & Testing
+// ============================================================================
 
 pub const Automation = struct {
     pub const loadEventList = raylib.loadAutomationEventList;

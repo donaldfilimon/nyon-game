@@ -60,13 +60,27 @@ pub fn build(b: *std.Build) void {
     // Executable
     // ========================================================================
 
+    // Build main game executable
     const exe = createExecutable(b, target, optimize, mod, dependencies);
+
+    // Build editor executable (shares same deps & module)
+    const editor_exe = createEditorExecutable(b, target, optimize, mod, dependencies);
+
+    // Build WASM version for web (if targeting WASM)
+    var wasm_exe: ?*std.Build.Step.Compile = null;
+    if (target.result.cpu.arch == .wasm32) {
+        wasm_exe = createWasmExecutable(b, target, optimize, mod, dependencies);
+        if (wasm_exe) |exe_wasm| {
+            linkSystemLibraries(exe_wasm, target);
+        }
+    }
 
     // ========================================================================
     // System Library Linking
     // ========================================================================
 
     linkSystemLibraries(exe, target);
+    linkSystemLibraries(editor_exe, target);
 
     // ========================================================================
     // Install Step
@@ -75,12 +89,41 @@ pub fn build(b: *std.Build) void {
     // Install the executable to the install prefix (default: zig-out/)
     // Can be overridden with `zig build --prefix <path>` or `-p <path>`
     b.installArtifact(exe);
+    b.installArtifact(editor_exe);
+
+    // Install WASM files if building for WASM
+    if (wasm_exe) |exe_wasm| {
+        b.installArtifact(exe_wasm);
+
+        // Install shell.html for emscripten
+        b.installFile("shell.html", "shell.html");
+    }
 
     // ========================================================================
     // Build Steps
     // ========================================================================
 
     setupBuildSteps(b, exe, mod);
+    setupExampleTargets(b, target, optimize, dependencies);
+
+    // Run editor
+    const run_editor = b.step("run-editor", "Build and run the editor");
+    const run_editor_cmd = b.addRunArtifact(editor_exe);
+    run_editor.dependOn(&run_editor_cmd.step);
+    run_editor_cmd.step.dependOn(b.getInstallStep());
+
+    // WASM support note: Currently requires manual setup with emscripten
+    // The raylib-zig library needs to be updated to support WASM targets
+    // For WASM builds, you would need:
+    // 1. A WASM-compatible raylib build
+    // 2. Emscripten toolchain
+    // 3. Custom build configuration
+
+    const build_wasm = b.step("wasm", "Build for WebAssembly (requires emscripten setup)");
+    build_wasm.dependOn(b.getInstallStep()); // Just install regular build for now
+
+    const run_wasm = b.step("run-wasm", "Build WASM and serve (requires web server setup)");
+    run_wasm.dependOn(build_wasm);
 }
 
 // ============================================================================
@@ -90,7 +133,26 @@ pub fn build(b: *std.Build) void {
 const Dependencies = struct {
     raylib: *std.Build.Module,
     raylib_artifact: *std.Build.Step.Compile,
-    zglfw: *std.Build.Module,
+    zglfw: ?*std.Build.Module,
+};
+
+const Example = struct {
+    name: []const u8,
+    source: []const u8,
+    description: []const u8,
+};
+
+const EXAMPLES = [_]Example{
+    Example{
+        .name = "example-file-browser",
+        .source = "examples/raylib/file_browser.zig",
+        .description = "Compile and run the Raylib file browser sample",
+    },
+    Example{
+        .name = "example-drop-viewer",
+        .source = "examples/raylib/drop_viewer.zig",
+        .description = "Show drag-and-drop metadata via Raylib file IO",
+    },
 };
 
 /// Setup and configure all external dependencies.
@@ -102,14 +164,20 @@ fn setupDependencies(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
 ) Dependencies {
-    // zglfw dependency (for native platforms only)
-    // Provides GLFW bindings for low-level window/input control
-    const zglfw_dep = b.dependency("zglfw", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    // Note: zglfw exposes its module as "glfw" not "zglfw"
-    const zglfw = zglfw_dep.module("glfw");
+    // Check if target is WASM (WebAssembly)
+    const is_wasm = target.result.cpu.arch == .wasm32;
+
+    // zglfw dependency (for native platforms only, not available for WASM)
+    var zglfw: ?*std.Build.Module = null;
+    if (!is_wasm) {
+        // Provides GLFW bindings for low-level window/input control
+        const zglfw_dep = b.dependency("zglfw", .{
+            .target = target,
+            .optimize = optimize,
+        });
+        // Note: zglfw exposes its module as "glfw" not "zglfw"
+        zglfw = zglfw_dep.module("glfw");
+    }
 
     // raylib-zig dependency
     // Provides raylib bindings and the compiled raylib library
@@ -147,9 +215,11 @@ fn createLibraryModule(
     return b.addModule(MODULE_NAME, .{
         .root_source_file = b.path(ROOT_MODULE_PATH),
         .target = target,
-        .imports = &.{
+        .imports = if (deps.zglfw) |zglfw| &.{
             .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
-            .{ .name = ZGLFW_IMPORT_NAME, .module = deps.zglfw },
+            .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw },
+        } else &.{
+            .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
         },
     });
 }
@@ -165,6 +235,21 @@ fn createExecutable(
     mod: *std.Build.Module,
     deps: Dependencies,
 ) *std.Build.Step.Compile {
+    // Build import array conditionally (zglfw not available for WASM)
+    var imports: [3]std.Build.Module.Import = undefined;
+    var import_count: usize = 0;
+
+    imports[import_count] = .{ .name = NYON_GAME_IMPORT_NAME, .module = mod };
+    import_count += 1;
+    imports[import_count] = .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib };
+    import_count += 1;
+
+    // Only add zglfw if available (not available for WASM)
+    if (deps.zglfw) |zglfw_mod| {
+        imports[import_count] = .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw_mod };
+        import_count += 1;
+    }
+
     const exe = b.addExecutable(.{
         .name = EXECUTABLE_NAME,
         .root_module = b.createModule(.{
@@ -173,17 +258,108 @@ fn createExecutable(
             .root_source_file = b.path(MAIN_SOURCE_PATH),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = NYON_GAME_IMPORT_NAME, .module = mod },
-                .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
-                .{ .name = ZGLFW_IMPORT_NAME, .module = deps.zglfw },
-            },
+            .imports = imports[0..import_count],
         }),
     });
 
     // Link the raylib library artifact
     exe.linkLibrary(deps.raylib_artifact);
 
+    return exe;
+}
+
+/// Create the editor executable.
+/// This executable uses `src/editor.zig` as its entry point and imports
+/// the same library module and dependencies as the main game.
+fn createEditorExecutable(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    mod: *std.Build.Module,
+    deps: Dependencies,
+) *std.Build.Step.Compile {
+    // Build import array conditionally (zglfw not available for WASM)
+    var imports: [3]std.Build.Module.Import = undefined;
+    var import_count: usize = 0;
+
+    imports[import_count] = .{ .name = NYON_GAME_IMPORT_NAME, .module = mod };
+    import_count += 1;
+    imports[import_count] = .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib };
+    import_count += 1;
+
+    // Only add zglfw if available (not available for WASM)
+    if (deps.zglfw) |zglfw_mod| {
+        imports[import_count] = .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw_mod };
+        import_count += 1;
+    }
+
+    const exe = b.addExecutable(.{
+        .name = "nyon_editor",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/editor.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = imports[0..import_count],
+        }),
+    });
+
+    // Link the raylib library artifact
+    exe.linkLibrary(deps.raylib_artifact);
+
+    return exe;
+}
+
+/// Create the WASM executable for web deployment.
+/// This uses emscripten to compile to WebAssembly.
+fn createWasmExecutable(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    mod: *std.Build.Module,
+    deps: Dependencies,
+) *std.Build.Step.Compile {
+    const exe = b.addExecutable(.{
+        .name = "nyon_game",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path(MAIN_SOURCE_PATH),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = NYON_GAME_IMPORT_NAME, .module = mod },
+                .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
+                // Note: zglfw not available for WASM, GLFW is handled by emscripten
+            },
+        }),
+    });
+
+    // Configure for emscripten
+    exe.entry = .disabled; // Use emscripten's main
+    exe.rdynamic = true;
+    exe.linkLibC();
+
+    return exe;
+}
+
+fn createExampleExecutable(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    deps: Dependencies,
+    source: []const u8,
+    name: []const u8,
+) *std.Build.Step.Compile {
+    const exe = b.addExecutable(.{
+        .name = name,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path(source),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
+            },
+        }),
+    });
+    exe.linkLibrary(deps.raylib_artifact);
     return exe;
 }
 
@@ -197,7 +373,13 @@ fn createExecutable(
 /// - Windows: OpenGL, GDI, WinMM
 /// - macOS: OpenGL, Cocoa, IOKit, CoreVideo frameworks
 /// - Linux: OpenGL, math, pthread, dl
+/// - WASM: No system libraries needed (emscripten handles this)
 fn linkSystemLibraries(exe: *std.Build.Step.Compile, target: std.Build.ResolvedTarget) void {
+    // For WASM targets, emscripten handles all linking
+    if (target.result.cpu.arch == .wasm32) {
+        return;
+    }
+
     // Always link libc (required by raylib)
     exe.linkLibC();
 
@@ -253,8 +435,8 @@ fn setupBuildSteps(
     const run_cmd = b.addRunArtifact(exe);
     run_step.dependOn(&run_cmd.step);
 
-    // Run from the installation directory (zig-out/bin/) rather than cache
-    run_cmd.step.dependOn(b.getInstallStep());
+    // Run with project root as CWD so relative asset/UI paths resolve.
+    run_cmd.setCwd(b.path("."));
 
     // Allow passing arguments: `zig build run -- --arg1 --arg2`
     if (b.args) |args| {
@@ -282,4 +464,20 @@ fn setupBuildSteps(
     const test_step = b.step("test", "Run all tests");
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
+}
+
+fn setupExampleTargets(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    deps: Dependencies,
+) void {
+    for (EXAMPLES) |example| {
+        const exe = createExampleExecutable(b, target, optimize, deps, example.source, example.name);
+        b.installArtifact(exe);
+        const example_step = b.step(example.name, example.description);
+        const run_example = b.addRunArtifact(exe);
+        example_step.dependOn(&run_example.step);
+        run_example.step.dependOn(b.getInstallStep());
+    }
 }
