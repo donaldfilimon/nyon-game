@@ -145,7 +145,7 @@ pub fn build(b: *std.Build) void {
 
 const Dependencies = struct {
     raylib: *std.Build.Module,
-    raylib_artifact: *std.Build.Step.Compile,
+    raylib_artifact: ?*std.Build.Step.Compile,
     zglfw: ?*std.Build.Module,
 };
 
@@ -193,6 +193,7 @@ fn setupDependencies(
     }
 
     // raylib-zig dependency
+    // raylib-zig dependency
     // Provides raylib bindings and the compiled raylib library
     const raylib_zig_dep = b.dependency("raylib_zig", .{
         .target = target,
@@ -221,20 +222,14 @@ fn createLibraryModule(
     target: std.Build.ResolvedTarget,
     deps: Dependencies,
 ) *std.Build.Module {
-    // Create the raylib C bindings module
-    const raylib_module = b.addModule("raylib", .{
-        .root_source_file = b.path("src/raylib.zig"),
-        .target = target,
-    });
-
     return b.addModule(MODULE_NAME, .{
         .root_source_file = b.path(ROOT_MODULE_PATH),
         .target = target,
         .imports = if (deps.zglfw) |zglfw| &.{
-            .{ .name = RAYLIB_IMPORT_NAME, .module = raylib_module },
+            .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
             .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw },
         } else &.{
-            .{ .name = RAYLIB_IMPORT_NAME, .module = raylib_module },
+            .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
         },
     });
 }
@@ -249,19 +244,11 @@ fn createExecutable(
     mod: *std.Build.Module,
     deps: Dependencies,
 ) *std.Build.Step.Compile {
-    // Create the raylib C bindings module
-    const raylib_module = b.addModule("raylib", .{
-        .root_source_file = b.path("src/raylib.zig"),
-        .target = target,
-    });
-
     // Build import array conditionally (zglfw not available for WASM)
-    var imports: [3]std.Build.Module.Import = undefined;
+    var imports: [2]std.Build.Module.Import = undefined;
     var import_count: usize = 0;
 
     imports[import_count] = .{ .name = NYON_GAME_IMPORT_NAME, .module = mod };
-    import_count += 1;
-    imports[import_count] = .{ .name = RAYLIB_IMPORT_NAME, .module = raylib_module };
     import_count += 1;
 
     // Only add zglfw if available (not available for WASM)
@@ -287,7 +274,6 @@ fn createExecutable(
         exe.linkLibrary(raylib_lib);
     } else {
         // Assume system-installed raylib
-        exe.addLibraryPath(.{ .cwd_relative = "C:\\Users\\donald\\scoop\\apps\\raylib\\current\\lib" });
         exe.linkSystemLibrary("raylib");
     }
 
@@ -301,19 +287,13 @@ fn createEditorExecutable(
     mod: *std.Build.Module,
     deps: Dependencies,
 ) *std.Build.Step.Compile {
-    // Create the raylib C bindings module
-    const raylib_module = b.addModule("raylib", .{
-        .root_source_file = b.path("src/raylib.zig"),
-        .target = target,
-    });
-
     // Build import array conditionally (zglfw not available for WASM)
     var imports: [3]std.Build.Module.Import = undefined;
     var import_count: usize = 0;
 
     imports[import_count] = .{ .name = NYON_GAME_IMPORT_NAME, .module = mod };
     import_count += 1;
-    imports[import_count] = .{ .name = RAYLIB_IMPORT_NAME, .module = raylib_module };
+    imports[import_count] = .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib };
     import_count += 1;
 
     // Only add zglfw if available (not available for WASM)
@@ -337,7 +317,6 @@ fn createEditorExecutable(
         exe.linkLibrary(raylib_lib);
     } else {
         // Assume system-installed raylib
-        exe.addLibraryPath(.{ .cwd_relative = "C:\\Users\\donald\\scoop\\apps\\raylib\\current\\lib" });
         exe.linkSystemLibrary("raylib");
     }
 

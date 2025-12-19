@@ -18,11 +18,11 @@ pub const World = struct {
     next_archetype_id: archetype.ArchetypeId,
 
     /// Initialize a new ECS World
-    pub fn init(allocator: std.mem.Allocator) World {
+    pub fn init(allocator: std.mem.Allocator) !World {
         return .{
             .allocator = allocator,
             .entity_manager = entity.EntityManager.init(allocator),
-            .archetypes = std.ArrayList(*archetype.Archetype).initCapacity(allocator, 0) catch unreachable,
+            .archetypes = try std.ArrayList(*archetype.Archetype).initCapacity(allocator, 0),
             .archetype_lookup = std.AutoHashMap(u64, *archetype.Archetype).init(allocator),
             .next_archetype_id = 1,
         };
@@ -360,7 +360,7 @@ pub const World = struct {
 // ============================================================================
 
 test "world entity lifecycle" {
-    var world = World.init(std.testing.allocator);
+    var world = try World.init(std.testing.allocator);
     defer world.deinit();
 
     // Create entities
@@ -377,7 +377,7 @@ test "world entity lifecycle" {
 }
 
 test "world component management" {
-    var world = World.init(std.testing.allocator);
+    var world = try World.init(std.testing.allocator);
     defer world.deinit();
 
     const test_entity = try world.createEntity();
@@ -409,7 +409,7 @@ test "world component management" {
 }
 
 test "world query and system execution" {
-    var world = World.init(std.testing.allocator);
+    var world = try World.init(std.testing.allocator);
     defer world.deinit();
 
     // Create entities with different component combinations
@@ -458,7 +458,7 @@ test "world query and system execution" {
 }
 
 test "world statistics" {
-    var world = World.init(std.testing.allocator);
+    var world = try World.init(std.testing.allocator);
     defer world.deinit();
 
     const stats_empty = world.getStats();

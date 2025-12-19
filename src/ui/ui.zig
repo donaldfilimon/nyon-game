@@ -37,22 +37,22 @@ pub const FontSet = struct {
     icon: raylib.Font,
 
     pub fn init() FontSet {
-        // Can't call extern functions at comptime, so we'll initialize to undefined
-        // and load fonts at runtime
-        return .{
-            .regular = undefined,
-            .bold = undefined,
-            .mono = undefined,
-            .icon = undefined,
+        // Initialize with zero values - will be loaded at runtime
+        return FontSet{
+            .regular = std.mem.zeroes(raylib.Font),
+            .bold = std.mem.zeroes(raylib.Font),
+            .mono = std.mem.zeroes(raylib.Font),
+            .icon = std.mem.zeroes(raylib.Font),
         };
     }
 
     pub fn loadDefault(self: *FontSet) void {
-        // Note: raylib.getFontDefault() should not fail, but handle error for safety
-        self.regular = raylib.getFontDefault() catch unreachable;
-        self.bold = raylib.getFontDefault() catch unreachable;
-        self.mono = raylib.getFontDefault() catch unreachable;
-        self.icon = raylib.getFontDefault() catch unreachable;
+        // Load default font for all slots
+        const default_font = raylib.getFontDefault();
+        self.regular = default_font;
+        self.bold = default_font;
+        self.mono = default_font;
+        self.icon = default_font;
     }
 
     pub fn loadCustomFonts(self: *FontSet, font_size: i32) void {
@@ -103,13 +103,11 @@ pub const UiStyle = struct {
         const pad: i32 = @intFromFloat(std.math.round(16.0 * clamped_scale));
         const title_h: i32 = @intFromFloat(std.math.round(36.0 * clamped_scale));
 
-        var fonts = FontSet.init();
-        fonts.loadDefault(); // Will be replaced with custom fonts at runtime
+        // Fonts will be initialized at runtime when needed
 
         return switch (theme) {
             .dark => .{
                 .scale = clamped_scale,
-                .fonts = fonts,
                 .font_size = base_font,
                 .small_font_size = small_font,
                 .padding = pad,
@@ -128,7 +126,6 @@ pub const UiStyle = struct {
             },
             .light => .{
                 .scale = clamped_scale,
-                .fonts = fonts,
                 .font_size = base_font,
                 .small_font_size = small_font,
                 .padding = pad,
@@ -269,7 +266,7 @@ pub const PanelResult = struct {
 
 /// Immediate-mode UI context with basic interaction state.
 pub const UiContext = struct {
-    style: ?UiStyle = null,
+    style: UiStyle,
     input: FrameInput = .{
         .mouse_pos = Vector2{ .x = 0, .y = 0 },
         .mouse_pressed = false,
@@ -286,15 +283,36 @@ pub const UiContext = struct {
     pub fn beginFrame(self: *UiContext, input: FrameInput, style: UiStyle) void {
         self.input = input;
         self.style = style;
+        // Ensure fonts are loaded
+        if (self.style.fonts == null) {
+            self.style.fonts = FontSet.init();
+        }
+        if (self.style.fonts.?.regular.texture.id == 0) {
+            self.style.fonts.?.loadDefault();
+        }
         self.hot_id = 0;
     }
 
     pub fn getStyle(self: UiContext) UiStyle {
-        return self.style orelse UiStyle.fromTheme(.dark, 255, 1.0);
+        var style = self.style;
+        // Ensure fonts are loaded
+        if (style.fonts.regular.texture.id == 0) {
+            style.fonts.loadDefault();
+        }
+        return style;
     }
 
     pub fn endFrame(_: *UiContext) void {
         // Reset state for next frame
+    }
+
+    pub fn getCurrentStyle(self: *UiContext) UiStyle {
+        var style = self.style;
+        if (style.fonts.regular.texture.id == 0) {
+            style.fonts.loadDefault();
+            self.style = style;
+        }
+        return style;
     }
 
     pub fn makeId(comptime prefix: []const u8, extra: []const u8) u64 {

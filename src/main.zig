@@ -1,6 +1,10 @@
 const std = @import("std");
 const math = std.math;
-const engine_mod = @import("engine.zig");
+const nyon_game = @import("root.zig");
+const engine_mod = nyon_game.engine;
+const status_msg = nyon_game.status_message;
+
+// Direct types from engine modules
 const Engine = engine_mod.Engine;
 const Audio = engine_mod.Audio;
 const File = engine_mod.File;

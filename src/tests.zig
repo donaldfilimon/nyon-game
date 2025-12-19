@@ -168,7 +168,7 @@ fn benchmarkECSPerformance(allocator: std.mem.Allocator) !struct {
     duration_ns: u64,
     operations: usize,
 } {
-    var world = ecs_world.World.init(allocator);
+    var world = try ecs_world.World.init(allocator);
     defer world.deinit();
 
     const start_time = std.time.nanoTimestamp();
@@ -234,7 +234,7 @@ fn testECSIntegration(allocator: std.mem.Allocator, result: TestResult) !TestRes
     new_result.total_tests += 1;
 
     // Create a simple scene with ECS
-    var world = ecs_world.World.init(allocator);
+    var world = try ecs_world.World.init(allocator);
     defer world.deinit();
 
     // Create some game objects

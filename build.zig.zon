@@ -37,9 +37,9 @@
             .url = "https://github.com/IridescenceTech/zglfw/archive/master.tar.gz",
             .hash = "zglfw-0.1.0-BghZXabUAACfsXVTPWvmy44XLsc-wux2G9w8Mbp523pJ",
         },
-        .raylib = .{
-            .url = "https://github.com/raysan5/raylib/archive/5.5.tar.gz",
-            .hash = "122096dfc8994542d786f21d12806a9bb9bb388d3f731aa03b0cacda0f5c48de2b5c",
+        .raylib_zig = .{
+            .url = "https://github.com/raysan5/raylib/archive/refs/tags/5.0.tar.gz",
+            .hash = "raylib_zig-5.6.0-dev-KE8REL5MBQAf3p497t52Xw9P7ojndIkVOWPXnLiLLw2P",
         },
     },
     // Specifies the set of files and directories that are included in this package.
