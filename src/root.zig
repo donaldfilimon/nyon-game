@@ -11,6 +11,9 @@
 // Core Engine Systems
 // ============================================================================
 
+// Raylib C bindings (direct access for low-level operations)
+pub const raylib = @import("raylib");
+
 // Multi-backend engine abstraction
 pub const engine = @import("engine.zig");
 
