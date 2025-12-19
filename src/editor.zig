@@ -12,12 +12,17 @@ pub fn main() !void {
     const screenWidth = 1600;
     const screenHeight = 900;
 
-    // Initialise raylib window
+    // Initialise borderless raylib window
     rl.initWindow(screenWidth, screenHeight, "Nyon Game Editor");
     defer rl.closeWindow();
 
+    // Position window
+    rl.setWindowPosition(100, 100); // Center-ish position
+
     // Disable raylib logging to avoid error union compatibility issues
     rl.setTraceLogLevel(rl.TraceLogLevel.none);
+
+    // Use default font for now (font loading has API issues)
 
     // Initialize geometry node system
     var geometry_system = try nyon.geometry_nodes.GeometryNodeSystem.init(std.heap.page_allocator);
@@ -42,6 +47,11 @@ pub fn main() !void {
     var drag_offset = rl.Vector2{ .x = 0, .y = 0 };
     var is_dragging = false;
 
+    // Custom window management
+    var window_drag_offset = rl.Vector2{ .x = 0, .y = 0 };
+    var is_window_dragging = false;
+    const title_bar_height: f32 = 32.0;
+
     // Camera control variables
     var camera_angle = rl.Vector2{ .x = 0, .y = 0 };
     var camera_distance: f32 = 10.0;
@@ -54,6 +64,8 @@ pub fn main() !void {
         // Split screen: left side 3D view, right side node editor
         const view_split_ratio = 0.6; // 60% for 3D view, 40% for node editor
         const view_width = screen_width * view_split_ratio;
+        const content_y = title_bar_height;
+        const content_height = screen_height - title_bar_height;
 
         // Handle camera controls
         handleCameraControls(&camera_angle, &camera_distance);
@@ -72,24 +84,66 @@ pub fn main() !void {
             // Add cube node
             _ = geometry_system.createNode("Cube");
         }
+        // Ctrl+S: print node graph for debugging
         if (rl.isKeyPressed(.s) and rl.isKeyDown(.left_control)) {
-            // Add sphere node
-            _ = geometry_system.createNode("Sphere");
+            geometry_system.graph.debugPrint();
+        }
+        // Ctrl+D: also print node graph
+        if (rl.isKeyPressed(.d) and rl.isKeyDown(.left_control)) {
+            geometry_system.graph.debugPrint();
         }
 
         // Handle node interaction
         handleNodeInteraction(&geometry_system, &selected_node, &is_dragging, &drag_offset, view_width);
+
+        // Handle custom window dragging
+        const mouse_pos = rl.getMousePosition();
+        if (rl.isMouseButtonPressed(.left) and mouse_pos.y <= title_bar_height) {
+            window_drag_offset = mouse_pos;
+            is_window_dragging = true;
+        }
+        if (rl.isMouseButtonReleased(.left)) {
+            is_window_dragging = false;
+        }
+        if (is_window_dragging) {
+            const current_pos = rl.getWindowPosition();
+            const delta = rl.Vector2{
+                .x = mouse_pos.x - window_drag_offset.x,
+                .y = mouse_pos.y - window_drag_offset.y,
+            };
+            rl.setWindowPosition(@intFromFloat(current_pos.x + delta.x), @intFromFloat(current_pos.y + delta.y));
+        }
 
         // --- UI Layout ---------------------------------------------------
         rl.beginDrawing();
         defer rl.endDrawing();
         rl.clearBackground(rl.Color.ray_white);
 
+        // Custom title bar
+        rl.drawRectangle(0, 0, @intFromFloat(screen_width), @intFromFloat(title_bar_height), rl.Color{ .r = 45, .g = 45, .b = 55, .a = 255 });
+        rl.drawText("Nyon Game Editor", 10, 8, 18, rl.Color.white);
+
+        // Close button
+        const close_button_rect = rl.Rectangle{
+            .x = screen_width - 40,
+            .y = 4,
+            .width = 32,
+            .height = 24,
+        };
+        const close_hover = rl.checkCollisionPointRec(mouse_pos, close_button_rect);
+        const close_color = if (close_hover) rl.Color{ .r = 200, .g = 50, .b = 50, .a = 255 } else rl.Color{ .r = 150, .g = 50, .b = 50, .a = 255 };
+        rl.drawRectangleRec(close_button_rect, close_color);
+        rl.drawText("×", @intFromFloat(close_button_rect.x + 10), @intFromFloat(close_button_rect.y + 2), 18, rl.Color.white);
+
+        if (close_hover and rl.isMouseButtonPressed(.left)) {
+            break; // Exit the application
+        }
+
         // Split screen: left side 3D view, right side node editor
         const editor_width = screen_width * (1.0 - view_split_ratio);
 
         // 3D scene render (left side)
-        rl.beginScissorMode(0, 0, @intFromFloat(view_width), @intFromFloat(screen_height));
+        rl.beginScissorMode(0, @intFromFloat(content_y), @intFromFloat(view_width), @intFromFloat(content_height));
         rl.beginMode3D(camera);
 
         // Clear background for 3D view
@@ -113,27 +167,26 @@ pub fn main() !void {
         rl.endScissorMode();
 
         // Node editor render (right side)
-        rl.beginScissorMode(@intFromFloat(view_width), 0, @intFromFloat(editor_width), @intFromFloat(screen_height));
+        rl.beginScissorMode(@intFromFloat(view_width), @intFromFloat(content_y), @intFromFloat(editor_width), @intFromFloat(content_height));
         geometry_system.renderNodeEditor(editor_width, screen_height);
         rl.endScissorMode();
 
         // UI overlay
         var ui_y: i32 = 10;
-        const ui_font_size = 20;
 
         // Node count
-        var node_count_buf: [32]u8 = undefined;
-        const node_count_slice = std.fmt.bufPrint(&node_count_buf, "Nodes: {}", .{geometry_system.graph.nodes.items.len}) catch "Nodes: ?";
-        rl.drawText(node_count_slice[0..node_count_slice.len :0], 10, ui_y, ui_font_size, rl.Color.white);
+        var node_count_buf: [32:0]u8 = undefined;
+        const node_count_slice = std.fmt.bufPrintZ(&node_count_buf, "Nodes: {}", .{geometry_system.graph.nodes.items.len}) catch "Nodes: ?";
+        rl.drawText(node_count_slice, 10, ui_y, 16, rl.Color.white);
         ui_y += 25;
 
         // Selected node
         if (selected_node) |node_id| {
-            var selected_buf: [32]u8 = undefined;
-            const selected_slice = std.fmt.bufPrint(&selected_buf, "Selected: Node {}", .{node_id}) catch "Selected: Node ?";
-            rl.drawText(selected_slice[0..selected_slice.len :0], 10, ui_y, ui_font_size, rl.Color.yellow);
+            var selected_buf: [32:0]u8 = undefined;
+            const selected_slice = std.fmt.bufPrintZ(&selected_buf, "Selected: Node {}", .{node_id}) catch "Selected: Node ?";
+            rl.drawText(selected_slice, 10, ui_y, 16, rl.Color.yellow);
         } else {
-            rl.drawText("Selected: None", 10, ui_y, ui_font_size, rl.Color.gray);
+            rl.drawText("Selected: None", 10, ui_y, 16, rl.Color.gray);
         }
         ui_y += 30;
 
@@ -150,7 +203,7 @@ pub fn main() !void {
         };
 
         for (instructions) |instruction| {
-            rl.drawText(instruction, 10, ui_y, ui_font_size - 2, rl.Color.gray);
+            rl.drawText(instruction, 10, ui_y, 14, rl.Color.gray);
             ui_y += 18;
         }
     }

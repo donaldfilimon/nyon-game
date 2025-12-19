@@ -2,6 +2,35 @@ const std = @import("std");
 const raylib = @import("raylib");
 const nyon = @import("nyon_game");
 
+/// Asset-specific error types with detailed context (modern error handling)
+pub const AssetError = union(enum) {
+    unsupported_texture_format: struct {
+        path: []const u8,
+        extension: []const u8,
+    },
+    texture_load_failed: struct {
+        path: []const u8,
+        reason: []const u8,
+    },
+    file_not_found: struct {
+        path: []const u8,
+        attempted_location: []const u8,
+    },
+    out_of_memory: struct {
+        requested_size: usize,
+        available_size: usize,
+    },
+    invalid_asset_data: struct {
+        path: []const u8,
+        expected_format: []const u8,
+        actual_format: []const u8,
+    },
+    metadata_error: struct {
+        key: []const u8,
+        reason: []const u8,
+    },
+};
+
 /// Asset Management System
 ///
 /// Provides centralized asset loading, caching, and management for the Nyon Game Engine.
@@ -105,20 +134,48 @@ pub const AssetManager = struct {
     }
 
     /// Load a model asset
-    pub fn loadModel(_: *AssetManager, file_path: []const u8, _: LoadOptions) !raylib.Model {
+    pub fn loadModel(_: *AssetManager, file_path: []const u8, _: LoadOptions) (AssetError || error{OutOfMemory})!raylib.Model {
+        // Check if file exists before loading
+        const file = std.fs.cwd().openFile(file_path, .{}) catch {
+            return AssetError{ .file_not_found = .{
+                .path = file_path,
+                .attempted_location = "current working directory",
+            } };
+        };
+        file.close();
+
         // Options not yet implemented for models
         // For now, just load directly without caching
         const model = raylib.loadModel(file_path.ptr);
+
+        // Check if model loaded successfully
+        if (model.meshCount == 0) {
+            return AssetError{ .invalid_asset_data = .{
+                .path = file_path,
+                .expected_format = "Valid 3D model file (.obj, .gltf, etc.)",
+                .actual_format = "Empty or corrupted model file",
+            } };
+        }
+
         return model;
     }
 
     /// Load a texture asset
-    pub fn loadTexture(self: *AssetManager, file_path: []const u8, options: LoadOptions) !raylib.Texture {
+    pub fn loadTexture(self: *AssetManager, file_path: []const u8, options: LoadOptions) (AssetError || error{OutOfMemory})!raylib.Texture {
         // Check cache first
         if (self.textures.get(file_path)) |*entry| {
             entry.ref_count += 1;
             return entry.asset;
         }
+
+        // Check if file exists before loading
+        const file = std.fs.cwd().openFile(file_path, .{}) catch {
+            return AssetError{ .file_not_found = .{
+                .path = file_path,
+                .attempted_location = "current working directory",
+            } };
+        };
+        file.close();
 
         // Load new texture
         var texture: raylib.Texture = undefined;
@@ -127,18 +184,25 @@ pub const AssetManager = struct {
             raylib.imageFlipVertical(&raylib.loadImage(file_path.ptr));
         }
 
-        if (std.mem.eql(u8, std.fs.path.extension(file_path), ".png") or
-            std.mem.eql(u8, std.fs.path.extension(file_path), ".jpg") or
-            std.mem.eql(u8, std.fs.path.extension(file_path), ".jpeg") or
-            std.mem.eql(u8, std.fs.path.extension(file_path), ".bmp"))
+        const ext = std.fs.path.extension(file_path);
+        if (std.mem.eql(u8, ext, ".png") or
+            std.mem.eql(u8, ext, ".jpg") or
+            std.mem.eql(u8, ext, ".jpeg") or
+            std.mem.eql(u8, ext, ".bmp"))
         {
             texture = raylib.loadTexture(file_path.ptr);
         } else {
-            return error.UnsupportedTextureFormat;
+            return AssetError{ .unsupported_texture_format = .{
+                .path = file_path,
+                .extension = ext,
+            } };
         }
 
         if (texture.id == 0) {
-            return error.TextureLoadFailed;
+            return AssetError{ .texture_load_failed = .{
+                .path = file_path,
+                .reason = "Raylib failed to load texture (invalid file or unsupported format)",
+            } };
         }
 
         // Generate mipmaps if requested
@@ -153,14 +217,17 @@ pub const AssetManager = struct {
         var metadata = std.StringHashMap([]const u8).init(self.allocator);
         errdefer metadata.deinit();
 
-        // Add texture metadata
-        const width_str = try std.fmt.allocPrint(self.allocator, "{}", .{texture.width});
-        defer self.allocator.free(width_str);
-        try metadata.put("width", width_str);
+        // Use arena allocator for temporary metadata strings (modern pattern)
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+        const temp_allocator = arena.allocator();
 
-        const height_str = try std.fmt.allocPrint(self.allocator, "{}", .{texture.height});
-        defer self.allocator.free(height_str);
-        try metadata.put("height", height_str);
+        // Add texture metadata
+        const width_str = try std.fmt.allocPrint(temp_allocator, "{}", .{texture.width});
+        try metadata.put("width", try self.allocator.dupe(u8, width_str));
+
+        const height_str = try std.fmt.allocPrint(temp_allocator, "{}", .{texture.height});
+        try metadata.put("height", try self.allocator.dupe(u8, height_str));
 
         const entry = AssetEntry(raylib.Texture){
             .asset = texture,
@@ -210,7 +277,7 @@ pub const AssetManager = struct {
     }
 
     /// Set asset metadata
-    pub fn setAssetMetadata(self: *AssetManager, file_path: []const u8, key: []const u8, value: []const u8) !void {
+    pub fn setAssetMetadata(self: *AssetManager, file_path: []const u8, key: []const u8, value: []const u8) (AssetError || error{OutOfMemory})!void {
         const value_copy = try self.allocator.dupe(u8, value);
         errdefer self.allocator.free(value_copy);
 
@@ -226,7 +293,11 @@ pub const AssetManager = struct {
             try entry.metadata.put(key, value_copy);
         } else {
             self.allocator.free(value_copy);
-            return error.AssetNotFound;
+            return AssetError{ .invalid_asset_data = .{
+                .path = file_path,
+                .expected_format = "Loaded asset",
+                .actual_format = "Asset not found in cache",
+            } };
         }
     }
 
@@ -305,3 +376,44 @@ pub const AssetManager = struct {
         return manifest.toOwnedSlice();
     }
 };
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+test "AssetManager initialization" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var asset_manager = AssetManager.init(allocator);
+    defer asset_manager.deinit();
+
+    try std.testing.expectEqual(asset_manager.models.count(), 0);
+    try std.testing.expectEqual(asset_manager.textures.count(), 0);
+    try std.testing.expectEqual(asset_manager.materials.count(), 0);
+}
+
+test "AssetError detailed context" {
+    const err = AssetError{ .unsupported_texture_format = .{
+        .path = "test.png",
+        .extension = ".png",
+    } };
+
+    try std.testing.expect(std.mem.eql(u8, err.unsupported_texture_format.path, "test.png"));
+    try std.testing.expect(std.mem.eql(u8, err.unsupported_texture_format.extension, ".png"));
+}
+
+test "AssetManager manifest generation" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var asset_manager = AssetManager.init(allocator);
+    defer asset_manager.deinit();
+
+    const manifest = try asset_manager.exportManifest(allocator);
+    defer allocator.free(manifest);
+
+    try std.testing.expect(std.mem.indexOf(u8, manifest, "Asset Manifest") != null);
+}

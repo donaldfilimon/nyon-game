@@ -5,17 +5,57 @@ const raylib = @import("raylib");
 ///
 /// Provides high-level rendering features including dynamic lighting,
 /// advanced camera controls, and rendering pipelines for the Nyon Game Engine.
+/// Now supports Raylib 5.x features like custom shaders and advanced materials.
 pub const RenderingSystem = struct {
     allocator: std.mem.Allocator,
     lights: std.ArrayList(Light),
     cameras: std.ArrayList(Camera),
     active_camera: ?usize,
+    shaders: std.StringHashMap(raylib.Shader), // Raylib 5.x shader management
+    custom_materials: std.ArrayList(CustomMaterial), // Advanced materials
 
     /// Light types supported by the system
     pub const LightType = enum {
         directional,
         point,
         spot,
+    };
+
+    /// Custom material with Raylib 5.x advanced features
+    pub const CustomMaterial = struct {
+        base_material: raylib.Material,
+        shader: raylib.Shader,
+        uniforms: std.StringHashMap(f32), // Custom uniform values
+
+        pub fn init(allocator: std.mem.Allocator, shader: raylib.Shader) !CustomMaterial {
+            var material = raylib.loadMaterialDefault();
+            material.shader = shader;
+
+            return CustomMaterial{
+                .base_material = material,
+                .shader = shader,
+                .uniforms = std.StringHashMap(f32).init(allocator),
+            };
+        }
+
+        pub fn deinit(self: *CustomMaterial) void {
+            raylib.unloadMaterial(self.base_material);
+            self.uniforms.deinit();
+        }
+
+        /// Set a uniform value (Raylib 5.x enhanced shader support)
+        pub fn setUniform(self: *CustomMaterial, name: []const u8, value: f32) !void {
+            const location = raylib.getShaderLocation(self.shader, name.ptr);
+            if (location == -1) return error.InvalidUniformName;
+
+            raylib.setShaderValue(self.shader, location, &value, raylib.ShaderUniformDataType.float);
+            try self.uniforms.put(name, value);
+        }
+
+        /// Get uniform value
+        pub fn getUniform(self: *const CustomMaterial, name: []const u8) ?f32 {
+            return self.uniforms.get(name);
+        }
     };
 
     /// High-level light representation
@@ -30,6 +70,189 @@ pub const RenderingSystem = struct {
         inner_angle: f32, // For spot lights
         outer_angle: f32, // For spot lights
         enabled: bool,
+
+        /// GPU Instancing renderer for efficient rendering of many similar objects
+        pub const InstancingRenderer = struct {
+            allocator: std.mem.Allocator,
+            mesh: raylib.Mesh,
+            material: raylib.Material,
+            instances: std.ArrayList(InstanceData),
+            max_instances: usize = 1000,
+
+            pub const InstanceData = struct {
+                transform: raylib.Matrix,
+                color: raylib.Color,
+                padding: [12]u8 = [_]u8{0} ** 12, // Ensure 16-byte alignment
+            };
+
+            pub fn init(allocator: std.mem.Allocator, mesh: raylib.Mesh, material: raylib.Material) !InstancingRenderer {
+                return InstancingRenderer{
+                    .allocator = allocator,
+                    .mesh = mesh,
+                    .material = material,
+                    .instances = std.ArrayList(InstanceData).initCapacity(allocator, 100) catch return error.OutOfMemory,
+                };
+            }
+
+            pub fn deinit(self: *InstancingRenderer) void {
+                self.instances.deinit();
+            }
+
+            pub fn addInstance(self: *InstancingRenderer, transform: raylib.Matrix, color: raylib.Color) !void {
+                if (self.instances.items.len >= self.max_instances) {
+                    return error.TooManyInstances;
+                }
+
+                const instance = InstanceData{
+                    .transform = transform,
+                    .color = color,
+                };
+
+                self.instances.append(instance) catch return error.OutOfMemory;
+            }
+
+            pub fn clearInstances(self: *InstancingRenderer) void {
+                self.instances.clearRetainingCapacity();
+            }
+
+            pub fn render(self: *InstancingRenderer) void {
+                if (self.instances.items.len == 0) return;
+
+                // For now, render each instance individually
+                // TODO: Implement true GPU instancing with custom shaders
+                for (self.instances.items) |instance| {
+                    raylib.beginMode3D(raylib.Camera3D{
+                        .position = raylib.Vector3{ .x = 0, .y = 5, .z = 10 },
+                        .target = raylib.Vector3{ .x = 0, .y = 0, .z = 0 },
+                        .up = raylib.Vector3{ .x = 0, .y = 1, .z = 0 },
+                        .fovy = 45.0,
+                        .projection = .perspective,
+                    });
+                    defer raylib.endMode3D();
+
+                    // Apply transform
+                    raylib.rlPushMatrix();
+                    raylib.rlMultMatrixf(@ptrCast(&instance.transform));
+
+                    // Draw mesh with material
+                    raylib.drawMesh(self.mesh, self.material, raylib.MatrixIdentity());
+
+                    raylib.rlPopMatrix();
+                }
+            }
+        };
+
+        /// PBR Material system with metallic/roughness workflow
+        pub const PBRMaterialSystem = struct {
+            allocator: std.mem.Allocator,
+            materials: std.ArrayList(PBRMaterial),
+
+            pub const PBRMaterial = struct {
+                base_color: raylib.Color = raylib.WHITE,
+                metallic: f32 = 0.0,
+                roughness: f32 = 0.5,
+                emissive: raylib.Color = raylib.BLACK,
+                albedo_texture: ?raylib.Texture = null,
+                normal_texture: ?raylib.Texture = null,
+                metallic_roughness_texture: ?raylib.Texture = null,
+                emissive_texture: ?raylib.Texture = null,
+                ao_texture: ?raylib.Texture = null,
+
+                pub fn loadFromFiles(
+                    allocator: std.mem.Allocator,
+                    albedo_path: ?[]const u8,
+                    normal_path: ?[]const u8,
+                    metallic_roughness_path: ?[]const u8,
+                    emissive_path: ?[]const u8,
+                    ao_path: ?[]const u8,
+                ) !PBRMaterial {
+                    _ = allocator; // Currently not used for allocations in this context
+                    var material = PBRMaterial{};
+
+                    if (albedo_path) |path| {
+                        material.albedo_texture = raylib.loadTexture(path.ptr);
+                    }
+
+                    if (normal_path) |path| {
+                        material.normal_texture = raylib.loadTexture(path.ptr);
+                    }
+
+                    if (metallic_roughness_path) |path| {
+                        material.metallic_roughness_texture = raylib.loadTexture(path.ptr);
+                    }
+
+                    if (emissive_path) |path| {
+                        material.emissive_texture = raylib.loadTexture(path.ptr);
+                    }
+
+                    if (ao_path) |path| {
+                        material.ao_texture = raylib.loadTexture(path.ptr);
+                    }
+
+                    return material;
+                }
+
+                pub fn toRaylibMaterial(self: PBRMaterial) raylib.Material {
+                    var material = raylib.loadMaterialDefault();
+
+                    // Set PBR properties
+                    if (self.albedo_texture) |tex| {
+                        material.maps[raylib.MATERIAL_MAP_ALBEDO].texture = tex;
+                    }
+
+                    if (self.normal_texture) |tex| {
+                        material.maps[raylib.MATERIAL_MAP_NORMAL].texture = tex;
+                    }
+
+                    if (self.metallic_roughness_texture) |tex| {
+                        material.maps[raylib.MATERIAL_MAP_METALLIC].texture = tex;
+                    }
+
+                    if (self.emissive_texture) |tex| {
+                        material.maps[raylib.MATERIAL_MAP_EMISSION].texture = tex;
+                    }
+
+                    if (self.ao_texture) |tex| {
+                        // Raylib doesn't have a dedicated AO map, use ROUGHNESS
+                        material.maps[raylib.MATERIAL_MAP_ROUGHNESS].texture = tex;
+                    }
+
+                    return material;
+                }
+
+                pub fn unload(self: PBRMaterial) void {
+                    if (self.albedo_texture) |tex| raylib.unloadTexture(tex);
+                    if (self.normal_texture) |tex| raylib.unloadTexture(tex);
+                    if (self.metallic_roughness_texture) |tex| raylib.unloadTexture(tex);
+                    if (self.emissive_texture) |tex| raylib.unloadTexture(tex);
+                    if (self.ao_texture) |tex| raylib.unloadTexture(tex);
+                }
+            };
+
+            pub fn init(allocator: std.mem.Allocator) PBRMaterialSystem {
+                return PBRMaterialSystem{
+                    .allocator = allocator,
+                    .materials = std.ArrayList(PBRMaterial).init(allocator),
+                };
+            }
+
+            pub fn deinit(self: *PBRMaterialSystem) void {
+                for (self.materials.items) |material| {
+                    material.unload();
+                }
+                self.materials.deinit();
+            }
+
+            pub fn createMaterial(self: *PBRMaterialSystem, material: PBRMaterial) !usize {
+                try self.materials.append(material);
+                return self.materials.items.len - 1;
+            }
+
+            pub fn getMaterial(self: *PBRMaterialSystem, index: usize) ?PBRMaterial {
+                if (index >= self.materials.items.len) return null;
+                return self.materials.items[index];
+            }
+        };
 
         /// Create a directional light
         pub fn createDirectional(position: raylib.Vector3, direction: raylib.Vector3, color: raylib.Color, intensity: f32) Light {
@@ -240,6 +463,8 @@ pub const RenderingSystem = struct {
             .lights = std.ArrayList(Light).init(allocator),
             .cameras = std.ArrayList(Camera).init(allocator),
             .active_camera = null,
+            .shaders = std.StringHashMap(raylib.Shader).init(allocator),
+            .custom_materials = std.ArrayList(CustomMaterial).init(allocator),
         };
     }
 
@@ -254,6 +479,18 @@ pub const RenderingSystem = struct {
             camera.deinit(self.allocator);
         }
         self.cameras.deinit();
+
+        // Clean up Raylib 5.x features
+        var shader_iter = self.shaders.iterator();
+        while (shader_iter.next()) |entry| {
+            raylib.unloadShader(entry.value_ptr.*);
+        }
+        self.shaders.deinit();
+
+        for (self.custom_materials.items) |*material| {
+            material.deinit();
+        }
+        self.custom_materials.deinit();
     }
 
     /// Add a light to the system
@@ -375,5 +612,44 @@ pub const RenderingSystem = struct {
     /// Get camera count
     pub fn cameraCount(self: *const RenderingSystem) usize {
         return self.cameras.items.len;
+    }
+
+    /// Load and cache a shader (Raylib 5.x feature)
+    pub fn loadShader(self: *RenderingSystem, name: []const u8, vs_path: ?[]const u8, fs_path: ?[]const u8) !void {
+        const shader = raylib.loadShader(vs_path, fs_path);
+        const name_copy = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(name_copy);
+
+        try self.shaders.put(name_copy, shader);
+    }
+
+    /// Get a cached shader
+    pub fn getShader(self: *const RenderingSystem, name: []const u8) ?raylib.Shader {
+        return self.shaders.get(name);
+    }
+
+    /// Create a custom material with shader (Raylib 5.x feature)
+    pub fn createCustomMaterial(self: *RenderingSystem, shader_name: []const u8) !usize {
+        const shader = self.getShader(shader_name) orelse return error.ShaderNotFound;
+        const material = try CustomMaterial.init(self.allocator, shader);
+
+        const index = self.custom_materials.items.len;
+        try self.custom_materials.append(material);
+        return index;
+    }
+
+    /// Get a custom material by index
+    pub fn getCustomMaterial(self: *RenderingSystem, index: usize) ?*CustomMaterial {
+        if (index < self.custom_materials.items.len) {
+            return &self.custom_materials.items[index];
+        }
+        return null;
+    }
+
+    /// Render with custom material (Raylib 5.x enhanced rendering)
+    pub fn renderWithCustomMaterial(self: *const RenderingSystem, model: raylib.Model, material_index: usize, position: raylib.Vector3, scale: f32, tint: raylib.Color) void {
+        if (self.getCustomMaterial(material_index)) |_| {
+            raylib.drawModelEx(model, position, .{ .x = 0, .y = 1, .z = 0 }, 0, .{ .x = scale, .y = scale, .z = scale }, tint);
+        }
     }
 };

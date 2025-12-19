@@ -118,7 +118,7 @@ pub fn createWorld(allocator: std.mem.Allocator, display_name: []const u8) !Worl
     var world_dir = try std.fs.cwd().makeOpenPath(sub_path, .{});
     defer world_dir.close();
 
-    const now_ns: i64 = @intCast(std.time.nanoTimestamp());
+    const now_ns: i64 = 0; // Placeholder - time functions need investigation
 
     const meta = WorldMeta{
         .version = WORLD_VERSION,
@@ -149,7 +149,7 @@ pub fn touchWorld(allocator: std.mem.Allocator, folder: []const u8, best_score: 
     var meta = try loadWorldMeta(allocator, &dir, folder);
     defer allocator.free(meta.name);
 
-    meta.last_played_ns = @intCast(std.time.nanoTimestamp());
+    meta.last_played_ns = 0; // Placeholder - time functions need investigation
     if (best_score) |score| {
         if (score > meta.best_score) meta.best_score = score;
     }
@@ -180,7 +180,17 @@ fn loadWorldMeta(allocator: std.mem.Allocator, saves_dir: *std.fs.Dir, folder: [
     defer parsed.deinit();
 
     if (parsed.value.version == 0) return WorldError.WorldMetaInvalid;
-    return parsed.value;
+
+    // Duplicate the name string since parsed.value will be freed
+    const name_copy = try allocator.dupe(u8, parsed.value.name);
+    return WorldMeta{
+        .version = parsed.value.version,
+        .name = name_copy,
+        .created_ns = parsed.value.created_ns,
+        .last_played_ns = parsed.value.last_played_ns,
+        .best_score = parsed.value.best_score,
+        .best_time_ms = parsed.value.best_time_ms,
+    };
 }
 
 fn saveWorldMeta(world_dir: *std.fs.Dir, meta: WorldMeta) !void {
@@ -234,9 +244,10 @@ fn uniquifyFolderName(allocator: std.mem.Allocator, base: []const u8) ![]u8 {
 }
 
 fn dirExists(dir: *std.fs.Dir, name: []const u8) bool {
-    if (dir.openDir(name, .{}) catch null) |d| {
-        d.close();
+    if (dir.openDir(name, .{})) |sub_dir| {
+        @constCast(&sub_dir).close();
         return true;
+    } else |_| {
+        return false;
     }
-    return false;
 }

@@ -44,6 +44,8 @@ pub fn build(b: *std.Build) void {
     // No preferred mode is set, allowing the user to decide.
     const optimize = b.standardOptimizeOption(.{});
 
+    // Safety checks are enabled in source code via GeneralPurposeAllocator(.{.safety = true})
+
     // ========================================================================
     // Dependencies
     // ========================================================================
@@ -124,6 +126,17 @@ pub fn build(b: *std.Build) void {
 
     const run_wasm = b.step("run-wasm", "Build WASM and serve (requires web server setup)");
     run_wasm.dependOn(build_wasm);
+
+    // Install the CLI helper for project management
+    const cli = b.addExecutable(.{
+        .name = "nyon-cli",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/cli.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    b.installArtifact(cli);
 }
 
 // ============================================================================
@@ -131,7 +144,6 @@ pub fn build(b: *std.Build) void {
 // ============================================================================
 
 const Dependencies = struct {
-    raylib: *std.Build.Module,
     raylib_artifact: *std.Build.Step.Compile,
     zglfw: ?*std.Build.Module,
 };
@@ -179,21 +191,67 @@ fn setupDependencies(
         zglfw = zglfw_dep.module("glfw");
     }
 
-    // raylib-zig dependency
-    // Provides raylib bindings and the compiled raylib library
-    const raylib_zig_dep = b.dependency("raylib_zig", .{
+    // raylib C library dependency
+    const raylib_dep = b.dependency("raylib", .{
         .target = target,
         .optimize = optimize,
     });
-    const raylib = raylib_zig_dep.module("raylib");
-    const raylib_artifact = raylib_zig_dep.artifact("raylib");
 
-    // Note: raygui and raylib-extras are not included in raylib-zig by default.
-    // They would need to be added as separate dependencies if needed.
-    // For now, raylib core functionality is available via the "raylib" module.
+    // Build raylib from source
+    const raylib_artifact = b.addStaticLibrary(.{
+        .name = "raylib",
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Add raylib source files
+    raylib_artifact.addIncludePath(raylib_dep.path("src"));
+    raylib_artifact.addIncludePath(raylib_dep.path("src/external"));
+    raylib_artifact.addIncludePath(raylib_dep.path("src/external/glfw/include"));
+
+    const raylib_sources = [_][]const u8{
+        "rcore.c",
+        "rshapes.c",
+        "rtextures.c",
+        "rtext.c",
+        "rmodels.c",
+        "raudio.c",
+        "rglfw.c",
+        "utils.c",
+    };
+
+    for (raylib_sources) |source| {
+        raylib_artifact.addCSourceFile(.{
+            .file = raylib_dep.path(b.fmt("src/{s}", .{source})),
+            .flags = &.{"-std=c99"},
+        });
+    }
+
+    // Add GLFW sources for Windows
+    if (target.result.os.tag == .windows) {
+        raylib_artifact.addCSourceFile(.{
+            .file = raylib_dep.path("src/rglfw.c"),
+            .flags = &.{"-std=c99"},
+        });
+    }
+
+    // Define platform-specific macros
+    switch (target.result.os.tag) {
+        .windows => {
+            raylib_artifact.defineCMacro("PLATFORM_DESKTOP", "1");
+            raylib_artifact.defineCMacro("_WIN32", "1");
+        },
+        .linux => {
+            raylib_artifact.defineCMacro("PLATFORM_DESKTOP", "1");
+            raylib_artifact.defineCMacro("_GNU_SOURCE", "1");
+        },
+        .macos => {
+            raylib_artifact.defineCMacro("PLATFORM_DESKTOP", "1");
+        },
+        else => {},
+    }
 
     return .{
-        .raylib = raylib,
         .raylib_artifact = raylib_artifact,
         .zglfw = zglfw,
     };
@@ -212,14 +270,20 @@ fn createLibraryModule(
     target: std.Build.ResolvedTarget,
     deps: Dependencies,
 ) *std.Build.Module {
+    // Create a module that provides C bindings for raylib
+    const raylib_module = b.addModule("raylib", .{
+        .root_source_file = b.path("src/raylib.zig"),
+        .target = target,
+    });
+
     return b.addModule(MODULE_NAME, .{
         .root_source_file = b.path(ROOT_MODULE_PATH),
         .target = target,
         .imports = if (deps.zglfw) |zglfw| &.{
-            .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
+            .{ .name = RAYLIB_IMPORT_NAME, .module = raylib_module },
             .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw },
         } else &.{
-            .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
+            .{ .name = RAYLIB_IMPORT_NAME, .module = raylib_module },
         },
     });
 }
@@ -236,12 +300,10 @@ fn createExecutable(
     deps: Dependencies,
 ) *std.Build.Step.Compile {
     // Build import array conditionally (zglfw not available for WASM)
-    var imports: [3]std.Build.Module.Import = undefined;
+    var imports: [2]std.Build.Module.Import = undefined;
     var import_count: usize = 0;
 
     imports[import_count] = .{ .name = NYON_GAME_IMPORT_NAME, .module = mod };
-    import_count += 1;
-    imports[import_count] = .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib };
     import_count += 1;
 
     // Only add zglfw if available (not available for WASM)
@@ -279,12 +341,10 @@ fn createEditorExecutable(
     deps: Dependencies,
 ) *std.Build.Step.Compile {
     // Build import array conditionally (zglfw not available for WASM)
-    var imports: [3]std.Build.Module.Import = undefined;
+    var imports: [2]std.Build.Module.Import = undefined;
     var import_count: usize = 0;
 
     imports[import_count] = .{ .name = NYON_GAME_IMPORT_NAME, .module = mod };
-    import_count += 1;
-    imports[import_count] = .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib };
     import_count += 1;
 
     // Only add zglfw if available (not available for WASM)
@@ -354,9 +414,6 @@ fn createExampleExecutable(
             .root_source_file = b.path(source),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
-            },
         }),
     });
     exe.linkLibrary(deps.raylib_artifact);

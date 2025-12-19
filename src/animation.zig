@@ -1,6 +1,17 @@
 const std = @import("std");
 const raylib = @import("raylib");
 
+// Math types
+pub const Vector3 = raylib.Vector3;
+pub const Quaternion = raylib.Quaternion;
+
+/// Transform representing position, rotation, and scale
+pub const Transform = struct {
+    position: Vector3 = .{ .x = 0, .y = 0, .z = 0 },
+    rotation: Quaternion = .{ .x = 0, .y = 0, .z = 0, .w = 1 },
+    scale: Vector3 = .{ .x = 1, .y = 1, .z = 1 },
+};
+
 /// Advanced Skeletal Animation System
 ///
 /// Provides high-level animation management with blending, state machines,
@@ -29,22 +40,12 @@ pub const AnimationSystem = struct {
         loop: bool,
         weight: f32, // For blending (0-1)
         fade_time: f32, // For smooth transitions
-        fade_duration: f32,
-        previous_animation: ?AnimationId,
 
-        pub fn init(entity_id: usize) AnimationState {
-            return .{
-                .entity_id = entity_id,
-                .current_animation = null,
-                .playback_time = 0,
-                .speed = 1.0,
-                .loop = true,
-                .weight = 1.0,
-                .fade_time = 0,
-                .fade_duration = 0,
-                .previous_animation = null,
-            };
-        }
+        // Skeletal animation data
+        bone_transforms: []Transform,
+        blend_weight: f32,
+        next_animation: ?AnimationId,
+        transition_progress: f32,
     };
 
     /// Animation clip loaded from file

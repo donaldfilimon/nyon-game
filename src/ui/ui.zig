@@ -5,6 +5,7 @@
 //! and the demo game.
 
 const std = @import("std");
+const raylib = @import("raylib");
 
 const engine_mod = @import("../engine.zig");
 const Color = engine_mod.Color;
@@ -29,61 +30,120 @@ pub const FrameInput = struct {
     mouse_released: bool,
 };
 
+pub const FontSet = struct {
+    regular: raylib.Font,
+    bold: raylib.Font,
+    mono: raylib.Font,
+    icon: raylib.Font,
+
+    pub fn init() FontSet {
+        // Can't call extern functions at comptime, so we'll initialize to undefined
+        // and load fonts at runtime
+        return .{
+            .regular = undefined,
+            .bold = undefined,
+            .mono = undefined,
+            .icon = undefined,
+        };
+    }
+
+    pub fn loadDefault(self: *FontSet) void {
+        // Note: raylib.getFontDefault() should not fail, but handle error for safety
+        self.regular = raylib.getFontDefault() catch unreachable;
+        self.bold = raylib.getFontDefault() catch unreachable;
+        self.mono = raylib.getFontDefault() catch unreachable;
+        self.icon = raylib.getFontDefault() catch unreachable;
+    }
+
+    pub fn loadCustomFonts(self: *FontSet, font_size: i32) void {
+        // Try to load system fonts with fallbacks
+        self.regular = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeui.ttf", font_size, null, 0) catch raylib.getFontDefault();
+        self.bold = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeuib.ttf", font_size, null, 0) catch self.regular;
+        self.mono = raylib.loadFontEx("C:\\Windows\\Fonts\\consola.ttf", font_size, null, 0) catch self.regular;
+        self.icon = raylib.getFontDefault(); // Placeholder
+    }
+
+    pub fn unload(self: FontSet) void {
+        // Only unload if not the default font
+        const default_font = raylib.getFontDefault();
+        if (self.regular.texture.id != default_font.texture.id) raylib.unloadFont(self.regular);
+        if (self.bold.texture.id != default_font.texture.id and self.bold.texture.id != self.regular.texture.id) raylib.unloadFont(self.bold);
+        if (self.mono.texture.id != default_font.texture.id and self.mono.texture.id != self.regular.texture.id) raylib.unloadFont(self.mono);
+        if (self.icon.texture.id != default_font.texture.id) raylib.unloadFont(self.icon);
+    }
+};
+
 pub const UiStyle = struct {
     scale: f32 = 1.0,
+    fonts: ?FontSet = null,
 
     font_size: i32 = 20,
     small_font_size: i32 = 16,
     padding: i32 = 14,
     panel_title_height: i32 = 30,
     border_width: f32 = 2.0,
-    corner_radius: f32 = 0.0,
+    corner_radius: f32 = 6.0,
+    shadow_offset: f32 = 4.0,
 
     panel_bg: Color,
     panel_border: Color,
+    panel_shadow: Color,
     text: Color,
     text_muted: Color,
     accent: Color,
     accent_hover: Color,
+    accent_pressed: Color,
 
+    /// Create UI style from theme with modern defaults
     pub fn fromTheme(theme: UiTheme, opacity: u8, scale: f32) UiStyle {
         const clamped_scale = if (scale < 0.6) 0.6 else if (scale > 2.5) 2.5 else scale;
 
         const base_font: i32 = @intFromFloat(std.math.round(20.0 * clamped_scale));
         const small_font: i32 = @intFromFloat(std.math.round(16.0 * clamped_scale));
-        const pad: i32 = @intFromFloat(std.math.round(14.0 * clamped_scale));
-        const title_h: i32 = @intFromFloat(std.math.round(30.0 * clamped_scale));
+        const pad: i32 = @intFromFloat(std.math.round(16.0 * clamped_scale));
+        const title_h: i32 = @intFromFloat(std.math.round(36.0 * clamped_scale));
+
+        var fonts = FontSet.init();
+        fonts.loadDefault(); // Will be replaced with custom fonts at runtime
 
         return switch (theme) {
             .dark => .{
                 .scale = clamped_scale,
+                .fonts = fonts,
                 .font_size = base_font,
                 .small_font_size = small_font,
                 .padding = pad,
                 .panel_title_height = title_h,
-                .border_width = 2.0,
-                .corner_radius = 0.0,
-                .panel_bg = Color{ .r = 0, .g = 0, .b = 0, .a = opacity },
-                .panel_border = Color{ .r = 255, .g = 255, .b = 255, .a = 255 },
+                .border_width = 1.5,
+                .corner_radius = 8.0,
+                .shadow_offset = 4.0,
+                .panel_bg = Color{ .r = 24, .g = 24, .b = 28, .a = opacity },
+                .panel_border = Color{ .r = 60, .g = 60, .b = 70, .a = 255 },
+                .panel_shadow = Color{ .r = 0, .g = 0, .b = 0, .a = 80 },
                 .text = Color{ .r = 240, .g = 240, .b = 250, .a = 255 },
-                .text_muted = Color{ .r = 200, .g = 200, .b = 210, .a = 255 },
-                .accent = Color{ .r = 110, .g = 190, .b = 255, .a = 255 },
-                .accent_hover = Color{ .r = 160, .g = 220, .b = 255, .a = 255 },
+                .text_muted = Color{ .r = 160, .g = 160, .b = 175, .a = 255 },
+                .accent = Color{ .r = 100, .g = 180, .b = 255, .a = 255 },
+                .accent_hover = Color{ .r = 130, .g = 200, .b = 255, .a = 255 },
+                .accent_pressed = Color{ .r = 80, .g = 160, .b = 235, .a = 255 },
             },
             .light => .{
                 .scale = clamped_scale,
+                .fonts = fonts,
                 .font_size = base_font,
                 .small_font_size = small_font,
                 .padding = pad,
                 .panel_title_height = title_h,
-                .border_width = 2.0,
-                .corner_radius = 0.0,
-                .panel_bg = Color{ .r = 250, .g = 250, .b = 255, .a = opacity },
-                .panel_border = Color{ .r = 30, .g = 30, .b = 40, .a = 255 },
+                .border_width = 1.5,
+                .corner_radius = 8.0,
+                .shadow_offset = 4.0,
+                .panel_bg = Color{ .r = 250, .g = 250, .b = 252, .a = opacity },
+                .panel_border = Color{ .r = 200, .g = 200, .b = 210, .a = 255 },
+                .panel_shadow = Color{ .r = 0, .g = 0, .b = 0, .a = 50 },
                 .text = Color{ .r = 25, .g = 25, .b = 35, .a = 255 },
-                .text_muted = Color{ .r = 90, .g = 90, .b = 105, .a = 255 },
+                .text_muted = Color{ .r = 120, .g = 120, .b = 135, .a = 255 },
                 .accent = Color{ .r = 40, .g = 120, .b = 220, .a = 255 },
                 .accent_hover = Color{ .r = 65, .g = 150, .b = 245, .a = 255 },
+                .accent_pressed = Color{ .r = 25, .g = 100, .b = 200, .a = 255 },
             },
         };
     }
@@ -99,19 +159,64 @@ pub const PanelConfig = struct {
     visible: bool = true,
 };
 
+/// Font configuration for high-DPI rendering
+pub const FontConfig = struct {
+    use_system_font: bool = true,
+    font_path: ?[]const u8 = null,
+    font_size: i32 = 20,
+    title_font_size: i32 = 24,
+    small_font_size: i32 = 16,
+    dpi_scale: f32 = 1.0,
+
+    /// Calculate effective font size with DPI scaling
+    pub fn effectiveFontSize(self: FontConfig, base_size: i32) i32 {
+        return @intFromFloat(@as(f32, @floatFromInt(base_size)) * self.dpi_scale);
+    }
+};
+
+/// Game settings beyond just UI configuration
+pub const GameSettings = struct {
+    // Audio settings
+    master_volume: f32 = 1.0,
+    music_volume: f32 = 0.8,
+    sfx_volume: f32 = 1.0,
+    audio_enabled: bool = true,
+
+    // Gameplay settings
+    show_fps: bool = true,
+    vsync: bool = true,
+    fullscreen: bool = false,
+    target_fps: u32 = 60,
+
+    // Accessibility
+    high_contrast: bool = false,
+    reduced_motion: bool = false,
+    large_text: bool = false,
+
+    // Advanced
+    debug_mode: bool = false,
+    show_performance: bool = false,
+};
+
 /// Persisted UI configuration for sample apps.
 pub const UiConfig = struct {
-    version: u32 = 1,
+    version: u32 = 2, // Incremented for new settings
     theme: UiTheme = .dark,
     opacity: u8 = 180,
     scale: f32 = 1.0,
+
+    // Font settings
+    font: FontConfig = .{},
+
+    // Game settings
+    game: GameSettings = .{},
 
     hud: PanelConfig = .{
         .rect = Rectangle{ .x = 10, .y = 10, .width = 320, .height = 240 },
         .visible = true,
     },
     settings: PanelConfig = .{
-        .rect = Rectangle{ .x = 10, .y = 270, .width = 320, .height = 210 },
+        .rect = Rectangle{ .x = 10, .y = 270, .width = 380, .height = 380 },
         .visible = true,
     },
 
@@ -164,7 +269,7 @@ pub const PanelResult = struct {
 
 /// Immediate-mode UI context with basic interaction state.
 pub const UiContext = struct {
-    style: UiStyle = UiStyle.fromTheme(.dark, 180, 1.0),
+    style: ?UiStyle = null,
     input: FrameInput = .{
         .mouse_pos = Vector2{ .x = 0, .y = 0 },
         .mouse_pressed = false,
@@ -184,11 +289,12 @@ pub const UiContext = struct {
         self.hot_id = 0;
     }
 
-    pub fn endFrame(self: *UiContext) void {
-        if (!self.input.mouse_down) {
-            self.active_id = 0;
-        }
-        self.hot_id = 0;
+    pub fn getStyle(self: UiContext) UiStyle {
+        return self.style orelse UiStyle.fromTheme(.dark, 255, 1.0);
+    }
+
+    pub fn endFrame(_: *UiContext) void {
+        // Reset state for next frame
     }
 
     pub fn makeId(comptime prefix: []const u8, extra: []const u8) u64 {
@@ -202,8 +308,14 @@ pub const UiContext = struct {
     }
 
     pub fn drawPanel(self: *UiContext, rect: Rectangle, title: [:0]const u8, highlight: bool) void {
-        Shapes.drawRectangleRec(rect, self.style.panel_bg);
-        Shapes.drawRectangleLinesEx(rect, self.style.border_width, self.style.panel_border);
+        const radius = self.style.corner_radius;
+        const bg_color = if (highlight) self.style.accent else self.style.panel_bg;
+
+        // Draw rounded background
+        Shapes.drawRectangleRounded(rect, radius / @min(rect.width, rect.height), 8, bg_color);
+
+        // Draw border
+        Shapes.drawRectangleRoundedLines(rect, radius / @min(rect.width, rect.height), 8, self.style.panel_border);
 
         const title_color = if (highlight) self.style.accent_hover else self.style.text;
         const title_y: i32 = @as(i32, @intFromFloat(rect.y)) + @divTrunc(self.style.padding, 2);
@@ -297,14 +409,14 @@ pub const UiContext = struct {
 
         const pressed = hovered and is_active and self.input.mouse_released;
 
-        const bg = if (hovered) self.style.accent_hover else self.style.accent;
+        const bg = if (hovered) self.style.?.accent_hover else self.style.?.accent;
         Shapes.drawRectangleRec(rect, bg);
-        Shapes.drawRectangleLinesEx(rect, self.style.border_width, self.style.panel_border);
+        Shapes.drawRectangleLinesEx(rect, self.style.?.border_width, self.style.?.panel_border);
 
-        const text_w = Text.measure(label, self.style.small_font_size);
+        const text_w = Text.measure(label, self.style.?.small_font_size);
         const tx: i32 = @intFromFloat(rect.x + (rect.width - @as(f32, @floatFromInt(text_w))) / 2.0);
-        const ty: i32 = @intFromFloat(rect.y + (rect.height - @as(f32, @floatFromInt(self.style.small_font_size))) / 2.0);
-        Text.draw(label, tx, ty, self.style.small_font_size, self.style.text);
+        const ty: i32 = @intFromFloat(rect.y + (rect.height - @as(f32, @floatFromInt(self.style.?.small_font_size))) / 2.0);
+        Text.draw(label, tx, ty, self.style.?.small_font_size, self.style.?.text);
 
         return pressed;
     }
@@ -321,8 +433,11 @@ pub const UiContext = struct {
         const clicked = hovered and self.active_id == id and self.input.mouse_released;
         if (clicked) value.* = !value.*;
 
-        Shapes.drawRectangleRec(box, if (value.*) self.style.accent else self.style.panel_bg);
-        Shapes.drawRectangleLinesEx(box, self.style.border_width, self.style.panel_border);
+        const radius = self.style.corner_radius * 0.5;
+        const bg_color = if (value.*) self.style.accent else self.style.panel_bg;
+
+        Shapes.drawRectangleRounded(box, radius / @min(box.width, box.height), 4, bg_color);
+        Shapes.drawRectangleRoundedLines(box, radius / @min(box.width, box.height), 4, self.style.panel_border);
         if (value.*) {
             const mark = Rectangle{
                 .x = box.x + 4,
@@ -359,8 +474,9 @@ pub const UiContext = struct {
             changed = true;
         }
 
-        Shapes.drawRectangleRec(rect, self.style.panel_bg);
-        Shapes.drawRectangleLinesEx(rect, self.style.border_width, self.style.panel_border);
+        const radius = self.style.corner_radius * 0.3;
+        Shapes.drawRectangleRounded(rect, radius / @min(rect.width, rect.height), 6, self.style.panel_bg);
+        Shapes.drawRectangleRoundedLines(rect, radius / @min(rect.width, rect.height), 6, self.style.panel_border);
 
         const ratio = (value.* - min) / (max - min);
         const fill_w = rect.width * (if (ratio < 0.0) 0.0 else if (ratio > 1.0) 1.0 else ratio);

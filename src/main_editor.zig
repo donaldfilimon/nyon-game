@@ -26,6 +26,10 @@ const geometry_nodes = @import("geometry_nodes.zig");
 const docking = @import("docking.zig");
 const property_inspector = @import("property_inspector.zig");
 const post_processing = @import("post_processing.zig");
+const editor_tabs = @import("editor_tabs.zig");
+const ui_context = @import("ui_context.zig");
+const gizmo_system = @import("gizmo_system.zig");
+const tool_system = @import("tool_system.zig");
 
 // ============================================================================
 // Main Editor System
@@ -59,6 +63,8 @@ pub const MainEditor = struct {
     screen_width: f32,
     screen_height: f32,
     tab_bar_height: f32 = 40,
+    toolbar_height: f32 = 35,
+    status_bar_height: f32 = 25,
 
     // Scene editor state
     selected_scene_object: ?usize,
@@ -67,11 +73,19 @@ pub const MainEditor = struct {
     animation_timeline_visible: bool = false,
     animation_playback: bool = false,
 
+    // TUI state
+    tui_command_buffer: std.ArrayList(u8),
+    tui_command_history: std.ArrayList([]const u8),
+    tui_output_lines: std.ArrayList([]const u8),
+    tui_cursor_pos: usize = 0,
+    tui_history_index: i32 = -1,
+
     pub const EditorMode = enum {
         geometry_nodes,
         scene_editor,
         material_editor,
         animation_editor,
+        tui_mode,
     };
 
     /// Initialize the main editor system
@@ -145,6 +159,21 @@ pub const MainEditor = struct {
             null,
         );
 
+        // Initialize TUI state
+        var command_buffer = std.ArrayList(u8).init(allocator);
+        errdefer command_buffer.deinit();
+
+        var command_history = std.ArrayList([]const u8).init(allocator);
+        errdefer command_history.deinit();
+
+        var output_lines = std.ArrayList([]const u8).init(allocator);
+        errdefer output_lines.deinit();
+
+        // Add welcome message
+        try output_lines.append(try allocator.dupe(u8, "Nyon Game Engine TUI v1.0"));
+        try output_lines.append(try allocator.dupe(u8, "Type 'help' for available commands"));
+        try output_lines.append(try allocator.dupe(u8, ""));
+
         return MainEditor{
             .allocator = allocator,
             .scene_system = scene_sys,
@@ -164,6 +193,11 @@ pub const MainEditor = struct {
             .selected_scene_object = null,
             .animation_timeline_visible = false,
             .animation_playback = false,
+            .tui_command_buffer = command_buffer,
+            .tui_command_history = command_history,
+            .tui_output_lines = output_lines,
+            .tui_cursor_pos = 0,
+            .tui_history_index = -1,
         };
     }
 
@@ -180,6 +214,17 @@ pub const MainEditor = struct {
         self.property_inspector.deinit();
         self.geometry_node_editor.deinit();
         self.material_node_editor.deinit();
+
+        // Clean up TUI resources
+        self.tui_command_buffer.deinit();
+        for (self.tui_command_history.items) |cmd| {
+            self.allocator.free(cmd);
+        }
+        self.tui_command_history.deinit();
+        for (self.tui_output_lines.items) |line| {
+            self.allocator.free(line);
+        }
+        self.tui_output_lines.deinit();
     }
 
     /// Update the editor system
@@ -196,6 +241,7 @@ pub const MainEditor = struct {
             .geometry_nodes => self.updateGeometryNodeEditor(dt),
             .material_editor => self.updateMaterialEditor(dt),
             .animation_editor => try self.updateAnimationEditor(dt),
+            .tui_mode => self.updateTUIMode(dt),
         }
 
         // Update animation systems
@@ -216,12 +262,15 @@ pub const MainEditor = struct {
         // Render tab bar
         self.renderTabBar();
 
+        // Render toolbar
+        self.renderToolbar();
+
         // Render based on current mode
         const content_rect = raylib.Rectangle{
             .x = 0,
-            .y = self.tab_bar_height,
+            .y = self.tab_bar_height + self.toolbar_height,
             .width = self.screen_width,
-            .height = self.screen_height - self.tab_bar_height,
+            .height = self.screen_height - self.tab_bar_height - self.toolbar_height - self.status_bar_height,
         };
 
         switch (self.current_mode) {
@@ -229,6 +278,7 @@ pub const MainEditor = struct {
             .geometry_nodes => self.renderGeometryNodeEditor(content_rect),
             .material_editor => self.renderMaterialEditor(content_rect),
             .animation_editor => try self.renderAnimationEditor(content_rect),
+            .tui_mode => self.renderTUIMode(content_rect),
         }
 
         // Render docking panels
@@ -241,6 +291,9 @@ pub const MainEditor = struct {
                 self.property_inspector.render(p.rect);
             }
         }
+
+        // Render status bar
+        self.renderStatusBar();
 
         // Render performance overlay
         self.renderPerformanceOverlay();
@@ -262,7 +315,326 @@ pub const MainEditor = struct {
             .geometry_nodes => self.handleGeometryNodeInput(),
             .material_editor => self.handleMaterialEditorInput(),
             .animation_editor => try self.handleAnimationEditorInput(),
+            .tui_mode => self.handleTUIInput(),
         }
+    }
+
+    fn renderToolbar(self: *MainEditor) void {
+        const toolbar_y = self.tab_bar_height;
+        const toolbar_rect = raylib.Rectangle{
+            .x = 0,
+            .y = toolbar_y,
+            .width = self.screen_width,
+            .height = self.toolbar_height,
+        };
+
+        // Toolbar background
+        raylib.drawRectangleRec(toolbar_rect, raylib.Color{ .r = 50, .g = 50, .b = 60, .a = 255 });
+
+        // Toolbar buttons based on current mode
+        var button_x: f32 = 10;
+        const button_spacing: f32 = 5;
+        const button_height = self.toolbar_height - 6;
+        const button_width: f32 = 80;
+
+        switch (self.current_mode) {
+            .scene_editor => {
+                // Transform tools
+                if (self.renderToolbarButton("Select", button_x, toolbar_y + 3, button_width, button_height)) {
+                    // Select tool activated
+                }
+                button_x += button_width + button_spacing;
+
+                if (self.renderToolbarButton("Move", button_x, toolbar_y + 3, button_width, button_height)) {
+                    // Move tool activated
+                }
+                button_x += button_width + button_spacing;
+
+                if (self.renderToolbarButton("Rotate", button_x, toolbar_y + 3, button_width, button_height)) {
+                    // Rotate tool activated
+                }
+                button_x += button_width + button_spacing;
+
+                if (self.renderToolbarButton("Scale", button_x, toolbar_y + 3, button_width, button_height)) {
+                    // Scale tool activated
+                }
+            },
+            .geometry_nodes => {
+                if (self.renderToolbarButton("Add Node", button_x, toolbar_y + 3, button_width, button_height)) {
+                    // Add node dialog
+                }
+                button_x += button_width + button_spacing;
+
+                if (self.renderToolbarButton("Execute", button_x, toolbar_y + 3, button_width, button_height)) {
+                    self.geometry_node_editor.executeGraph();
+                }
+            },
+            .material_editor => {
+                if (self.renderToolbarButton("New Material", button_x, toolbar_y + 3, button_width, button_height)) {
+                    // New material
+                }
+            },
+            .animation_editor => {
+                if (self.renderToolbarButton("Play", button_x, toolbar_y + 3, button_width, button_height)) {
+                    self.animation_playback = !self.animation_playback;
+                }
+                button_x += button_width + button_spacing;
+
+                if (self.renderToolbarButton("Stop", button_x, toolbar_y + 3, button_width, button_height)) {
+                    self.animation_playback = false;
+                    // Reset to beginning
+                }
+            },
+        }
+
+        // Status text on the right
+        const status_text = switch (self.current_mode) {
+            .scene_editor => "3D Scene Editor - Ready",
+            .geometry_nodes => "Geometry Node Editor - Ready",
+            .material_editor => "Material Editor - Ready",
+            .animation_editor => if (self.animation_playback) "Animation Editor - Playing" else "Animation Editor - Paused",
+        };
+        const status_x = self.screen_width - 200;
+        raylib.drawText(status_text, @intFromFloat(status_x), @intFromFloat(toolbar_y + 8), 12, raylib.Color.white);
+    }
+
+    fn renderToolbarButton(self: *MainEditor, text: []const u8, x: f32, y: f32, width: f32, height: f32) bool {
+        const mouse_pos = raylib.getMousePosition();
+        const button_rect = raylib.Rectangle{ .x = x, .y = y, .width = width, .height = height };
+        const hovered = raylib.checkCollisionPointRec(mouse_pos, button_rect);
+        const clicked = hovered and raylib.isMouseButtonPressed(.left);
+
+        const bg_color = if (hovered) raylib.Color{ .r = 70, .g = 70, .b = 90, .a = 255 } else raylib.Color{ .r = 60, .g = 60, .b = 80, .a = 255 };
+        raylib.drawRectangleRec(button_rect, bg_color);
+        raylib.drawText(text, @intFromFloat(x + 8), @intFromFloat(y + 6), 12, raylib.Color.white);
+
+        return clicked;
+    }
+
+    // ============================================================================
+    // TUI Mode
+    // ============================================================================
+
+    fn updateTUIMode(self: *MainEditor, _: f32) void {
+        // TUI mode doesn't need continuous updates
+        _ = self;
+    }
+
+    fn renderTUIMode(self: *MainEditor, content_rect: raylib.Rectangle) void {
+        raylib.beginScissorMode(
+            @intFromFloat(content_rect.x),
+            @intFromFloat(content_rect.y),
+            @intFromFloat(content_rect.width),
+            @intFromFloat(content_rect.height),
+        );
+
+        // TUI background
+        raylib.drawRectangleRec(content_rect, raylib.Color{ .r = 20, .g = 20, .b = 30, .a = 255 });
+
+        // Render output lines
+        const line_height: f32 = 20;
+        const max_visible_lines = @as(usize, @intFromFloat(content_rect.height / line_height)) - 2; // Leave space for input
+
+        var y: f32 = content_rect.y + 10;
+        var start_line = if (self.tui_output_lines.items.len > max_visible_lines)
+            self.tui_output_lines.items.len - max_visible_lines
+        else
+            0;
+
+        for (self.tui_output_lines.items[start_line..]) |line| {
+            raylib.drawText(line, @intFromFloat(content_rect.x + 10), @intFromFloat(y), 16, raylib.Color.white);
+            y += line_height;
+            if (y > content_rect.y + content_rect.height - 60) break; // Leave space for input
+        }
+
+        // Render command prompt
+        const prompt_y = content_rect.y + content_rect.height - 40;
+        raylib.drawText(">", @intFromFloat(content_rect.x + 10), @intFromFloat(prompt_y), 16, raylib.Color.green);
+
+        // Render command buffer
+        const command_text = self.tui_command_buffer.items;
+        raylib.drawText(command_text, @intFromFloat(content_rect.x + 25), @intFromFloat(prompt_y), 16, raylib.Color.white);
+
+        // Render cursor
+        if (raylib.getTime() - @floor(raylib.getTime()) < 0.5) { // Blinking cursor
+            const cursor_x = content_rect.x + 25 + @as(f32, @floatFromInt(self.tui_cursor_pos)) * 8.5; // Approximate character width
+            raylib.drawLine(@intFromFloat(cursor_x), @intFromFloat(prompt_y), @intFromFloat(cursor_x), @intFromFloat(prompt_y + 16), raylib.Color.white);
+        }
+
+        raylib.endScissorMode();
+    }
+
+    fn handleTUIInput(self: *MainEditor) void {
+        // Handle text input
+        const char = raylib.getCharPressed();
+        if (char != 0) {
+            if (self.tui_cursor_pos < self.tui_command_buffer.items.len) {
+                self.tui_command_buffer.insert(self.tui_cursor_pos, @as(u8, @intCast(char))) catch return;
+            } else {
+                self.tui_command_buffer.append(@as(u8, @intCast(char))) catch return;
+            }
+            self.tui_cursor_pos += 1;
+        }
+
+        // Handle special keys
+        if (raylib.isKeyPressed(.backspace)) {
+            if (self.tui_cursor_pos > 0) {
+                _ = self.tui_command_buffer.orderedRemove(self.tui_cursor_pos - 1);
+                self.tui_cursor_pos -= 1;
+            }
+        }
+
+        if (raylib.isKeyPressed(.enter)) {
+            self.executeTUICommand();
+        }
+
+        if (raylib.isKeyPressed(.up)) {
+            if (self.tui_history_index < @as(i32, @intCast(self.tui_command_history.items.len)) - 1) {
+                self.tui_history_index += 1;
+                const history_cmd = self.tui_command_history.items[self.tui_command_history.items.len - 1 - @as(usize, @intCast(self.tui_history_index))];
+                self.tui_command_buffer.clearRetainingCapacity();
+                self.tui_command_buffer.appendSlice(history_cmd) catch return;
+                self.tui_cursor_pos = history_cmd.len;
+            }
+        }
+
+        if (raylib.isKeyPressed(.down)) {
+            if (self.tui_history_index > 0) {
+                self.tui_history_index -= 1;
+                const history_cmd = self.tui_command_history.items[self.tui_command_history.items.len - 1 - @as(usize, @intCast(self.tui_history_index))];
+                self.tui_command_buffer.clearRetainingCapacity();
+                self.tui_command_buffer.appendSlice(history_cmd) catch return;
+                self.tui_cursor_pos = history_cmd.len;
+            } else if (self.tui_history_index == 0) {
+                self.tui_history_index = -1;
+                self.tui_command_buffer.clearRetainingCapacity();
+                self.tui_cursor_pos = 0;
+            }
+        }
+
+        // Handle left/right arrow keys for cursor movement
+        if (raylib.isKeyPressed(.left)) {
+            if (self.tui_cursor_pos > 0) {
+                self.tui_cursor_pos -= 1;
+            }
+        }
+        if (raylib.isKeyPressed(.right)) {
+            if (self.tui_cursor_pos < self.tui_command_buffer.items.len) {
+                self.tui_cursor_pos += 1;
+            }
+        }
+    }
+
+    fn executeTUICommand(self: *MainEditor) void {
+        const command = self.tui_command_buffer.items;
+        if (command.len == 0) return;
+
+        // Add command to history
+        const cmd_copy = self.allocator.dupe(u8, command) catch return;
+        self.tui_command_history.append(cmd_copy) catch {
+            self.allocator.free(cmd_copy);
+            return;
+        };
+
+        // Add command to output
+        var output_line = std.ArrayList(u8).initCapacity(self.allocator, command.len + 3) catch return;
+        defer output_line.deinit();
+        output_line.appendSlice("> ") catch return;
+        output_line.appendSlice(command) catch return;
+        const output_cmd = output_line.toOwnedSlice() catch return;
+        self.tui_output_lines.append(output_cmd) catch {
+            self.allocator.free(output_cmd);
+        };
+
+        // Execute command
+        if (std.mem.eql(u8, command, "help")) {
+            self.addTUIOutput("Available commands:");
+            self.addTUIOutput("  help          - Show this help");
+            self.addTUIOutput("  clear         - Clear terminal");
+            self.addTUIOutput("  mode scene    - Switch to scene editor");
+            self.addTUIOutput("  mode geometry - Switch to geometry nodes");
+            self.addTUIOutput("  mode material - Switch to material editor");
+            self.addTUIOutput("  mode animation- Switch to animation editor");
+            self.addTUIOutput("  mode tui      - Stay in TUI mode");
+            self.addTUIOutput("  exit          - Exit application");
+        } else if (std.mem.eql(u8, command, "clear")) {
+            for (self.tui_output_lines.items) |line| {
+                self.allocator.free(line);
+            }
+            self.tui_output_lines.clearRetainingCapacity();
+            self.addTUIOutput("Terminal cleared");
+        } else if (std.mem.startsWith(u8, command, "mode ")) {
+            const mode_arg = command[5..];
+            if (std.mem.eql(u8, mode_arg, "scene")) {
+                self.current_mode = .scene_editor;
+                self.addTUIOutput("Switched to Scene Editor");
+            } else if (std.mem.eql(u8, mode_arg, "geometry")) {
+                self.current_mode = .geometry_nodes;
+                self.addTUIOutput("Switched to Geometry Nodes");
+            } else if (std.mem.eql(u8, mode_arg, "material")) {
+                self.current_mode = .material_editor;
+                self.addTUIOutput("Switched to Material Editor");
+            } else if (std.mem.eql(u8, mode_arg, "animation")) {
+                self.current_mode = .animation_editor;
+                self.addTUIOutput("Switched to Animation Editor");
+            } else if (std.mem.eql(u8, mode_arg, "tui")) {
+                self.addTUIOutput("Already in TUI mode");
+            } else {
+                self.addTUIOutput("Unknown mode. Use: scene, geometry, material, animation, tui");
+            }
+        } else if (std.mem.eql(u8, command, "exit")) {
+            // This would need to be handled at a higher level
+            self.addTUIOutput("Use Ctrl+C or close window to exit");
+        } else {
+            var unknown_msg = std.ArrayList(u8).initCapacity(self.allocator, command.len + 20) catch return;
+            defer unknown_msg.deinit();
+            unknown_msg.appendSlice("Unknown command: ") catch return;
+            unknown_msg.appendSlice(command) catch return;
+            const unknown_str = unknown_msg.toOwnedSlice() catch return;
+            self.tui_output_lines.append(unknown_str) catch {
+                self.allocator.free(unknown_str);
+            };
+        }
+
+        // Clear command buffer
+        self.tui_command_buffer.clearRetainingCapacity();
+        self.tui_cursor_pos = 0;
+        self.tui_history_index = -1;
+    }
+
+    fn addTUIOutput(self: *MainEditor, text: []const u8) void {
+        const output_line = self.allocator.dupe(u8, text) catch return;
+        self.tui_output_lines.append(output_line) catch {
+            self.allocator.free(output_line);
+        };
+    }
+
+    fn renderStatusBar(self: *MainEditor) void {
+        const status_bar_y = self.screen_height - self.status_bar_height;
+        const status_bar_rect = raylib.Rectangle{
+            .x = 0,
+            .y = status_bar_y,
+            .width = self.screen_width,
+            .height = self.status_bar_height,
+        };
+
+        // Status bar background
+        raylib.drawRectangleRec(status_bar_rect, raylib.Color{ .r = 40, .g = 40, .b = 50, .a = 255 });
+
+        // Left side: mode info
+        const mode_text = switch (self.current_mode) {
+            .scene_editor => "Scene Editor",
+            .geometry_nodes => "Geometry Nodes",
+            .material_editor => "Material Editor",
+            .animation_editor => "Animation Editor",
+        };
+        raylib.drawText(mode_text, 10, @intFromFloat(status_bar_y + 6), 12, raylib.Color.white);
+
+        // Right side: performance info
+        var perf_buf: [64]u8 = undefined;
+        const fps_text = std.fmt.bufPrint(&perf_buf, "FPS: {}", .{raylib.getFPS()}) catch "FPS: ?";
+        const fps_x = self.screen_width - 80;
+        raylib.drawText(fps_text, @intFromFloat(fps_x), @intFromFloat(status_bar_y + 6), 12, raylib.Color.white);
     }
 
     // ============================================================================
@@ -282,6 +654,7 @@ pub const MainEditor = struct {
                 1 => .scene_editor,
                 2 => .material_editor,
                 3 => .animation_editor,
+                4 => .tui_mode,
                 else => self.current_mode,
             };
         }
@@ -291,7 +664,7 @@ pub const MainEditor = struct {
         // Background
         raylib.drawRectangle(0, 0, @intFromFloat(self.screen_width), @intFromFloat(self.tab_bar_height), raylib.Color{ .r = 40, .g = 40, .b = 50, .a = 255 });
 
-        const tab_names = [_][:0]const u8{ "Geometry Nodes", "Scene Editor", "Material Editor", "Animation Editor" };
+        const tab_names = [_][:0]const u8{ "Geometry Nodes", "Scene Editor", "Material Editor", "Animation Editor", "TUI" };
         const tab_width = self.screen_width / @as(f32, @floatFromInt(tab_names.len));
 
         for (tab_names, 0..) |name, i| {
@@ -462,19 +835,61 @@ pub const MainEditor = struct {
     }
 
     fn renderGeometryNodeEditor(self: *MainEditor, content_rect: raylib.Rectangle) void {
+        // Create a more sophisticated layout with panels
+        const panel_margin: f32 = 5;
+        const panel_header_height: f32 = 25;
+
+        // Left panel: 3D Preview (40%)
+        const preview_width = content_rect.width * 0.4;
+        const left_panel_rect = raylib.Rectangle{
+            .x = content_rect.x + panel_margin,
+            .y = content_rect.y + panel_margin,
+            .width = preview_width - panel_margin * 2,
+            .height = content_rect.height - panel_margin * 2,
+        };
+
+        // Right panel: Node Editor (60%)
+        const right_panel_rect = raylib.Rectangle{
+            .x = content_rect.x + preview_width + panel_margin,
+            .y = content_rect.y + panel_margin,
+            .width = content_rect.width - preview_width - panel_margin * 2,
+            .height = content_rect.height - panel_margin * 2,
+        };
+
+        // Render left panel (3D Preview)
+        self.renderGeometryPreviewPanel(left_panel_rect);
+
+        // Render right panel (Node Editor)
+        self.renderGeometryNodePanel(right_panel_rect);
+    }
+
+    fn renderGeometryPreviewPanel(self: *MainEditor, panel_rect: raylib.Rectangle) void {
+        // Panel background
+        raylib.drawRectangleRec(panel_rect, raylib.Color{ .r = 35, .g = 35, .b = 45, .a = 255 });
+        raylib.drawRectangleLinesEx(panel_rect, 1, raylib.Color{ .r = 60, .g = 60, .b = 70, .a = 255 });
+
+        // Panel header
+        const header_rect = raylib.Rectangle{
+            .x = panel_rect.x,
+            .y = panel_rect.y,
+            .width = panel_rect.width,
+            .height = 25,
+        };
+        raylib.drawRectangleRec(header_rect, raylib.Color{ .r = 45, .g = 45, .b = 55, .a = 255 });
+        raylib.drawText("3D Preview", @intFromFloat(panel_rect.x + 8), @intFromFloat(panel_rect.y + 6), 14, raylib.Color.white);
+
+        // 3D content area
+        const content_rect = raylib.Rectangle{
+            .x = panel_rect.x + 2,
+            .y = panel_rect.y + 27,
+            .width = panel_rect.width - 4,
+            .height = panel_rect.height - 29,
+        };
+
         raylib.beginScissorMode(
             @intFromFloat(content_rect.x),
             @intFromFloat(content_rect.y),
             @intFromFloat(content_rect.width),
-            @intFromFloat(content_rect.height),
-        );
-
-        // Render 3D preview (left side)
-        const preview_width = content_rect.width * 0.6;
-        raylib.beginScissorMode(
-            @intFromFloat(content_rect.x),
-            @intFromFloat(content_rect.y),
-            @intFromFloat(preview_width),
             @intFromFloat(content_rect.height),
         );
 
@@ -492,18 +907,39 @@ pub const MainEditor = struct {
         self.drawGrid();
         self.rendering_system.endRendering();
         raylib.endScissorMode();
+    }
 
-        // Render node editor (right side)
+    fn renderGeometryNodePanel(self: *MainEditor, panel_rect: raylib.Rectangle) void {
+        // Panel background
+        raylib.drawRectangleRec(panel_rect, raylib.Color{ .r = 35, .g = 35, .b = 45, .a = 255 });
+        raylib.drawRectangleLinesEx(panel_rect, 1, raylib.Color{ .r = 60, .g = 60, .b = 70, .a = 255 });
+
+        // Panel header with controls
+        const header_rect = raylib.Rectangle{
+            .x = panel_rect.x,
+            .y = panel_rect.y,
+            .width = panel_rect.width,
+            .height = 25,
+        };
+        raylib.drawRectangleRec(header_rect, raylib.Color{ .r = 45, .g = 45, .b = 55, .a = 255 });
+        raylib.drawText("Node Editor", @intFromFloat(panel_rect.x + 8), @intFromFloat(panel_rect.y + 6), 14, raylib.Color.white);
+
+        // Node editor content area
+        const content_rect = raylib.Rectangle{
+            .x = panel_rect.x + 2,
+            .y = panel_rect.y + 27,
+            .width = panel_rect.width - 4,
+            .height = panel_rect.height - 29,
+        };
+
         raylib.beginScissorMode(
-            @intFromFloat(content_rect.x + preview_width),
+            @intFromFloat(content_rect.x),
             @intFromFloat(content_rect.y),
-            @intFromFloat(content_rect.width - preview_width),
+            @intFromFloat(content_rect.width),
             @intFromFloat(content_rect.height),
         );
 
-        self.geometry_node_editor.renderNodeEditor(content_rect.width - preview_width, content_rect.height);
-        raylib.endScissorMode();
-
+        self.geometry_node_editor.renderNodeEditor(content_rect.width, content_rect.height);
         raylib.endScissorMode();
     }
 

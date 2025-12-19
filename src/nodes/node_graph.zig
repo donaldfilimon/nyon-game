@@ -521,6 +521,19 @@ pub const NodeGraph = struct {
         self.invalidateCache();
     }
 
+    /// Pretty‑print the node graph for debugging purposes.
+    pub fn debugPrint(self: *const NodeGraph) void {
+        std.debug.print("NodeGraph with {d} nodes\n", .{self.nodes.items.len});
+        for (self.nodes.items, 0..) |node, i| {
+            std.debug.print("  {d}: {s} at ({d:.1},{d:.1})\n", .{
+                i,
+                node.node_type,
+                node.position.x,
+                node.position.y,
+            });
+        }
+    }
+
     fn duplicateValues(_: *const NodeGraph, values: []const Value, allocator: std.mem.Allocator) ![]Value {
         var result = try allocator.alloc(Value, values.len);
         for (values, 0..) |val, i| {

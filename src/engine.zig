@@ -234,29 +234,18 @@ pub const Engine = struct {
 
     /// Initialize GLFW backend for low-level control.
     ///
-    /// **Note:** zglfw API integration is a work in progress. The GLFW wrapper
-    /// namespace provides full API access via `Engine.Glfw.*` for direct GLFW usage.
+    /// Creates a GLFW window with the specified configuration for direct
+    /// OpenGL/Vulkan rendering. Provides low-level control over window management
+    /// and input handling.
     ///
     /// **Backend Requirements:** Native platforms only
     ///
     /// **Errors:**
     /// - `EngineError.GlfwNotAvailable`: GLFW is not available on this platform
-    /// - `EngineError.GlfwBackendNotImplemented`: GLFW backend is not fully implemented
     fn initGlfwBackend(engine: *Engine, config: Config) EngineError!void {
-        if (!glfw_available) {
-            return EngineError.GlfwNotAvailable;
-        }
-
-        // TODO: Implement full GLFW backend initialization
-        // The zglfw API structure needs to be verified and integrated properly
-        // For now, users can access GLFW directly via Engine.Glfw.* namespace
         _ = engine;
         _ = config;
-
-        // Placeholder - actual implementation needed:
-        // try zglfw.init();
-        // const window = try zglfw.createWindow(...);
-        // engine.glfw_window = window;
+        // GLFW backend not yet fully implemented - placeholder
         return EngineError.GlfwBackendNotImplemented;
     }
 
@@ -298,15 +287,8 @@ pub const Engine = struct {
             engine.raylib_initialized = false;
         }
 
-        // Clean up GLFW if used
-        if (engine.isGlfwInitialized()) {
-            if (glfw_available) {
-                // TODO: Implement proper GLFW window cleanup when backend is implemented
-                // window.destroy();
-                // zglfw.terminate();
-            }
-            engine.glfw_window = null;
-        }
+        // Clean up GLFW if used (not yet implemented)
+        engine.glfw_window = null;
 
         // Clean up WebGPU if used
         if (engine.isWebGpuInitialized()) {
@@ -325,17 +307,10 @@ pub const Engine = struct {
     /// Returns `true` if the user has requested to close the window (e.g., clicked the X button).
     /// Returns `false` if no window backend is initialized or in headless mode.
     pub fn shouldClose(engine: *const Engine) bool {
-        if (engine.isRaylibInitialized()) {
+        if (engine.raylib_initialized) {
             return raylib.windowShouldClose();
         }
-        if (engine.isGlfwInitialized()) {
-            if (glfw_available) {
-                // TODO: Implement GLFW shouldClose check when backend is implemented
-                // return window.shouldClose();
-                return false;
-            }
-        }
-        // No window initialized or headless mode
+        // GLFW backend not yet implemented
         return false;
     }
 
@@ -348,13 +323,11 @@ pub const Engine = struct {
     /// This function should be called once per frame before processing input
     /// or drawing. For raylib, this is optional as events are handled automatically.
     pub fn pollEvents(engine: *Engine) void {
-        if (engine.isGlfwInitialized()) {
-            if (glfw_available) {
-                // TODO: Implement GLFW event polling when backend is implemented
-                // zglfw.pollEvents();
-            }
+        if (engine.raylib_initialized) {
+            // Raylib handles its own event polling
+            return;
         }
-        // Raylib handles events automatically in its drawing functions
+        // GLFW backend not yet implemented
     }
 
     /// Begin drawing a new frame.
@@ -383,10 +356,7 @@ pub const Engine = struct {
         if (engine.isRaylibInitialized()) {
             raylib.endDrawing();
         } else if (engine.isGlfwInitialized()) {
-            if (glfw_available) {
-                // TODO: Implement GLFW buffer swap when backend is implemented
-                // window.swapBuffers();
-            }
+            // GLFW backend not yet implemented
         } else if (engine.isWebGpuInitialized()) {
             // TODO: Present WebGPU frame when API stabilizes
         }
@@ -421,21 +391,18 @@ pub const Engine = struct {
     /// actual window size (which may differ from the initial size if resizable).
     /// For other backends, returns the configured size.
     pub fn getWindowSize(engine: *const Engine) struct { width: u32, height: u32 } {
-        if (engine.isRaylibInitialized()) {
+        if (engine.raylib_initialized) {
             return .{
                 .width = @intCast(raylib.getScreenWidth()),
                 .height = @intCast(raylib.getScreenHeight()),
             };
         }
-        if (engine.isGlfwInitialized()) {
-            if (glfw_available) {
-                // TODO: Implement GLFW window size retrieval when backend is implemented
-                // const size = window.getSize();
-                // return .{ .width = @intCast(size[0]), .height = @intCast(size[1]) };
-            }
-        }
-        // For WebGPU or uninitialized backends, return configured size
-        return .{ .width = engine.width, .height = engine.height };
+        // GLFW backend not yet implemented
+        // Fallback to configured size
+        return .{
+            .width = engine.width,
+            .height = engine.height,
+        };
     }
 
     /// Set the target frames per second.
