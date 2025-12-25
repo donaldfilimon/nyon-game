@@ -571,13 +571,15 @@ pub const MainEditor = struct {
             if (wheel != 0) camera.zoom(1.0 + wheel * 0.1);
         }
         if (raylib.isMouseButtonPressed(.left) and !self.isMouseOverUI()) {
-            const ray = raylib.getMouseRay(raylib.getMousePosition(), self.rendering_system.getActiveCamera().?.camera);
-            if (self.scene_system.raycast(ray)) |hit| {
-                self.selected_scene_object = hit.model_index;
-                self.property_inspector.setSelectedObject(.{ .scene_node = hit.model_index });
-            } else {
-                self.selected_scene_object = null;
-                self.property_inspector.setSelectedObject(null);
+            if (self.rendering_system.getActiveCamera()) |camera| {
+                const ray = raylib.getMouseRay(raylib.getMousePosition(), camera.camera);
+                if (self.scene_system.raycast(ray)) |hit| {
+                    self.selected_scene_object = hit.model_index;
+                    self.property_inspector.setSelectedObject(.{ .scene_node = hit.model_index });
+                } else {
+                    self.selected_scene_object = null;
+                    self.property_inspector.setSelectedObject(null);
+                }
             }
         }
     }
@@ -609,8 +611,8 @@ pub const MainEditor = struct {
             if (self.scene_system.getModelInfo(obj_id)) |info| {
                 var transform_changed = false;
                 var new_pos = info.position;
-                const new_rot = info.rotation;
-                var new_scale = info.scale;
+                var new_rot = info.rotation;
+                const new_scale = info.scale;
                 if (raylib.isKeyDown(.w)) {
                     new_pos.z -= 0.1;
                     transform_changed = true;
@@ -678,6 +680,7 @@ pub const MainEditor = struct {
     fn renderGeometryNodeEditor(self: *MainEditor, content_rect: raylib.Rectangle) void {
         const panel_margin: f32 = 5;
         const panel_header_height: f32 = 25;
+        _ = panel_header_height; // autofix
         const preview_width = content_rect.width * 0.4;
         const left_panel_rect = raylib.Rectangle{
             .x = content_rect.x + panel_margin,

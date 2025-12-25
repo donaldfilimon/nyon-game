@@ -459,16 +459,17 @@ pub const Engine = struct {
         if (engine.isRaylibInitialized()) {
             raylib.clearBackground(color);
         } else if (engine.isWebGpuInitialized()) {
-            // WebGPU clear implementation
-            // This would typically be done in beginDrawing/endDrawing with render passes
-            _ = color; // Store clear color for use in render pass
-        } else {
-            // GLFW backend requires manual OpenGL/Vulkan clearing
-            _ = color; // Store clear color for manual clearing
+            // WebGPU clear implementation.
+            // This would typically be done in beginDrawing/endDrawing with render passes.
+            // Store or handle clear color for use in render pass in actual implementation.
+            // No-op for now.
+        } else if (engine.isGlfwInitialized()) {
+            // GLFW backend requires manual OpenGL/Vulkan clearing.
+            // TODO: Implement OpenGL/Vulkan clear using the color parameter when backend is ready.
+            // Implementation will go here.
         }
+        // No code path remains that requires discarding the color parameter.
     }
-
-    /// Get the current window size in pixels.
     ///
     /// **Backend Requirements:** Works with all backends
     ///
