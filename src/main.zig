@@ -26,7 +26,7 @@ const worlds_mod = @import("game/worlds.zig");
 const FontManager = @import("font_manager.zig").FontManager;
 
 // Import game state module
-const game_state = @import("game/state.zig");
+const game_state_module = @import("game/state.zig");
 
 // ============================================================================
 // Game Constants (keeping local copies for now during refactoring)
@@ -189,7 +189,7 @@ const NameInput = struct {
 
 const MenuState = struct {
     allocator: std.mem.Allocator,
-    ctx: ui_mod.UiContext = ui_mod.UiContext{},
+    ctx: ui_mod.UiContext = ui_mod.UiContext{ .style = ui_mod.UiStyle.fromTheme(.dark, 180, 1.0) },
     worlds: []worlds_mod.WorldEntry = &.{},
     selected_world: ?usize = null,
     create_name: NameInput = NameInput{},
@@ -221,7 +221,7 @@ const MenuState = struct {
 
 const GameUiState = struct {
     config: ui_mod.UiConfig,
-    ctx: ui_mod.UiContext = ui_mod.UiContext{},
+    ctx: ui_mod.UiContext = ui_mod.UiContext{ .style = ui_mod.UiStyle.fromTheme(.dark, 180, 1.0) },
     edit_mode: bool = false,
     dirty: bool = false,
     font_manager: FontManager,
@@ -271,15 +271,15 @@ fn defaultUiScaleFromDpi() f32 {
 fn resetGameState(game_state: *GameState) void {
     var idx: usize = 0;
     for (game_state.items[0..]) |*item| {
-        const pos = game_state.INITIAL_ITEM_POSITIONS[idx];
+        const pos = INITIAL_ITEM_POSITIONS[idx];
         item.* = CollectibleItem{ .x = pos[0], .y = pos[1], .collected = false };
         idx += 1;
     }
-    game_state.remaining_items = game_state.DEFAULT_ITEM_COUNT;
+    game_state.remaining_items = DEFAULT_ITEM_COUNT;
     game_state.score = 0;
     game_state.game_time = 0.0;
-    game_state.player_x = game_state.PLAYER_START_X;
-    game_state.player_y = game_state.PLAYER_START_Y;
+    game_state.player_x = PLAYER_START_X;
+    game_state.player_y = PLAYER_START_Y;
     game_state.has_won = false;
     game_state.file_info.clear();
 }
@@ -287,6 +287,18 @@ fn resetGameState(game_state: *GameState) void {
 fn updateFileInfo(game_state: *GameState, path: []const u8) !void {
     const meta = try file_metadata.get(path);
     game_state.file_info.set(path, meta.size, meta.modified_ns);
+}
+
+fn clearWorldSession(session: *?WorldSession) void {
+    if (session.*) |*active| {
+        active.deinit();
+        session.* = null;
+    }
+}
+
+fn setWorldSession(session: *?WorldSession, value: WorldSession) void {
+    clearWorldSession(session);
+    session.* = value;
 }
 
 fn loadFileMetadata(game_state: *GameState, status_message: *StatusMessage, path: []const u8) !void {

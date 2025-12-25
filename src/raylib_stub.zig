@@ -26,11 +26,23 @@ pub const Vector3 = extern struct {
     z: f32,
 };
 
+pub const Vector4 = extern struct {
+    x: f32,
+    y: f32,
+    z: f32,
+    w: f32,
+};
+
 pub const Rectangle = extern struct {
     x: f32,
     y: f32,
     width: f32,
     height: f32,
+};
+
+pub const BoundingBox = extern struct {
+    min: Vector3,
+    max: Vector3,
 };
 
 pub const KeyboardKey = enum(c_int) {
@@ -79,6 +91,11 @@ pub fn setWindowPosition(x: c_int, y: c_int) void {
     _ = x;
     _ = y;
     // Stub - does nothing
+}
+
+pub fn getWindowScaleDPI() Vector2 {
+    // Stub - return default DPI
+    return .{ .x = 1.0, .y = 1.0 };
 }
 
 pub fn windowShouldClose() bool {
@@ -277,6 +294,23 @@ pub fn drawRectangleLinesEx(rec: Rectangle, lineThick: f32, color: Color) void {
     // Stub - does nothing
 }
 
+pub fn drawRectangleRounded(rec: Rectangle, roundness: f32, segments: c_int, color: Color) void {
+    _ = rec;
+    _ = roundness;
+    _ = segments;
+    _ = color;
+    // Stub - does nothing
+}
+
+pub fn drawRectangleRoundedLines(rec: Rectangle, roundness: f32, segments: c_int, lineThick: f32, color: Color) void {
+    _ = rec;
+    _ = roundness;
+    _ = segments;
+    _ = lineThick;
+    _ = color;
+    // Stub - does nothing
+}
+
 pub fn drawText(text: [*:0]const u8, posX: c_int, posY: c_int, fontSize: c_int, color: Color) void {
     _ = text;
     _ = posX;
@@ -313,6 +347,11 @@ pub const Font = extern struct {
     glyphs: ?[*]GlyphInfo,
 };
 
+pub fn unloadFont(font: Font) void {
+    _ = font;
+    // Stub - does nothing
+}
+
 pub const Texture2D = extern struct {
     id: c_uint,
     width: c_int,
@@ -337,6 +376,95 @@ pub const Image = extern struct {
     format: c_int,
 };
 
+pub const Mesh = extern struct {
+    vertexCount: c_int,
+    triangleCount: c_int,
+    vertices: ?[*]f32,
+    texcoords: ?[*]f32,
+    texcoords2: ?[*]f32,
+    normals: ?[*]f32,
+    tangents: ?[*]f32,
+    colors: ?[*]u8,
+    indices: ?[*]u16,
+    animVertices: ?[*]f32,
+    animNormals: ?[*]f32,
+    boneIds: ?[*]u8,
+    boneWeights: ?[*]f32,
+    vaoId: c_uint,
+    vboId: ?[*]c_uint,
+};
+
+pub const Model = extern struct {
+    transform: Matrix,
+    meshes: ?[*]Mesh,
+    materials: ?[*]Material,
+    meshCount: c_int,
+    materialCount: c_int,
+    boneCount: c_int,
+    bones: ?[*]BoneInfo,
+    bindPose: ?[*]Transform,
+};
+
+pub const Matrix = extern struct {
+    m0: f32,
+    m4: f32,
+    m8: f32,
+    m12: f32,
+    m1: f32,
+    m5: f32,
+    m9: f32,
+    m13: f32,
+    m2: f32,
+    m6: f32,
+    m10: f32,
+    m14: f32,
+    m3: f32,
+    m7: f32,
+    m11: f32,
+    m15: f32,
+};
+
+pub const Material = extern struct {
+    shader: Shader,
+    maps: ?[*]MaterialMap,
+    params: [4]f32,
+};
+
+pub const Shader = extern struct {
+    id: c_uint,
+    locs: ?[*]c_int,
+};
+
+pub const MaterialMap = extern struct {
+    texture: Texture2D,
+    color: Color,
+    value: f32,
+};
+
+pub const BoneInfo = extern struct {
+    name: [32]u8,
+    parent: c_int,
+};
+
+pub const Transform = extern struct {
+    translation: Vector3,
+    rotation: Vector4,
+    scale: Vector3,
+};
+
+pub const CameraProjection = enum(c_int) {
+    perspective = 0,
+    orthographic = 1,
+};
+
+pub const Camera3D = extern struct {
+    position: Vector3,
+    target: Vector3,
+    up: Vector3,
+    fovy: f32,
+    projection: c_int,
+};
+
 pub const ConfigFlags = packed struct(u32) {
     fullscreen_mode: bool,
     window_resizable: bool,
@@ -346,7 +474,7 @@ pub const ConfigFlags = packed struct(u32) {
     vsync_hint: bool,
     window_hidden: bool,
     window_always_run: bool,
-    _padding: u16,
+    _padding: u24,
 };
 
 pub fn setConfigFlags(flags: ConfigFlags) void {

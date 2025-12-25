@@ -333,7 +333,7 @@ pub const UiContext = struct {
         Shapes.drawRectangleRounded(rect, radius / @min(rect.width, rect.height), 8, bg_color);
 
         // Draw border
-        Shapes.drawRectangleRoundedLines(rect, radius / @min(rect.width, rect.height), 8, self.style.panel_border);
+        Shapes.drawRectangleRoundedLines(rect, radius / @min(rect.width, rect.height), 8, self.style.border_width, self.style.panel_border);
 
         const title_color = if (highlight) self.style.accent_hover else self.style.text;
         const title_y: i32 = @as(i32, @intFromFloat(rect.y)) + @divTrunc(self.style.padding, 2);
@@ -427,14 +427,14 @@ pub const UiContext = struct {
 
         const pressed = hovered and is_active and self.input.mouse_released;
 
-        const bg = if (hovered) self.style.?.accent_hover else self.style.?.accent;
+        const bg = if (hovered) self.style.accent_hover else self.style.accent;
         Shapes.drawRectangleRec(rect, bg);
-        Shapes.drawRectangleLinesEx(rect, self.style.?.border_width, self.style.?.panel_border);
+        Shapes.drawRectangleLinesEx(rect, self.style.border_width, self.style.panel_border);
 
-        const text_w = Text.measure(label, self.style.?.small_font_size);
+        const text_w = Text.measure(label, self.style.small_font_size);
         const tx: i32 = @intFromFloat(rect.x + (rect.width - @as(f32, @floatFromInt(text_w))) / 2.0);
-        const ty: i32 = @intFromFloat(rect.y + (rect.height - @as(f32, @floatFromInt(self.style.?.small_font_size))) / 2.0);
-        Text.draw(label, tx, ty, self.style.?.small_font_size, self.style.?.text);
+        const ty: i32 = @intFromFloat(rect.y + (rect.height - @as(f32, @floatFromInt(self.style.small_font_size))) / 2.0);
+        Text.draw(label, tx, ty, self.style.small_font_size, self.style.text);
 
         return pressed;
     }
@@ -455,7 +455,7 @@ pub const UiContext = struct {
         const bg_color = if (value.*) self.style.accent else self.style.panel_bg;
 
         Shapes.drawRectangleRounded(box, radius / @min(box.width, box.height), 4, bg_color);
-        Shapes.drawRectangleRoundedLines(box, radius / @min(box.width, box.height), 4, self.style.panel_border);
+        Shapes.drawRectangleRoundedLines(box, radius / @min(box.width, box.height), 4, self.style.border_width, self.style.panel_border);
         if (value.*) {
             const mark = Rectangle{
                 .x = box.x + 4,

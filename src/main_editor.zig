@@ -325,7 +325,6 @@ pub const MainEditor = struct {
 
     /// Utility for contextual toolbar button drawing and click detection.
     fn renderToolbarButton(
-        self: *MainEditor,
         text: []const u8,
         x: f32,
         y: f32,
@@ -662,7 +661,7 @@ pub const MainEditor = struct {
             if (self.scene_system.getModelInfo(obj_id)) |info| {
                 var transform_changed = false;
                 var new_pos = info.position;
-                var new_rot = info.rotation;
+                const new_rot = info.rotation;
                 const new_scale = info.scale;
                 if (raylib.isKeyDown(.w)) {
                     new_pos.z -= 0.1;
@@ -912,8 +911,8 @@ pub const MainEditor = struct {
             const track_name = std.fmt.bufPrint(&buf, "{s}", .{track.name}) catch "Track";
             raylib.drawText(track_name.ptr, 10, @intFromFloat(track_y + 5), 12, raylib.Color.white);
             if (total_duration > 0) {
-                for (track.keyframes.items) |keyframe| {
-                    const key_x = (keyframe.time / total_duration) * (width - 100) + 50;
+                for (track.keyframes.items) |keyframe_| {
+                    const key_x = (keyframe_.time / total_duration) * (width - 100) + 50;
                     raylib.drawCircle(@intFromFloat(key_x), @intFromFloat(track_y + 12), 3, raylib.Color.yellow);
                 }
             }
@@ -942,7 +941,7 @@ pub const MainEditor = struct {
     }
 
     /// Quick grid lines for 3D views.
-    fn drawGrid(self: *MainEditor) void {
+    fn drawGrid() void {
         const half_size = 10;
         var i: i32 = -half_size;
         while (i <= half_size) : (i += 1) {
@@ -991,7 +990,7 @@ pub const MaterialNodeEditor = struct {
         _ = self;
     }
 
-    pub fn render(self: *MaterialNodeEditor, width: f32, height: f32) void {
+    pub fn render(width: f32, height: f32) void {
         raylib.drawRectangle(0, 0, @intFromFloat(width), @intFromFloat(height), raylib.Color{ .r = 30, .g = 30, .b = 40, .a = 255 });
         raylib.drawText("Material Node Editor", @intFromFloat(width / 2 - 100), @intFromFloat(height / 2 - 10), 20, raylib.Color.gray);
         raylib.drawText("(Under Development)", @intFromFloat(width / 2 - 80), @intFromFloat(height / 2 + 15), 16, raylib.Color.gray);

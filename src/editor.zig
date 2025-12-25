@@ -1,6 +1,7 @@
 const std = @import("std");
 const rl = @import("raylib");
-const nyon = @import("nyon_game");
+const geometry_nodes = @import("geometry_nodes.zig");
+const scene_mod = @import("scene.zig");
 
 /// Nyon Game Editor with Node-Based Geometry System
 ///
@@ -25,7 +26,7 @@ pub fn main() !void {
     // Use default font for now (font loading has API issues)
 
     // Initialize geometry node system
-    var geometry_system = try nyon.geometry_nodes.GeometryNodeSystem.init(std.heap.page_allocator);
+    var geometry_system = try geometry_nodes.GeometryNodeSystem.init(std.heap.page_allocator);
     defer geometry_system.deinit();
 
     // Enable 3D mode
@@ -34,11 +35,11 @@ pub fn main() !void {
         .target = rl.Vector3{ .x = 0, .y = 0, .z = 0 },
         .up = rl.Vector3{ .x = 0, .y = 1, .z = 0 },
         .fovy = 45.0,
-        .projection = .perspective,
+        .projection = @intFromEnum(rl.CameraProjection.perspective),
     };
 
     // Create 3D scene for preview
-    var scene = nyon.Scene.init(std.heap.page_allocator);
+    var scene = scene_mod.Scene.init(std.heap.page_allocator);
     defer scene.deinit();
 
     // UI state
@@ -226,7 +227,7 @@ fn handleCameraControls(camera_angle: *rl.Vector2, camera_distance: *f32) void {
 }
 
 /// Handle node interaction in the node editor
-fn handleNodeInteraction(geometry_system: *nyon.geometry_nodes.GeometryNodeSystem, selected_node: *?usize, is_dragging: *bool, drag_offset: *rl.Vector2, editor_offset_x: f32) void {
+fn handleNodeInteraction(geometry_system: *geometry_nodes.GeometryNodeSystem, selected_node: *?usize, is_dragging: *bool, drag_offset: *rl.Vector2, editor_offset_x: f32) void {
     const mouse_pos = rl.getMousePosition();
 
     // Convert screen coordinates to node editor coordinates

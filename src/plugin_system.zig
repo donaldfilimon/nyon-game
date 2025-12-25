@@ -110,8 +110,8 @@ pub const PluginSystem = struct {
         const get_ui_panel_fn = library.lookup(*const fn (*PluginContext) callconv(.C) ?*anyopaque, "nyon_plugin_get_ui_panel") catch null;
 
         // Initialize plugin
-        if (init_fn) |init| {
-            if (!init(&context)) {
+        if (init_fn) |init_func| {
+            if (!init_func(&context)) {
                 std.debug.print("Plugin {s} initialization failed\n", .{capabilities.name});
                 return error.PluginInitFailed;
             }

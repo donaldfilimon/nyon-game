@@ -14,7 +14,6 @@ const WebGpuContext = struct {
 // ============================================================================
 
 const is_browser = builtin.target.os.tag == .freestanding or builtin.target.os.tag == .wasi;
-const glfw_available = !is_browser;
 
 // ============================================================================
 // Error Types
@@ -38,8 +37,9 @@ pub const EngineError = error{
 // Conditional Imports
 // ============================================================================
 
-// Conditionally import zglfw
-const zglfw = if (glfw_available) @import("zglfw") else struct {
+// Conditionally import zglfw (disabled for refactoring)
+const glfw_available = false; // Temporarily disabled
+const zglfw = struct {
     pub const Window = opaque {};
     pub const Monitor = opaque {};
     pub const Cursor = opaque {};
@@ -333,8 +333,13 @@ pub const Engine = struct {
         const flags = raylib.ConfigFlags{
             .fullscreen_mode = config.fullscreen,
             .window_resizable = config.resizable,
-            .vsync_hint = config.vsync,
+            .window_undecorated = false,
+            .window_transparent = false,
             .msaa_4x_hint = config.samples > 0,
+            .vsync_hint = config.vsync,
+            .window_hidden = false,
+            .window_always_run = false,
+            ._padding = 0,
         };
 
         raylib.setConfigFlags(flags);
