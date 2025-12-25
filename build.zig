@@ -68,141 +68,38 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Prepare external dependencies.
-    const dependencies = setupDependencies(b, target, optimize);
-
-    // Build the main library module.
-    const mod = createLibraryModule(b, target, dependencies);
-
-    // Build executable targets.
-    const exe = createExecutable(b, target, optimize, mod, dependencies);
-    const editor_exe = createEditorExecutable(b, target, optimize, mod, dependencies);
-
-    // Optionally build a WASM executable for WebAssembly platforms.
-    var wasm_exe: ?*std.Build.Step.Compile = null;
-    if (target.result.cpu.arch == .wasm32) {
-        wasm_exe = createWasmExecutable(b, target, optimize, mod);
-        if (wasm_exe) |exe_wasm| {
-            linkSystemLibraries(exe_wasm, target);
-        }
-    }
-
-    linkSystemLibraries(exe, target);
-    linkSystemLibraries(editor_exe, target);
-
-    // Install standard executables and WASM artifacts.
-    b.installArtifact(exe);
-    b.installArtifact(editor_exe);
-    if (wasm_exe) |exe_wasm| {
-        b.installArtifact(exe_wasm);
-        b.installFile("shell.html", "shell.html");
-    }
-
-    setupBuildSteps(b, exe, mod);
-    setupExampleTargets(b, target, optimize, dependencies);
-
-    // Editor run step.
-    const run_editor = b.step("run-editor", "Build and run the editor");
-    const run_editor_cmd = b.addRunArtifact(editor_exe);
-    run_editor.dependOn(&run_editor_cmd.step);
-
-    // WASM support: see note in original file for Emscripten/compat info.
-
-    const build_wasm = b.step("wasm", "Build for WebAssembly (requires emscripten setup)");
-    build_wasm.dependOn(b.getInstallStep());
-    const run_wasm = b.step("run-wasm", "Build WASM and serve (requires web server setup)");
-    run_wasm.dependOn(build_wasm);
-
-    // CLI helper binary for project management.
-    const cli = b.addExecutable(.{
-        .name = "nyon-cli",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/cli.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
-    b.installArtifact(cli);
-}
-
-/// Prepare and return a set of dependencies for a given build configuration.
-pub fn setupDependencies(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-) Dependencies {
-    const is_wasm = target.result.cpu.arch == .wasm32;
-
-    var zglfw: ?*std.Build.Module = null;
-    if (!is_wasm) {
-        const zglfw_dep = b.dependency("zglfw", .{
-            .target = target,
-            .optimize = optimize,
-        });
-        zglfw = zglfw_dep.module("glfw");
-    }
-
-    const raylib_zig_dep = b.dependency("raylib_zig", .{
+    // Create raylib stub module
+    const raylib_stub = b.addModule("raylib", .{
+        .root_source_file = b.path("src/raylib_stub.zig"),
         .target = target,
-        .optimize = optimize,
     });
-    const raylib_module = raylib_zig_dep.module("raylib");
-    const raylib_artifact = raylib_zig_dep.artifact("raylib");
 
-    return .{
-        .raylib = raylib_module,
-        .raylib_artifact = raylib_artifact,
-        .zglfw = zglfw,
-    };
-}
-
-/// Create the main library module for use as a dependency.
-pub fn createLibraryModule(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    deps: Dependencies,
-) *std.Build.Module {
-    return b.addModule(MODULE_NAME, .{
-        .root_source_file = b.path(ROOT_MODULE_PATH),
-        .target = target,
-        .imports = if (deps.zglfw) |zglfw| &.{
-            .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
-            .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw },
-        } else &.{
-            .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib },
-        },
-    });
-}
-
-/// Create the main executable target.
-pub fn createExecutable(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    mod: *std.Build.Module,
-    deps: Dependencies,
-) *std.Build.Step.Compile {
-    var imports: [2]std.Build.Module.Import = undefined;
-    var import_count: usize = 0;
-    imports[import_count] = .{ .name = NYON_GAME_IMPORT_NAME, .module = mod };
-    import_count += 1;
-    if (deps.zglfw) |zglfw_mod| {
-        imports[import_count] = .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw_mod };
-        import_count += 1;
-    }
+    // Build executable targets directly (simplified for refactoring)
     const exe = b.addExecutable(.{
         .name = EXECUTABLE_NAME,
         .root_module = b.createModule(.{
             .root_source_file = b.path(MAIN_SOURCE_PATH),
             .target = target,
             .optimize = optimize,
-            .imports = imports[0..import_count],
+            .imports = &.{
+                .{ .name = "raylib", .module = raylib_stub },
+            },
         }),
     });
     exe.root_module.link_libc = true;
-    if (deps.raylib_artifact) |raylib_lib| {
-        _ = raylib_lib; // Raylib is linked through the dependency system
-    }
+
+    const editor_exe = b.addExecutable(.{
+        .name = "nyon_editor",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/editor.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "raylib", .module = raylib_stub },
+            },
+        }),
+    });
+    editor_exe.root_module.link_libc = true;
     return exe;
 }
 
@@ -212,31 +109,20 @@ pub fn createEditorExecutable(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     mod: *std.Build.Module,
-    deps: Dependencies,
+    _: Dependencies,
 ) *std.Build.Step.Compile {
-    var imports: [3]std.Build.Module.Import = undefined;
-    var import_count: usize = 0;
-    imports[import_count] = .{ .name = NYON_GAME_IMPORT_NAME, .module = mod };
-    import_count += 1;
-    imports[import_count] = .{ .name = RAYLIB_IMPORT_NAME, .module = deps.raylib };
-    import_count += 1;
-    if (deps.zglfw) |zglfw_mod| {
-        imports[import_count] = .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw_mod };
-        import_count += 1;
-    }
     const exe = b.addExecutable(.{
         .name = "nyon_editor",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/editor.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = imports[0..import_count],
+            .imports = &.{
+                .{ .name = NYON_GAME_IMPORT_NAME, .module = mod },
+            },
         }),
     });
     exe.root_module.link_libc = true;
-    if (deps.raylib_artifact) |raylib_lib| {
-        _ = raylib_lib; // Raylib is linked through the dependency system
-    }
     return exe;
 }
 

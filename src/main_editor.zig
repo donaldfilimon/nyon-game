@@ -82,11 +82,11 @@ pub const MainEditor = struct {
 
     /// Modes supported by the main editor.
     pub const EditorMode = enum {
-        geometry_nodes,   // Node-based geometry system ("Geometry Nodes")
-        scene_editor,     // The main 3D scene editor
-        material_editor,  // Node graph for editing PBR materials
+        geometry_nodes, // Node-based geometry system ("Geometry Nodes")
+        scene_editor, // The main 3D scene editor
+        material_editor, // Node graph for editing PBR materials
         animation_editor, // Timeline-based 3D animation editing
-        tui_mode,         // Terminal-like in-editor command line UI
+        tui_mode, // Terminal-like in-editor command line UI
     };
 
     /// Create and fully initialize a MainEditor, including all system dependencies.
@@ -140,10 +140,8 @@ pub const MainEditor = struct {
         ));
 
         // Initial docking panel definitions. @Browser
-        _ = try dock_sys.createPanel(.property_inspector, "Properties",
-            raylib.Rectangle{ .x = screen_width - 300, .y = 40, .width = 300, .height = screen_height - 40 }, null);
-        _ = try dock_sys.createPanel(.scene_outliner, "Scene Outliner",
-            raylib.Rectangle{ .x = 0, .y = screen_height - 200, .width = 300, .height = 200 }, null);
+        _ = try dock_sys.createPanel(.property_inspector, "Properties", raylib.Rectangle{ .x = screen_width - 300, .y = 40, .width = 300, .height = screen_height - 40 }, null);
+        _ = try dock_sys.createPanel(.scene_outliner, "Scene Outliner", raylib.Rectangle{ .x = 0, .y = screen_height - 200, .width = 300, .height = 200 }, null);
 
         // TUI (terminal UI) buffers.
         var command_buffer = std.ArrayList(u8).init(allocator);
@@ -495,17 +493,16 @@ pub const MainEditor = struct {
                 self.addTUIOutput("Unknown mode. Use: scene, geometry, material, animation, tui");
             }
         } else if (std.mem.eql(u8, command, "panels")) {
-            for (self.docking_system.panels.items) |*panel, idx| {
+            for (self.docking_system.panels.items, 0..) |*panel, idx| {
                 var buf: [128]u8 = undefined;
-                const panel_str = std.fmt.bufPrint(&buf,
-                    "#{d} {s} @ [{d},{d},{d},{d}]", .{
-                        idx,
-                        panel.title,
-                        @intFromFloat(panel.rect.x),
-                        @intFromFloat(panel.rect.y),
-                        @intFromFloat(panel.rect.width),
-                        @intFromFloat(panel.rect.height),
-                    }) catch continue;
+                const panel_str = std.fmt.bufPrint(&buf, "#{d} {s} @ [{d},{d},{d},{d}]", .{
+                    idx,
+                    panel.title,
+                    @intFromFloat(panel.rect.x),
+                    @intFromFloat(panel.rect.y),
+                    @intFromFloat(panel.rect.width),
+                    @intFromFloat(panel.rect.height),
+                }) catch continue;
                 self.addTUIOutput(panel_str);
             }
             if (self.docking_system.panels.items.len == 0)
@@ -970,7 +967,6 @@ pub const MainEditor = struct {
         raylib.drawText(perf_text.ptr, @intFromFloat(self.screen_width - 200), 10, 14, raylib.Color.yellow);
     }
 };
-
 
 // ============================================================================
 // Material Node Editor (Simplified)
