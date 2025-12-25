@@ -139,7 +139,7 @@ pub const MainEditor = struct {
             1.0,
         ));
 
-        // Initial docking panel definitions. @Browser
+        // Initial docking panel definitions
         _ = try dock_sys.createPanel(.property_inspector, "Properties", raylib.Rectangle{ .x = screen_width - 300, .y = 40, .width = 300, .height = screen_height - 40 }, null);
         _ = try dock_sys.createPanel(.scene_outliner, "Scene Outliner", raylib.Rectangle{ .x = 0, .y = screen_height - 200, .width = 300, .height = 200 }, null);
 
@@ -229,7 +229,7 @@ pub const MainEditor = struct {
         self.renderTabBar();
         self.renderToolbar();
 
-        // Browser Content Rectangle definition.
+        // Main content area rectangle definition
         const content_rect = raylib.Rectangle{
             .x = 0,
             .y = self.tab_bar_height + self.toolbar_height,
@@ -559,7 +559,7 @@ pub const MainEditor = struct {
     }
 
     // ============================================================================
-    // Mode Switching / Browser Tab Bar
+    // Mode Switching / Tab Bar
     // ============================================================================
 
     /// Mouse-driven tab bar for main editor modes.
@@ -729,7 +729,7 @@ pub const MainEditor = struct {
     }
 
     fn renderGeometryNodeEditor(self: *MainEditor, content_rect: raylib.Rectangle) void {
-        // "Browser panel" layout: 2 columns, left=preview, right=node-graph
+        // Panel layout: 2 columns, left=preview, right=node-graph
         const panel_margin: f32 = 5;
         const panel_header_height: f32 = 25;
         _ = panel_header_height;

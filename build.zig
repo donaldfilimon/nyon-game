@@ -105,6 +105,11 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(exe);
     b.installArtifact(editor_exe);
 
+    // Test step
+    const test_step = b.step("test", "Run all tests");
+    const test_cmd = b.addSystemCommand(&[_][]const u8{ "zig", "test", "src/tests.zig" });
+    test_step.dependOn(&test_cmd.step);
+
     // Run steps
     const run_cmd = b.addRunArtifact(exe);
     const run_step = b.step("run", "Run the game");
