@@ -25,8 +25,11 @@ const file_metadata = @import("io/file_metadata.zig");
 const worlds_mod = @import("game/worlds.zig");
 const FontManager = @import("font_manager.zig").FontManager;
 
+// Import game state module
+const game_state_module = @import("game/state.zig");
+
 // ============================================================================
-// Constants
+// Game Constants (keeping local copies for now during refactoring)
 // ============================================================================
 
 const WINDOW_WIDTH: u32 = 800;
@@ -55,35 +58,8 @@ const INITIAL_ITEM_POSITIONS: [DEFAULT_ITEM_COUNT][2]f32 = .{
 const ITEM_PULSE_SPEED: f32 = 3.0;
 const ITEM_PULSE_AMPLITUDE: f32 = 0.2;
 
-// Grid constants
-const GRID_SIZE: f32 = 50.0;
-
-// UI constants
-const UI_INSTRUCTION_FONT_SIZE: i32 = 16;
-const UI_INSTRUCTION_Y_OFFSET: i32 = 30;
-const UI_WIN_FONT_SIZE: i32 = 40;
-const UI_WIN_Y_OFFSET: i32 = 20;
-const UI_PROGRESS_HEIGHT: f32 = 10.0;
-const STATUS_MESSAGE_FONT_SIZE: i32 = 18;
-const STATUS_MESSAGE_DURATION: f32 = 3.0;
-const STATUS_MESSAGE_Y_OFFSET: i32 = 8;
-const COLOR_STATUS_MESSAGE = Color{ .r = 200, .g = 220, .b = 255, .a = 255 };
-
-// Colors
-const COLOR_BACKGROUND = Color{ .r = 30, .g = 30, .b = 50, .a = 255 };
-const COLOR_GRID = Color{ .r = 40, .g = 40, .b = 60, .a = 255 };
-const COLOR_ITEM = Color{ .r = 255, .g = 215, .b = 0, .a = 255 };
-const COLOR_ITEM_OUTLINE = Color{ .r = 255, .g = 255, .b = 100, .a = 255 };
-const COLOR_PLAYER_IDLE = Color{ .r = 150, .g = 150, .b = 255, .a = 255 };
-const COLOR_PLAYER_MOVING = Color{ .r = 100, .g = 200, .b = 255, .a = 255 };
-const COLOR_PLAYER_OUTLINE = Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
-const COLOR_WIN = Color{ .r = 0, .g = 255, .b = 0, .a = 255 };
-const COLOR_TEXT_GRAY = Color{ .r = 200, .g = 200, .b = 200, .a = 255 };
-const COLOR_PROGRESS_BG = Color{ .r = 60, .g = 60, .b = 80, .a = 255 };
-const COLOR_PROGRESS_FILL = Color{ .r = 255, .g = 175, .b = 0, .a = 255 };
-
 // ============================================================================
-// Game State
+// Game State Structures (keeping local copies for now during refactoring)
 // ============================================================================
 
 const CollectibleItem = struct {
@@ -115,6 +91,45 @@ const GameState = struct {
     file_info: FileDetail = FileDetail{},
 };
 
+const WorldSession = struct {
+    allocator: std.mem.Allocator,
+    folder: []u8,
+    name: []u8,
+
+    pub fn deinit(self: *WorldSession) void {
+        self.allocator.free(self.folder);
+        self.allocator.free(self.name);
+        self.* = undefined;
+    }
+};
+
+// Grid constants
+const GRID_SIZE: f32 = 50.0;
+
+// UI constants
+const UI_INSTRUCTION_FONT_SIZE: i32 = 16;
+const UI_INSTRUCTION_Y_OFFSET: i32 = 30;
+const UI_WIN_FONT_SIZE: i32 = 40;
+const UI_WIN_Y_OFFSET: i32 = 20;
+const UI_PROGRESS_HEIGHT: f32 = 10.0;
+const STATUS_MESSAGE_FONT_SIZE: i32 = 18;
+const STATUS_MESSAGE_DURATION: f32 = 3.0;
+const STATUS_MESSAGE_Y_OFFSET: i32 = 8;
+const COLOR_STATUS_MESSAGE = Color{ .r = 200, .g = 220, .b = 255, .a = 255 };
+
+// Colors
+const COLOR_BACKGROUND = Color{ .r = 30, .g = 30, .b = 50, .a = 255 };
+const COLOR_GRID = Color{ .r = 40, .g = 40, .b = 60, .a = 255 };
+const COLOR_ITEM = Color{ .r = 255, .g = 215, .b = 0, .a = 255 };
+const COLOR_ITEM_OUTLINE = Color{ .r = 255, .g = 255, .b = 100, .a = 255 };
+const COLOR_PLAYER_IDLE = Color{ .r = 150, .g = 150, .b = 255, .a = 255 };
+const COLOR_PLAYER_MOVING = Color{ .r = 100, .g = 200, .b = 255, .a = 255 };
+const COLOR_PLAYER_OUTLINE = Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+const COLOR_WIN = Color{ .r = 0, .g = 255, .b = 0, .a = 255 };
+const COLOR_TEXT_GRAY = Color{ .r = 200, .g = 200, .b = 200, .a = 255 };
+const COLOR_PROGRESS_BG = Color{ .r = 60, .g = 60, .b = 80, .a = 255 };
+const COLOR_PROGRESS_FILL = Color{ .r = 255, .g = 175, .b = 0, .a = 255 };
+
 const AppMode = enum {
     title,
     worlds,
@@ -145,30 +160,6 @@ const PauseMenuAction = enum {
     quit_to_title,
 };
 
-const WorldSession = struct {
-    allocator: std.mem.Allocator,
-    folder: []u8,
-    name: []u8,
-
-    pub fn deinit(self: *WorldSession) void {
-        self.allocator.free(self.folder);
-        self.allocator.free(self.name);
-        self.* = undefined;
-    }
-};
-
-fn clearWorldSession(session: *?WorldSession) void {
-    if (session.*) |*active| {
-        active.deinit();
-        session.* = null;
-    }
-}
-
-fn setWorldSession(session: *?WorldSession, value: WorldSession) void {
-    clearWorldSession(session);
-    session.* = value;
-}
-
 const NameInput = struct {
     buffer: [32]u8 = [_]u8{0} ** 32,
     len: usize = 0,
@@ -198,7 +189,7 @@ const NameInput = struct {
 
 const MenuState = struct {
     allocator: std.mem.Allocator,
-    ctx: ui_mod.UiContext = ui_mod.UiContext{},
+    ctx: ui_mod.UiContext = ui_mod.UiContext{ .style = ui_mod.UiStyle.fromTheme(.dark, 180, 1.0) },
     worlds: []worlds_mod.WorldEntry = &.{},
     selected_world: ?usize = null,
     create_name: NameInput = NameInput{},
@@ -230,7 +221,7 @@ const MenuState = struct {
 
 const GameUiState = struct {
     config: ui_mod.UiConfig,
-    ctx: ui_mod.UiContext = ui_mod.UiContext{},
+    ctx: ui_mod.UiContext = ui_mod.UiContext{ .style = ui_mod.UiStyle.fromTheme(.dark, 180, 1.0) },
     edit_mode: bool = false,
     dirty: bool = false,
     font_manager: FontManager,
@@ -296,6 +287,18 @@ fn resetGameState(game_state: *GameState) void {
 fn updateFileInfo(game_state: *GameState, path: []const u8) !void {
     const meta = try file_metadata.get(path);
     game_state.file_info.set(path, meta.size, meta.modified_ns);
+}
+
+fn clearWorldSession(session: *?WorldSession) void {
+    if (session.*) |*active| {
+        active.deinit();
+        session.* = null;
+    }
+}
+
+fn setWorldSession(session: *?WorldSession, value: WorldSession) void {
+    clearWorldSession(session);
+    session.* = value;
 }
 
 fn loadFileMetadata(game_state: *GameState, status_message: *StatusMessage, path: []const u8) !void {
