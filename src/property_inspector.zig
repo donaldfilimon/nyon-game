@@ -102,7 +102,6 @@ pub const PropertyInspector = struct {
     }
 
     fn renderSceneNodeProperties(self: *PropertyInspector, node_id: usize, x: f32, y: f32, width: f32) f32 {
-        _ = self; // unused
         _ = node_id; // unused for now
         var current_y = y;
 
@@ -195,6 +194,7 @@ pub const PropertyInspector = struct {
     }
 
     fn drawFloatProperty(_: *PropertyInspector, name: []const u8, value: f32, x: f32, y: f32, width: f32) f32 {
+        _ = value; // unused for now
 
         // Label
         raylib.drawText(name, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);
