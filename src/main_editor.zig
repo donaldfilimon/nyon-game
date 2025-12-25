@@ -34,8 +34,12 @@ const tool_system = @import("tool_system.zig");
 // Main Editor System
 // ============================================================================
 
+/// Main Editor structure for the Nyon Game Engine.
+/// This structure acts as the core owner and coordinator of all major editor subsystems.
 pub const MainEditor = struct {
+    /// Allocator for all editor memory needs.
     allocator: std.mem.Allocator,
+    /// Engine-level subsystems.
     scene_system: scene.Scene,
     rendering_system: rendering.RenderingSystem,
     asset_manager: asset.AssetManager,
@@ -44,44 +48,54 @@ pub const MainEditor = struct {
     keyframe_system: keyframe.KeyframeSystem,
     animation_system: animation.AnimationSystem,
 
+    /// Editor UI systems.
     docking_system: docking.DockingSystem,
     property_inspector: property_inspector.PropertyInspector,
 
+    /// Node/graph based editor subsystems.
     geometry_node_editor: geometry_nodes.GeometryNodeSystem,
     material_node_editor: MaterialNodeEditor,
 
+    /// Which functional editor mode is currently active.
     current_mode: EditorMode,
 
+    /// Main window and UI layout dimensions.
     screen_width: f32,
     screen_height: f32,
     tab_bar_height: f32 = 40,
     toolbar_height: f32 = 35,
     status_bar_height: f32 = 25,
 
+    /// Selected object in the 3D scene.
     selected_scene_object: ?usize,
 
+    /// Animation editor state.
     animation_timeline_visible: bool = false,
     animation_playback: bool = false,
 
+    /// "Terminal UI" mode buffers.
     tui_command_buffer: std.ArrayList(u8),
     tui_command_history: std.ArrayList([]const u8),
     tui_output_lines: std.ArrayList([]const u8),
     tui_cursor_pos: usize = 0,
     tui_history_index: i32 = -1,
 
+    /// Modes supported by the main editor.
     pub const EditorMode = enum {
-        geometry_nodes,
-        scene_editor,
-        material_editor,
-        animation_editor,
-        tui_mode,
+        geometry_nodes,   // Node-based geometry system ("Geometry Nodes")
+        scene_editor,     // The main 3D scene editor
+        material_editor,  // Node graph for editing PBR materials
+        animation_editor, // Timeline-based 3D animation editing
+        tui_mode,         // Terminal-like in-editor command line UI
     };
 
+    /// Create and fully initialize a MainEditor, including all system dependencies.
     pub fn init(
         allocator: std.mem.Allocator,
         screen_width: f32,
         screen_height: f32,
     ) !MainEditor {
+        // Engine and subsystems initialization.
         var scene_sys = scene.Scene.init(allocator);
         errdefer scene_sys.deinit();
         var render_sys = rendering.RenderingSystem.init(allocator);
@@ -97,18 +111,19 @@ pub const MainEditor = struct {
         var anim_sys = animation.AnimationSystem.init(allocator);
         errdefer anim_sys.deinit();
 
+        // Editor UI system initialization.
         var dock_sys = docking.DockingSystem.init(allocator, screen_width, screen_height);
         errdefer dock_sys.deinit();
-
         var prop_inspector = property_inspector.PropertyInspector.init(allocator);
         errdefer prop_inspector.deinit();
 
+        // Node-based editors.
         var geom_node_editor = try geometry_nodes.GeometryNodeSystem.init(allocator);
         errdefer geom_node_editor.deinit();
-
         var mat_node_editor = try MaterialNodeEditor.init(allocator);
         errdefer mat_node_editor.deinit();
 
+        // Default camera and light setup.
         const default_camera_id = try render_sys.addCamera(rendering.RenderingSystem.Camera.create(
             allocator,
             "Main Camera",
@@ -117,7 +132,6 @@ pub const MainEditor = struct {
             45.0,
         ) catch unreachable);
         render_sys.setActiveCamera(default_camera_id);
-
         _ = try render_sys.addLight(rendering.RenderingSystem.Light.createDirectional(
             raylib.Vector3{ .x = 0, .y = 10, .z = 0 },
             raylib.Vector3{ .x = 0, .y = -1, .z = 0 },
@@ -125,20 +139,24 @@ pub const MainEditor = struct {
             1.0,
         ));
 
-        _ = try dock_sys.createPanel(.property_inspector, "Properties", raylib.Rectangle{ .x = screen_width - 300, .y = 40, .width = 300, .height = screen_height - 40 }, null);
-        _ = try dock_sys.createPanel(.scene_outliner, "Scene Outliner", raylib.Rectangle{ .x = 0, .y = screen_height - 200, .width = 300, .height = 200 }, null);
+        // Initial docking panel definitions. @Browser
+        _ = try dock_sys.createPanel(.property_inspector, "Properties",
+            raylib.Rectangle{ .x = screen_width - 300, .y = 40, .width = 300, .height = screen_height - 40 }, null);
+        _ = try dock_sys.createPanel(.scene_outliner, "Scene Outliner",
+            raylib.Rectangle{ .x = 0, .y = screen_height - 200, .width = 300, .height = 200 }, null);
 
+        // TUI (terminal UI) buffers.
         var command_buffer = std.ArrayList(u8).init(allocator);
         errdefer command_buffer.deinit();
         var command_history = std.ArrayList([]const u8).init(allocator);
         errdefer command_history.deinit();
         var output_lines = std.ArrayList([]const u8).init(allocator);
         errdefer output_lines.deinit();
-
         try output_lines.append(try allocator.dupe(u8, "Nyon Game Engine TUI v1.0"));
         try output_lines.append(try allocator.dupe(u8, "Type 'help' for available commands"));
         try output_lines.append(try allocator.dupe(u8, ""));
 
+        // Construct the editor with all systems.
         return MainEditor{
             .allocator = allocator,
             .scene_system = scene_sys,
@@ -166,6 +184,7 @@ pub const MainEditor = struct {
         };
     }
 
+    /// Properly clean up all systems and editor memory.
     pub fn deinit(self: *MainEditor) void {
         self.scene_system.deinit();
         self.rendering_system.deinit();
@@ -186,6 +205,7 @@ pub const MainEditor = struct {
         self.tui_output_lines.deinit();
     }
 
+    /// Main update loop: calls the active mode's update, handles mode switches, etc.
     pub fn update(self: *MainEditor, dt: f32) !void {
         self.performance_system.updateCameras(dt);
 
@@ -206,10 +226,12 @@ pub const MainEditor = struct {
         self.performance_system.resetStats();
     }
 
+    /// Renders the main editor UI and invokes content/mode rendering as needed.
     pub fn render(self: *MainEditor) !void {
         self.renderTabBar();
         self.renderToolbar();
 
+        // Browser Content Rectangle definition.
         const content_rect = raylib.Rectangle{
             .x = 0,
             .y = self.tab_bar_height + self.toolbar_height,
@@ -227,6 +249,7 @@ pub const MainEditor = struct {
 
         self.docking_system.render();
 
+        // Render property inspector only if an object is selected and the inspect panel exists.
         if (self.property_inspector.selected_object) |_| {
             if (self.docking_system.getPanel(0)) |p| {
                 self.property_inspector.render(p.rect);
@@ -237,6 +260,7 @@ pub const MainEditor = struct {
         self.renderPerformanceOverlay();
     }
 
+    /// Handles user input events and dispatches to the current editor mode.
     pub fn handleInput(self: *MainEditor) !void {
         if (raylib.isKeyPressed(.z) and raylib.isKeyDown(.left_control)) _ = self.undo_redo_system.undo();
         if (raylib.isKeyPressed(.y) and raylib.isKeyDown(.left_control)) _ = self.undo_redo_system.redo();
@@ -249,6 +273,7 @@ pub const MainEditor = struct {
         }
     }
 
+    /// Toolbar UI including contextual buttons depending on current mode.
     fn renderToolbar(self: *MainEditor) void {
         const toolbar_y = self.tab_bar_height;
         const toolbar_rect = raylib.Rectangle{ .x = 0, .y = toolbar_y, .width = self.screen_width, .height = self.toolbar_height };
@@ -300,6 +325,7 @@ pub const MainEditor = struct {
         raylib.drawText(status_text, @intFromFloat(status_x), @intFromFloat(toolbar_y + 8), 12, raylib.Color.white);
     }
 
+    /// Utility for contextual toolbar button drawing and click detection.
     fn renderToolbarButton(
         self: *MainEditor,
         text: []const u8,
@@ -325,10 +351,12 @@ pub const MainEditor = struct {
     // TUI Mode
     // ============================================================================
 
+    /// TUI update - does nothing (input handled separately).
     fn updateTUIMode(self: *MainEditor, _: f32) void {
         _ = self;
     }
 
+    /// Draws the terminal UI mode area, including command buffer and output scrollback.
     fn renderTUIMode(self: *MainEditor, content_rect: raylib.Rectangle) void {
         raylib.beginScissorMode(
             @intFromFloat(content_rect.x),
@@ -350,12 +378,11 @@ pub const MainEditor = struct {
             y += line_height;
             if (y > content_rect.y + content_rect.height - 60) break;
         }
-
+        // Draw the command prompt and cursor.
         const prompt_y = content_rect.y + content_rect.height - 40;
         raylib.drawText(">", @intFromFloat(content_rect.x + 10), @intFromFloat(prompt_y), 16, raylib.Color.green);
         const command_text = self.tui_command_buffer.items;
         raylib.drawText(command_text, @intFromFloat(content_rect.x + 25), @intFromFloat(prompt_y), 16, raylib.Color.white);
-
         if (raylib.getTime() - @floor(raylib.getTime()) < 0.5) {
             const cursor_x = content_rect.x + 25 + @as(f32, @floatFromInt(self.tui_cursor_pos)) * 8.5;
             raylib.drawLine(@intFromFloat(cursor_x), @intFromFloat(prompt_y), @intFromFloat(cursor_x), @intFromFloat(prompt_y + 16), raylib.Color.white);
@@ -363,6 +390,7 @@ pub const MainEditor = struct {
         raylib.endScissorMode();
     }
 
+    /// TUI mode input processing (ASCII only).
     fn handleTUIInput(self: *MainEditor) void {
         const char = raylib.getCharPressed();
         if (char != 0) {
@@ -380,6 +408,7 @@ pub const MainEditor = struct {
         }
         if (raylib.isKeyPressed(.enter)) self.executeTUICommand();
 
+        // Command history navigation/up/down
         if (raylib.isKeyPressed(.up)) {
             if (self.tui_history_index < @as(i32, @intCast(self.tui_command_history.items.len)) - 1) {
                 self.tui_history_index += 1;
@@ -402,6 +431,7 @@ pub const MainEditor = struct {
                 self.tui_cursor_pos = 0;
             }
         }
+        // Buffer editing
         if (raylib.isKeyPressed(.left)) {
             if (self.tui_cursor_pos > 0) self.tui_cursor_pos -= 1;
         }
@@ -410,6 +440,7 @@ pub const MainEditor = struct {
         }
     }
 
+    /// Executes the current entered terminal command buffer in TUI mode.
     fn executeTUICommand(self: *MainEditor) void {
         const command = self.tui_command_buffer.items;
         if (command.len == 0) return;
@@ -428,6 +459,7 @@ pub const MainEditor = struct {
             self.allocator.free(output_cmd);
         };
 
+        // Built-in TUI command set: @Definitions
         if (std.mem.eql(u8, command, "help")) {
             self.addTUIOutput("Available commands:");
             self.addTUIOutput("  help          - Show this help");
@@ -437,6 +469,7 @@ pub const MainEditor = struct {
             self.addTUIOutput("  mode material - Switch to material editor");
             self.addTUIOutput("  mode animation- Switch to animation editor");
             self.addTUIOutput("  mode tui      - Stay in TUI mode");
+            self.addTUIOutput("  panels        - List dock panel names and ids");
             self.addTUIOutput("  exit          - Exit application");
         } else if (std.mem.eql(u8, command, "clear")) {
             for (self.tui_output_lines.items) |line| self.allocator.free(line);
@@ -461,6 +494,22 @@ pub const MainEditor = struct {
             } else {
                 self.addTUIOutput("Unknown mode. Use: scene, geometry, material, animation, tui");
             }
+        } else if (std.mem.eql(u8, command, "panels")) {
+            for (self.docking_system.panels.items) |*panel, idx| {
+                var buf: [128]u8 = undefined;
+                const panel_str = std.fmt.bufPrint(&buf,
+                    "#{d} {s} @ [{d},{d},{d},{d}]", .{
+                        idx,
+                        panel.title,
+                        @intFromFloat(panel.rect.x),
+                        @intFromFloat(panel.rect.y),
+                        @intFromFloat(panel.rect.width),
+                        @intFromFloat(panel.rect.height),
+                    }) catch continue;
+                self.addTUIOutput(panel_str);
+            }
+            if (self.docking_system.panels.items.len == 0)
+                self.addTUIOutput("No panels defined.");
         } else if (std.mem.eql(u8, command, "exit")) {
             self.addTUIOutput("Use Ctrl+C or close window to exit");
         } else {
@@ -479,6 +528,7 @@ pub const MainEditor = struct {
         self.tui_history_index = -1;
     }
 
+    /// Add a line to the TUI terminal scrollback output buffer.
     fn addTUIOutput(self: *MainEditor, text: []const u8) void {
         const output_line = self.allocator.dupe(u8, text) catch return;
         self.tui_output_lines.append(output_line) catch {
@@ -486,6 +536,7 @@ pub const MainEditor = struct {
         };
     }
 
+    /// Status bar UI at the bottom of the editor window.
     fn renderStatusBar(self: *MainEditor) void {
         const status_bar_y = self.screen_height - self.status_bar_height;
         const status_bar_rect = raylib.Rectangle{
@@ -512,9 +563,10 @@ pub const MainEditor = struct {
     }
 
     // ============================================================================
-    // Mode Switching
+    // Mode Switching / Browser Tab Bar
     // ============================================================================
 
+    /// Mouse-driven tab bar for main editor modes.
     fn handleModeSwitching(self: *MainEditor) void {
         const mouse_pos = raylib.getMousePosition();
         const mouse_pressed = raylib.isMouseButtonPressed(.left);
@@ -533,6 +585,7 @@ pub const MainEditor = struct {
         }
     }
 
+    /// Draw the top tab bar for switching editor modes ("browser" tabs).
     fn renderTabBar(self: *MainEditor) void {
         raylib.drawRectangle(0, 0, @intFromFloat(self.screen_width), @intFromFloat(self.tab_bar_height), raylib.Color{ .r = 40, .g = 40, .b = 50, .a = 255 });
         const tab_names = [_][:0]const u8{ "Geometry Nodes", "Scene Editor", "Material Editor", "Animation Editor", "TUI" };
@@ -551,9 +604,10 @@ pub const MainEditor = struct {
     }
 
     // ============================================================================
-    // Scene Editor Mode
+    // Scene Editor
     // ============================================================================
 
+    /// Scene Editor (3D viewport & selection)
     fn updateSceneEditor(self: *MainEditor, dt: f32) !void {
         if (self.rendering_system.getActiveCamera()) |camera| {
             camera.update(dt);
@@ -646,6 +700,7 @@ pub const MainEditor = struct {
         }
     }
 
+    /// Draw a simple scene UI (object count & selected id) in the viewport.
     fn renderSceneUI(self: *MainEditor) void {
         var ui_y: f32 = self.tab_bar_height + 10;
         var buf: [64]u8 = undefined;
@@ -659,7 +714,7 @@ pub const MainEditor = struct {
     }
 
     // ============================================================================
-    // Geometry Node Editor Mode
+    // Geometry Node Editor
     // ============================================================================
 
     fn updateGeometryNodeEditor(self: *MainEditor, _: f32) void {
@@ -678,9 +733,10 @@ pub const MainEditor = struct {
     }
 
     fn renderGeometryNodeEditor(self: *MainEditor, content_rect: raylib.Rectangle) void {
+        // "Browser panel" layout: 2 columns, left=preview, right=node-graph
         const panel_margin: f32 = 5;
         const panel_header_height: f32 = 25;
-        _ = panel_header_height; // autofix
+        _ = panel_header_height;
         const preview_width = content_rect.width * 0.4;
         const left_panel_rect = raylib.Rectangle{
             .x = content_rect.x + panel_margin,
@@ -698,6 +754,7 @@ pub const MainEditor = struct {
         self.renderGeometryNodePanel(right_panel_rect);
     }
 
+    /// Simple 3D preview for geometry node output (browser panel)
     fn renderGeometryPreviewPanel(self: *MainEditor, panel_rect: raylib.Rectangle) void {
         raylib.drawRectangleRec(panel_rect, raylib.Color{ .r = 35, .g = 35, .b = 45, .a = 255 });
         raylib.drawRectangleLinesEx(panel_rect, 1, raylib.Color{ .r = 60, .g = 60, .b = 70, .a = 255 });
@@ -727,6 +784,7 @@ pub const MainEditor = struct {
         raylib.endScissorMode();
     }
 
+    /// Right panel - the actual geometry node graph editor area.
     fn renderGeometryNodePanel(self: *MainEditor, panel_rect: raylib.Rectangle) void {
         raylib.drawRectangleRec(panel_rect, raylib.Color{ .r = 35, .g = 35, .b = 45, .a = 255 });
         raylib.drawRectangleLinesEx(panel_rect, 1, raylib.Color{ .r = 60, .g = 60, .b = 70, .a = 255 });
@@ -758,7 +816,7 @@ pub const MainEditor = struct {
     }
 
     // ============================================================================
-    // Material Editor Mode
+    // Material Editor
     // ============================================================================
 
     fn updateMaterialEditor(self: *MainEditor, _: f32) void {
@@ -781,7 +839,7 @@ pub const MainEditor = struct {
     }
 
     // ============================================================================
-    // Animation Editor Mode
+    // Animation Editor
     // ============================================================================
 
     fn updateAnimationEditor(self: *MainEditor, dt: f32) !void {
@@ -870,6 +928,7 @@ pub const MainEditor = struct {
     // Utility Functions
     // ============================================================================
 
+    /// Forwards mouse input to the docking system for panels.
     fn handleDockingInput(self: *MainEditor) void {
         const mouse_pos = raylib.getMousePosition();
         const mouse_delta = raylib.getMouseDelta();
@@ -879,11 +938,13 @@ pub const MainEditor = struct {
         }
     }
 
+    /// Is the mouse currently over the tab bar? (Used for input capture/exclusion)
     fn isMouseOverUI(self: *MainEditor) bool {
         const mouse_pos = raylib.getMousePosition();
         return mouse_pos.y <= self.tab_bar_height;
     }
 
+    /// Quick grid lines for 3D views.
     fn drawGrid(self: *MainEditor) void {
         const half_size = 10;
         var i: i32 = -half_size;
@@ -901,6 +962,7 @@ pub const MainEditor = struct {
         }
     }
 
+    /// Show a performance stats line at the top.
     fn renderPerformanceOverlay(self: *MainEditor) void {
         const fps = raylib.getFPS();
         var buf: [128]u8 = undefined;
@@ -908,6 +970,7 @@ pub const MainEditor = struct {
         raylib.drawText(perf_text.ptr, @intFromFloat(self.screen_width - 200), 10, 14, raylib.Color.yellow);
     }
 };
+
 
 // ============================================================================
 // Material Node Editor (Simplified)
