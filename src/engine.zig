@@ -2,6 +2,13 @@ const std = @import("std");
 const raylib = @import("raylib");
 const builtin = @import("builtin");
 
+// WebGPU backend types (placeholder for when std.gpu stabilizes)
+const WebGpuContext = struct {
+    // Placeholder for WebGPU context
+    // Will contain device, queue, surface, etc. when std.gpu API is stable
+    initialized: bool = false,
+};
+
 // ============================================================================
 // Platform Detection
 // ============================================================================
@@ -70,7 +77,7 @@ pub const Engine = struct {
     title: [:0]const u8,
     raylib_initialized: bool = false,
     glfw_window: ?*zglfw.Window = null,
-    webgpu_initialized: bool = false, // WebGPU backend flag (std.gpu API is experimental)
+    webgpu_ctx: ?WebGpuContext = null, // WebGPU context when available
     target_fps: ?u32 = null,
 
     // ========================================================================
