@@ -98,7 +98,7 @@ pub fn build(b: *std.Build) void {
 
     // Editor run step.
     const run_editor = b.step("run-editor", "Build and run the editor");
-    const run_editor_cmd = b.addRunArtifact(b.getInstallArtifact(editor_exe));
+    const run_editor_cmd = b.addRunArtifact(editor_exe);
     run_editor.dependOn(&run_editor_cmd.step);
 
     // WASM support: see note in original file for Emscripten/compat info.
