@@ -568,6 +568,98 @@ pub const Engine = struct {
         }
         return raylib.getTime();
     }
+
+    // ========================================================================
+    // WebGPU-Specific Methods
+    // ========================================================================
+
+    /// Get WebGPU device information (when WebGPU backend is active).
+    ///
+    /// Returns information about the current WebGPU device and adapter.
+    /// Useful for debugging and feature detection.
+    ///
+    /// **Backend Requirements:** Requires WebGPU backend
+    ///
+    /// **Errors:**
+    /// - `EngineError.BackendNotInitialized`: WebGPU backend is not initialized
+    ///
+    /// **Example:**
+    /// ```zig
+    /// const info = try engine.getWebGpuDeviceInfo();
+    /// std.debug.print("WebGPU Device: {s}\n", .{info.device_name});
+    /// ```
+    pub fn getWebGpuDeviceInfo(engine: *const Engine) EngineError!WebGpuDeviceInfo {
+        if (!engine.isWebGpuInitialized()) {
+            return EngineError.BackendNotInitialized;
+        }
+
+        // TODO: Implement when std.gpu API stabilizes
+        // This would query actual device properties
+
+        return WebGpuDeviceInfo{
+            .device_name = "WebGPU Device (Placeholder)",
+            .adapter_name = "WebGPU Adapter (Placeholder)",
+            .backend = .webgpu,
+            .features = &[_]WebGpuFeature{},
+        };
+    }
+
+    /// Check if WebGPU backend supports a specific feature.
+    ///
+    /// **Backend Requirements:** Requires WebGPU backend
+    pub fn webGpuSupportsFeature(engine: *const Engine, feature: WebGpuFeature) bool {
+        if (!engine.isWebGpuInitialized()) {
+            return false;
+        }
+
+        // TODO: Implement feature checking when std.gpu API stabilizes
+        _ = feature;
+        return false; // Placeholder
+    }
+};
+
+// ============================================================================
+// WebGPU Types
+// ============================================================================
+
+/// WebGPU feature enumeration
+pub const WebGpuFeature = enum {
+    /// Depth clipping
+    depth_clipping,
+    /// Depth bounds testing
+    depth_bounds,
+    /// Pipeline statistics query
+    pipeline_statistics_query,
+    /// Texture compression (BC formats)
+    texture_compression_bc,
+    /// Texture compression (ETC2/EAC)
+    texture_compression_etc2,
+    /// Texture compression (ASTC)
+    texture_compression_astc,
+    /// Timestamp query
+    timestamp_query,
+    /// Indirect first instance
+    indirect_first_instance,
+    /// Shader float16
+    shader_float16,
+    /// RG11B10U float renderable
+    rg11b10ufloat_renderable,
+    /// BGRA8U norm storage
+    bgra8unorm_storage,
+    /// Float32 filterable
+    float32_filterable,
+};
+
+/// WebGPU device information
+pub const WebGpuDeviceInfo = struct {
+    /// Human-readable device name
+    device_name: []const u8,
+    /// Human-readable adapter name
+    adapter_name: []const u8,
+    /// Backend type
+    backend: enum { vulkan, d3d12, metal, opengl, webgpu },
+    /// Supported features
+    features: []const WebGpuFeature,
 };
 
 // ============================================================================

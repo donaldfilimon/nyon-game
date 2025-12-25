@@ -52,6 +52,11 @@ pub const EXAMPLES = [_]Example{
         .source = "examples/raylib/drop_viewer.zig",
         .description = "Show drag-and-drop metadata via Raylib file IO",
     },
+    Example{
+        .name = "example-webgpu-basic",
+        .source = "examples/webgpu_basic.zig",
+        .description = "Basic WebGPU backend example",
+    },
 };
 
 // ============================================================================
