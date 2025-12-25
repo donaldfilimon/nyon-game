@@ -78,14 +78,14 @@ pub const PluginSystem = struct {
     pub fn loadPlugin(self: *PluginSystem, file_path: []const u8) !void {
         // Load the dynamic library
         var library = std.DynLib.open(file_path) catch |err| {
-            std.debug.print("Failed to load plugin {s}: {s}\n", .{file_path, @errorName(err)});
+            std.debug.print("Failed to load plugin {s}: {s}\n", .{ file_path, @errorName(err) });
             return err;
         };
         errdefer library.close();
 
         // Get plugin interface functions
         const get_capabilities_fn = library.lookup(*const fn () callconv(.C) PluginCapabilities, "nyon_plugin_get_capabilities") catch |err| {
-            std.debug.print("Plugin {s} missing nyon_plugin_get_capabilities function: {s}\n", .{file_path, @errorName(err)});
+            std.debug.print("Plugin {s} missing nyon_plugin_get_capabilities function: {s}\n", .{ file_path, @errorName(err) });
             return err;
         };
 
@@ -252,6 +252,5 @@ pub const GeometryNodePlugin = struct {
     }
 };
 
-    // The duplicate deinit below was removed to avoid conflicting definitions.
-    // Plugin loading and management continue after the struct definition.
-};
+// The duplicate deinit below was removed to avoid conflicting definitions.
+// Plugin loading and management continue after the struct definition.
