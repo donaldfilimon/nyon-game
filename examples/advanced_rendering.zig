@@ -198,7 +198,7 @@ fn executeBloomExtractPass(context: *render_graph.RenderContext) void {
 
 /// Create a bloom blur pass
 fn createBloomBlurPass(
-    graph: *render_graph.RenderGraph,
+    _: *render_graph.RenderGraph,
     input_target: render_graph.ResourceHandle,
     output_target: render_graph.ResourceHandle,
 ) !render_graph.PassDesc {

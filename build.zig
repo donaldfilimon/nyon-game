@@ -194,10 +194,9 @@ pub fn createExecutable(
             .imports = imports[0..import_count],
         }),
     });
+    exe.root_module.link_libc = true;
     if (deps.raylib_artifact) |raylib_lib| {
-        exe.linkLibrary(raylib_lib);
-    } else {
-        exe.linkSystemLibrary("raylib");
+        _ = raylib_lib; // Raylib is linked through the dependency system
     }
     return exe;
 }
@@ -229,10 +228,9 @@ pub fn createEditorExecutable(
             .imports = imports[0..import_count],
         }),
     });
+    exe.root_module.link_libc = true;
     if (deps.raylib_artifact) |raylib_lib| {
-        exe.linkLibrary(raylib_lib);
-    } else {
-        exe.linkSystemLibrary("raylib");
+        _ = raylib_lib; // Raylib is linked through the dependency system
     }
     return exe;
 }
@@ -257,7 +255,7 @@ pub fn createWasmExecutable(
     });
     exe.entry = .disabled;
     exe.rdynamic = true;
-    exe.linkLibC();
+    exe.root_module.link_libc = true;
     return exe;
 }
 
@@ -287,24 +285,24 @@ pub fn createExampleExecutable(
 /// Link system libraries/frameworks as needed for the build target.
 pub fn linkSystemLibraries(exe: *std.Build.Step.Compile, target: std.Build.ResolvedTarget) void {
     if (target.result.cpu.arch == .wasm32) return;
-    exe.linkLibC();
+    exe.root_module.link_libc = true;
     switch (target.result.os.tag) {
         .windows => {
-            exe.linkSystemLibrary("opengl32");
-            exe.linkSystemLibrary("gdi32");
-            exe.linkSystemLibrary("winmm");
+            exe.root_module.linkSystemLibrary("opengl32", .{});
+            exe.root_module.linkSystemLibrary("gdi32", .{});
+            exe.root_module.linkSystemLibrary("winmm", .{});
         },
         .macos => {
-            exe.linkFramework("OpenGL");
-            exe.linkFramework("Cocoa");
-            exe.linkFramework("IOKit");
-            exe.linkFramework("CoreVideo");
+            exe.root_module.linkFramework("OpenGL", .{});
+            exe.root_module.linkFramework("Cocoa", .{});
+            exe.root_module.linkFramework("IOKit", .{});
+            exe.root_module.linkFramework("CoreVideo", .{});
         },
         .linux => {
-            exe.linkSystemLibrary("GL");
-            exe.linkSystemLibrary("m");
-            exe.linkSystemLibrary("pthread");
-            exe.linkSystemLibrary("dl");
+            exe.root_module.linkSystemLibrary("GL", .{});
+            exe.root_module.linkSystemLibrary("m", .{});
+            exe.root_module.linkSystemLibrary("pthread", .{});
+            exe.root_module.linkSystemLibrary("dl", .{});
         },
         else => {},
     }
