@@ -4,7 +4,7 @@
 //! pipeline with render graphs, multiple passes, and post-processing effects.
 
 const std = @import("std");
-const nyon = @import("../nyon_game.zig");
+const nyon = @import("nyon_game");
 const render_graph = @import("../rendering/render_graph.zig");
 const passes = @import("../rendering/passes/passes.zig");
 const resources = @import("../rendering/resources/resources.zig");
@@ -169,9 +169,7 @@ fn setupRenderingPipeline(
 }
 
 /// Create a custom bloom extraction pass
-fn createBloomExtractPass(
-    graph: *render_graph.RenderGraph,
-    input_target: render_graph.ResourceHandle,
+fn createBloomExtractPass(input_target: render_graph.ResourceHandle,
     output_target: render_graph.ResourceHandle,
 ) !render_graph.PassDesc {
     return .{
@@ -226,7 +224,7 @@ fn executeBloomBlurPass(context: *render_graph.RenderContext) void {
 /// Create a light view-projection matrix for shadows
 fn createLightViewProjectionMatrix() nyon.Matrix {
     // Simplified: would compute actual light matrix
-    return nyon.matrixIdentity();
+    return nyon.Matrix.identity();
 }
 
 /// Update scene state each frame
@@ -277,7 +275,7 @@ pub fn createForwardPipeline(
     _ = try graph.addPass(try passes.ShadowMapPass.create(
         cache.allocator,
         shadow_map,
-        nyon.matrixIdentity(), // Would be actual light matrix
+        nyon.Matrix.identity(), // Would be actual light matrix
     ));
 }
 
@@ -325,6 +323,7 @@ fn createPBRGeometryPass(
     material: render_graph.ResourceHandle,
     depth: render_graph.ResourceHandle,
 ) !render_graph.PassDesc {
+    _ = graph; // autofix
     _ = allocator;
 
     return .{
@@ -357,6 +356,7 @@ fn createPBRLightingPass(
     material: render_graph.ResourceHandle,
     depth: render_graph.ResourceHandle,
 ) !render_graph.PassDesc {
+    _ = graph; // autofix
     _ = allocator;
 
     return .{

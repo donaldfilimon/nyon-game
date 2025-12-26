@@ -138,7 +138,7 @@ pub fn build(b: *std.Build) void {
     editor_exe.root_module.link_libc = true;
     b.installArtifact(editor_exe);
 
-    setupBuildSteps(b, exe, exe.root_module, raylib_lib, zglfw_lib);
+    setupBuildSteps(b, exe, editor_exe, nyon_game_mod, raylib_lib, zglfw_lib);
 }
 
 /// Create the editor executable.
@@ -241,6 +241,7 @@ pub fn linkSystemLibraries(exe: *std.Build.Step.Compile, target: std.Build.Resol
 pub fn setupBuildSteps(
     b: *std.Build,
     exe: *std.Build.Step.Compile,
+    editor_exe: *std.Build.Step.Compile,
     mod: *std.Build.Module,
     raylib_lib: *std.Build.Step.Compile,
     zglfw_lib: ?*std.Build.Step.Compile,
@@ -252,6 +253,11 @@ pub fn setupBuildSteps(
     if (b.args) |args| {
         run_cmd.addArgs(args);
     }
+
+    const run_editor_step = b.step("run-editor", "Build and run the editor");
+    const run_editor_cmd = b.addRunArtifact(editor_exe);
+    run_editor_step.dependOn(&run_editor_cmd.step);
+    run_editor_cmd.setCwd(b.path("."));
 
     const mod_tests = b.addTest(.{
         .root_module = mod,
@@ -271,17 +277,7 @@ pub fn setupBuildSteps(
     }
     const run_exe_tests = b.addRunArtifact(exe_tests);
 
-    // Test step
     const test_step = b.step("test", "Run all tests");
-    const test_cmd = b.addSystemCommand(&[_][]const u8{ "zig", "test", "src/tests.zig" });
-    test_step.dependOn(&test_cmd.step);
-
-    // Run steps
-    const run_cmd = b.addRunArtifact(exe);
-    const run_step = b.step("run", "Run the game");
-    run_step.dependOn(&run_cmd.step);
-
-    const run_editor = b.step("run-editor", "Build and run the editor");
-    const run_editor_cmd = b.addRunArtifact(editor_exe);
-    run_editor.dependOn(&run_editor_cmd.step);
+    test_step.dependOn(&run_mod_tests.step);
+    test_step.dependOn(&run_exe_tests.step);
 }

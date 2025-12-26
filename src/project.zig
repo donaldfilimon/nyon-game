@@ -66,9 +66,9 @@ pub fn loadProject(path: []const u8, a: std.mem.Allocator) !Project {
         } catch {
             // If any duplication or other operation fails, treat it as a
             // parsing error.
+
             return error.InvalidFormat;
+            it = kvs.next();
+            Expected;
         }
-        it = kvs.next();
-    }
-    return proj;
 }

@@ -11,11 +11,11 @@ pub const Texture = struct {
 
 /// Physically Based Rendering material properties.
 pub const PBRProperties = struct {
-    albedo: raylib.Color = raylib.WHITE,
+    albedo: raylib.Color = raylib.Color.white,
     metallic: f32 = 0.0, // 0.0 = dielectric, 1.0 = metallic
     roughness: f32 = 0.5, // 0.0 = smooth, 1.0 = rough
     ao: f32 = 1.0, // ambient occlusion
-    emissive: raylib.Color = raylib.BLACK,
+    emissive: raylib.Color = raylib.Color.black,
 };
 
 /// Shader program for materials.
@@ -26,13 +26,13 @@ pub const ShaderProgram = struct {
 
     /// Load shader from files.
     pub fn load(vertex_path: ?[:0]const u8, fragment_path: ?[:0]const u8) !ShaderProgram {
-        const shader = raylib.LoadShader(vertex_path, fragment_path);
+        const shader = raylib.loadShader(vertex_path, fragment_path) catch return error.ShaderLoadFailed;
         if (shader.id == 0) return error.ShaderLoadFailed;
 
         return ShaderProgram{
             .id = shader.id,
-            .vertex_loc = raylib.GetShaderLocation(shader, "vertexPosition"),
-            .fragment_loc = raylib.GetShaderLocation(shader, "fragmentColor"),
+            .vertex_loc = raylib.getShaderLocation(shader, "vertexPosition"),
+            .fragment_loc = raylib.getShaderLocation(shader, "fragmentColor"),
         };
     }
 
@@ -50,7 +50,7 @@ pub const ShaderProgram = struct {
     /// Free shader resources.
     pub fn deinit(self: *ShaderProgram) void {
         if (self.id != 0) {
-            raylib.UnloadShader(raylib.Shader{ .id = self.id });
+            raylib.unloadShader(raylib.Shader{ .id = self.id });
         }
     }
 };
@@ -77,7 +77,7 @@ pub const Material = struct {
 
     /// Load a texture from a file. Returns a `Texture` struct.
     pub fn loadTexture(_: *std.mem.Allocator, path: [:0]const u8) !Texture {
-        const result = raylib.LoadTexture(path);
+        const result = raylib.loadTexture(path) catch return error.TextureLoadFailed;
         if (result.id == 0) return error.TextureLoadFailed;
         return Texture{ .id = result.id, .width = result.width, .height = result.height };
     }
@@ -114,7 +114,7 @@ pub const Material = struct {
     /// Load and set diffuse texture.
     pub fn setDiffuseTexture(self: *Material, alloc: *std.mem.Allocator, path: [:0]const u8) !void {
         if (self.diffuse) |old_tex| {
-            raylib.UnloadTexture(raylib.Texture{ .id = old_tex.id });
+            raylib.unloadTexture(raylib.Texture{ .id = old_tex.id });
         }
         self.diffuse = try loadTexture(alloc, path);
     }
@@ -122,14 +122,14 @@ pub const Material = struct {
     /// Load and set normal texture.
     pub fn setNormalTexture(self: *Material, alloc: *std.mem.Allocator, path: [:0]const u8) !void {
         if (self.normal) |old_tex| {
-            raylib.UnloadTexture(raylib.Texture{ .id = old_tex.id });
+            raylib.unloadTexture(raylib.Texture{ .id = old_tex.id });
         }
         self.normal = try loadTexture(alloc, path);
     }
 
     /// Convert to raylib material for rendering.
     pub fn toRaylibMaterial(self: *const Material) raylib.Material {
-        var rl_material = raylib.LoadMaterialDefault();
+        var rl_material = raylib.loadMaterialDefault() catch std.mem.zeroes(raylib.Material);
 
         // Set shader
         if (self.shader.id != 0) {
@@ -164,22 +164,22 @@ pub const Material = struct {
         self.shader.deinit();
 
         if (self.diffuse) |tex| {
-            raylib.UnloadTexture(raylib.Texture{ .id = tex.id });
+            raylib.unloadTexture(raylib.Texture{ .id = tex.id });
         }
         if (self.normal) |tex| {
-            raylib.UnloadTexture(raylib.Texture{ .id = tex.id });
+            raylib.unloadTexture(raylib.Texture{ .id = tex.id });
         }
         if (self.metallic) |tex| {
-            raylib.UnloadTexture(raylib.Texture{ .id = tex.id });
+            raylib.unloadTexture(raylib.Texture{ .id = tex.id });
         }
         if (self.roughness) |tex| {
-            raylib.UnloadTexture(raylib.Texture{ .id = tex.id });
+            raylib.unloadTexture(raylib.Texture{ .id = tex.id });
         }
         if (self.ao) |tex| {
-            raylib.UnloadTexture(raylib.Texture{ .id = tex.id });
+            raylib.unloadTexture(raylib.Texture{ .id = tex.id });
         }
         if (self.emissive) |tex| {
-            raylib.UnloadTexture(raylib.Texture{ .id = tex.id });
+            raylib.unloadTexture(raylib.Texture{ .id = tex.id });
         }
 
         alloc.free(self.name);

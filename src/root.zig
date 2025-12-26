@@ -98,6 +98,7 @@ pub const geometry_nodes = @import("geometry_nodes.zig");
 // World/save management
 pub const worlds = @import("game/worlds.zig");
 pub const WorldEntry = worlds.WorldEntry;
+pub const game_state = @import("game/state.zig");
 
 // UI system
 pub const ui = @import("ui/ui.zig");
@@ -116,6 +117,10 @@ pub const file_detail = @import("io/file_detail.zig");
 pub const FileDetail = file_detail.FileDetail;
 
 pub const file_metadata = @import("io/file_metadata.zig");
+
+// Application wrapper
+pub const application = @import("application.zig");
+pub const Application = application.Application;
 
 // ============================================================================
 // Convenience Type Aliases

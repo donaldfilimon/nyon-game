@@ -103,7 +103,7 @@ pub const Scene = struct {
         _ = self;
         _ = index;
         // For now, return identity matrix - we'll handle transforms manually in render
-        return raylib.matrixIdentity();
+        return raylib.Matrix.identity();
     }
 
     /// Result of a ray cast operation
@@ -136,7 +136,7 @@ pub const Scene = struct {
                 for (0..model.meshCount) |mesh_idx| {
                     const mesh = model.meshes[mesh_idx];
                     // Apply model transform to mesh transform
-                    const mesh_transform = raylib.matrixMultiply(mesh.transform, transform);
+                    const mesh_transform = mesh.transform.multiply(transform);
 
                     var mesh_collision = raylib.getRayCollisionMesh(ray, mesh, mesh_transform);
                     if (mesh_collision.hit) {
@@ -170,7 +170,7 @@ pub const Scene = struct {
             if (box_collision.hit) {
                 for (0..model.meshCount) |mesh_idx| {
                     const mesh = model.meshes[mesh_idx];
-                    const mesh_transform = raylib.matrixMultiply(mesh.transform, transform);
+                    const mesh_transform = mesh.transform.multiply(transform);
                     var mesh_collision = raylib.getRayCollisionMesh(ray, mesh, mesh_transform);
 
                     if (mesh_collision.hit) {
@@ -222,7 +222,7 @@ pub const Scene = struct {
         var transformed_max = raylib.Vector3{ .x = -std.math.inf(f32), .y = -std.math.inf(f32), .z = -std.math.inf(f32) };
 
         for (corners) |corner| {
-            const transformed = raylib.vector3Transform(corner, transform);
+            const transformed = corner.transform(transform);
             transformed_min.x = @min(transformed_min.x, transformed.x);
             transformed_min.y = @min(transformed_min.y, transformed.y);
             transformed_min.z = @min(transformed_min.z, transformed.z);

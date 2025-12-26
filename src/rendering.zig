@@ -28,7 +28,7 @@ pub const RenderingSystem = struct {
         uniforms: std.StringHashMap(f32), // Custom uniform values
 
         pub fn init(allocator: std.mem.Allocator, shader: raylib.Shader) !CustomMaterial {
-            var material = raylib.loadMaterialDefault();
+            var material = try raylib.loadMaterialDefault();
             material.shader = shader;
 
             return CustomMaterial{
@@ -44,8 +44,8 @@ pub const RenderingSystem = struct {
         }
 
         /// Set a uniform value (Raylib 5.x enhanced shader support)
-        pub fn setUniform(self: *CustomMaterial, name: []const u8, value: f32) !void {
-            const location = raylib.getShaderLocation(self.shader, name.ptr);
+        pub fn setUniform(self: *CustomMaterial, name: [:0]const u8, value: f32) !void {
+            const location = raylib.getShaderLocation(self.shader, name);
             if (location == -1) return error.InvalidUniformName;
 
             raylib.setShaderValue(self.shader, location, &value, raylib.ShaderUniformDataType.float);
@@ -135,7 +135,7 @@ pub const RenderingSystem = struct {
                     raylib.rlMultMatrixf(@ptrCast(&instance.transform));
 
                     // Draw mesh with material
-                    raylib.drawMesh(self.mesh, self.material, raylib.MatrixIdentity());
+                    raylib.drawMesh(self.mesh, self.material, raylib.Matrix.identity());
 
                     raylib.rlPopMatrix();
                 }
@@ -148,10 +148,10 @@ pub const RenderingSystem = struct {
             materials: std.ArrayList(PBRMaterial),
 
             pub const PBRMaterial = struct {
-                base_color: raylib.Color = raylib.WHITE,
+                base_color: raylib.Color = raylib.Color.white,
                 metallic: f32 = 0.0,
                 roughness: f32 = 0.5,
-                emissive: raylib.Color = raylib.BLACK,
+                emissive: raylib.Color = raylib.Color.black,
                 albedo_texture: ?raylib.Texture = null,
                 normal_texture: ?raylib.Texture = null,
                 metallic_roughness_texture: ?raylib.Texture = null,
@@ -160,40 +160,40 @@ pub const RenderingSystem = struct {
 
                 pub fn loadFromFiles(
                     allocator: std.mem.Allocator,
-                    albedo_path: ?[]const u8,
-                    normal_path: ?[]const u8,
-                    metallic_roughness_path: ?[]const u8,
-                    emissive_path: ?[]const u8,
-                    ao_path: ?[]const u8,
+                    albedo_path: ?[:0]const u8,
+                    normal_path: ?[:0]const u8,
+                    metallic_roughness_path: ?[:0]const u8,
+                    emissive_path: ?[:0]const u8,
+                    ao_path: ?[:0]const u8,
                 ) !PBRMaterial {
                     _ = allocator; // Currently not used for allocations in this context
                     var material = PBRMaterial{};
 
                     if (albedo_path) |path| {
-                        material.albedo_texture = raylib.loadTexture(path.ptr);
+                        material.albedo_texture = try raylib.loadTexture(path);
                     }
 
                     if (normal_path) |path| {
-                        material.normal_texture = raylib.loadTexture(path.ptr);
+                        material.normal_texture = try raylib.loadTexture(path);
                     }
 
                     if (metallic_roughness_path) |path| {
-                        material.metallic_roughness_texture = raylib.loadTexture(path.ptr);
+                        material.metallic_roughness_texture = try raylib.loadTexture(path);
                     }
 
                     if (emissive_path) |path| {
-                        material.emissive_texture = raylib.loadTexture(path.ptr);
+                        material.emissive_texture = try raylib.loadTexture(path);
                     }
 
                     if (ao_path) |path| {
-                        material.ao_texture = raylib.loadTexture(path.ptr);
+                        material.ao_texture = try raylib.loadTexture(path);
                     }
 
                     return material;
                 }
 
                 pub fn toRaylibMaterial(self: PBRMaterial) raylib.Material {
-                    var material = raylib.loadMaterialDefault();
+                    var material = raylib.loadMaterialDefault() catch std.mem.zeroes(raylib.Material);
 
                     // Set PBR properties
                     if (self.albedo_texture) |tex| {
@@ -431,24 +431,21 @@ pub const RenderingSystem = struct {
 
         /// Pan camera
         pub fn pan(self: *Camera, delta: raylib.Vector2, distance: f32) void {
-            const forward = raylib.vector3Normalize(raylib.vector3Subtract(self.target_look_at, self.target_position));
-            const right = raylib.vector3Normalize(raylib.vector3CrossProduct(forward, self.camera.up));
+            const forward = self.target_look_at.subtract(self.target_position).normalize();
+            const right = forward.crossProduct(self.camera.up).normalize();
 
-            const pan_vector = raylib.vector3Add(
-                raylib.vector3Scale(right, -delta.x * distance),
-                raylib.vector3Scale(self.camera.up, delta.y * distance),
-            );
+            const pan_vector = right.scale(-delta.x * distance).add(self.camera.up.scale(delta.y * distance));
 
-            self.target_position = raylib.vector3Add(self.target_position, pan_vector);
-            self.target_look_at = raylib.vector3Add(self.target_look_at, pan_vector);
+            self.target_position = self.target_position.add(pan_vector);
+            self.target_look_at = self.target_look_at.add(pan_vector);
         }
 
         /// Zoom camera
         pub fn zoom(self: *Camera, factor: f32) void {
-            const forward = raylib.vector3Normalize(raylib.vector3Subtract(self.target_look_at, self.target_position));
-            const zoom_vector = raylib.vector3Scale(forward, factor);
+            const forward = self.target_look_at.subtract(self.target_position).normalize();
+            const zoom_vector = forward.scale(factor);
 
-            self.target_position = raylib.vector3Add(self.target_position, zoom_vector);
+            self.target_position = self.target_position.add(zoom_vector);
         }
 
         pub fn deinit(self: *Camera, allocator: std.mem.Allocator) void {
@@ -575,7 +572,7 @@ pub const RenderingSystem = struct {
                     raylib.drawLine3D(light.position, light.target, light.color);
                     // Draw arrow head
                     const direction = light.getDirection();
-                    const normalized_dir = raylib.vector3Normalize(direction);
+                    const normalized_dir = direction.normalize();
                     const arrow_pos = raylib.Vector3{
                         .x = light.target.x - normalized_dir.x * 0.5,
                         .y = light.target.y - normalized_dir.y * 0.5,
@@ -592,7 +589,7 @@ pub const RenderingSystem = struct {
                 .spot => {
                     // Draw spot light as a cone
                     const direction = light.getDirection();
-                    const normalized_dir = raylib.vector3Normalize(direction);
+                    const normalized_dir = direction.normalize();
                     const cone_pos = raylib.Vector3{
                         .x = light.position.x + normalized_dir.x * light.range,
                         .y = light.position.y + normalized_dir.y * light.range,
@@ -615,8 +612,8 @@ pub const RenderingSystem = struct {
     }
 
     /// Load and cache a shader (Raylib 5.x feature)
-    pub fn loadShader(self: *RenderingSystem, name: []const u8, vs_path: ?[]const u8, fs_path: ?[]const u8) !void {
-        const shader = raylib.loadShader(vs_path, fs_path);
+    pub fn loadShader(self: *RenderingSystem, name: []const u8, vs_path: ?[:0]const u8, fs_path: ?[:0]const u8) !void {
+        const shader = try raylib.loadShader(vs_path, fs_path);
         const name_copy = try self.allocator.dupe(u8, name);
         errdefer self.allocator.free(name_copy);
 

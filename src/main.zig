@@ -17,8 +17,8 @@ const MouseButton = engine_mod.MouseButton;
 const Color = engine_mod.Color;
 const Rectangle = engine_mod.Rectangle;
 
-const FontManager = @import("font_manager.zig").FontManager;
-const game_state_mod = @import("game/state.zig");
+const FontManager = nyon_game.FontManager;
+const game_state_mod = nyon_game.game_state;
 const WINDOW_WIDTH = game_state_mod.WINDOW_WIDTH;
 const WINDOW_HEIGHT = game_state_mod.WINDOW_HEIGHT;
 const WINDOW_TITLE = game_state_mod.WINDOW_TITLE;
@@ -41,11 +41,12 @@ const clearWorldSession = game_state_mod.clearWorldSession;
 const setWorldSession = game_state_mod.setWorldSession;
 const resetGameState = game_state_mod.resetGameState;
 const updateFileInfo = game_state_mod.updateFileInfo;
-const worlds_mod = @import("game/worlds.zig");
-const FileDetail = @import("io/file_detail.zig").FileDetail;
-const file_metadata = @import("io/file_metadata.zig");
-const StatusMessage = @import("ui/status_message.zig").StatusMessage;
-const ui_mod = @import("ui/ui.zig");
+const worlds_mod = nyon_game.worlds;
+const FileDetail = nyon_game.FileDetail;
+const file_metadata = nyon_game.file_metadata;
+const StatusMessage = nyon_game.StatusMessage;
+const ui_mod = nyon_game.ui;
+const application_mod = nyon_game.application;
 
 // Direct types from engine modules
 // Import game state module
@@ -145,7 +146,7 @@ const NameInput = struct {
 
 const MenuState = struct {
     allocator: std.mem.Allocator,
-    ctx: ui_mod.UiContext = ui_mod.UiContext{},
+    ctx: ui_mod.UiContext = .{ .style = ui_mod.UiStyle.fromTheme(.dark, 180, 1.0) },
     worlds: []worlds_mod.WorldEntry = &.{},
     selected_world: ?usize = null,
     create_name: NameInput = NameInput{},
@@ -177,7 +178,7 @@ const MenuState = struct {
 
 const GameUiState = struct {
     config: ui_mod.UiConfig,
-    ctx: ui_mod.UiContext = ui_mod.UiContext{},
+    ctx: ui_mod.UiContext = .{ .style = ui_mod.UiStyle.fromTheme(.dark, 180, 1.0) },
     edit_mode: bool = false,
     dirty: bool = false,
     font_manager: FontManager,
@@ -202,6 +203,7 @@ const GameUiState = struct {
 
         return .{
             .config = cfg,
+            .ctx = .{ .style = ui_mod.UiStyle.fromTheme(cfg.theme, cfg.opacity, cfg.scale) },
             .font_manager = font_manager,
         };
     }

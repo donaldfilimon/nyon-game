@@ -8,7 +8,7 @@ pub const UiContext = struct {
 
     pub fn init() UiContext {
         return .{
-            .base_context = ui.UiContext{},
+            .base_context = .{ .style = ui.UiStyle.fromTheme(.dark, 180, 1.0) },
         };
     }
 };

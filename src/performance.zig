@@ -149,7 +149,7 @@ pub const LODSystem = struct {
     /// Update LOD levels based on camera position
     pub fn updateLOD(self: *LODSystem, camera_position: raylib.Vector3) void {
         for (self.lod_groups.items) |*group| {
-            const distance = raylib.vector3Distance(camera_position, group.position);
+            const distance = camera_position.distance(group.position);
             group.last_distance = distance;
 
             // Determine appropriate LOD level
@@ -322,7 +322,7 @@ pub const InstancingSystem = struct {
             // For now, render each instance individually
             // In a full implementation, this would use GPU instancing
             for (group.instances.items) |instance| {
-                const model = raylib.loadModelFromMesh(group.mesh);
+                const model = raylib.loadModelFromMesh(group.mesh) catch continue;
                 defer raylib.unloadModel(model);
 
                 model.materials[0] = group.material;
@@ -339,18 +339,20 @@ pub const InstancingSystem = struct {
         _ = self; // unused
 
         // Scale -> Rotate -> Translate
-        var transform = raylib.matrixIdentity();
+        var transform = raylib.Matrix.identity();
 
         // Apply scale
-        transform = raylib.matrixMultiply(transform, raylib.matrixScale(instance.scale.x, instance.scale.y, instance.scale.z));
+        transform = transform.multiply(raylib.Matrix.scale(instance.scale.x, instance.scale.y, instance.scale.z));
+
+        const deg_to_rad: f32 = @as(f32, std.math.pi / 180.0);
 
         // Apply rotations (Z, Y, X)
-        transform = raylib.matrixMultiply(transform, raylib.matrixRotateZ(instance.rotation.z * std.math.pi / 180.0));
-        transform = raylib.matrixMultiply(transform, raylib.matrixRotateY(instance.rotation.y * std.math.pi / 180.0));
-        transform = raylib.matrixMultiply(transform, raylib.matrixRotateX(instance.rotation.x * std.math.pi / 180.0));
+        transform = transform.multiply(raylib.Matrix.rotateZ(instance.rotation.z * deg_to_rad));
+        transform = transform.multiply(raylib.Matrix.rotateY(instance.rotation.y * deg_to_rad));
+        transform = transform.multiply(raylib.Matrix.rotateX(instance.rotation.x * deg_to_rad));
 
         // Apply translation
-        transform = raylib.matrixMultiply(transform, raylib.matrixTranslate(instance.position.x, instance.position.y, instance.position.z));
+        transform = transform.multiply(raylib.Matrix.translate(instance.position.x, instance.position.y, instance.position.z));
 
         return transform;
     }
@@ -423,8 +425,9 @@ pub const CullingSystem = struct {
     pub fn updateFrustum(self: *CullingSystem, camera: raylib.Camera3D) void {
         // Calculate view-projection matrix
         const view_matrix = raylib.getCameraMatrix(camera);
-        const proj_matrix = raylib.matrixPerspective(camera.fovy * std.math.pi / 180.0, @as(f32, @floatFromInt(raylib.getScreenWidth())) / @as(f32, @floatFromInt(raylib.getScreenHeight())), 0.1, 1000.0);
-        const view_proj = raylib.matrixMultiply(view_matrix, proj_matrix);
+        const aspect = @as(f64, @floatFromInt(raylib.getScreenWidth())) / @as(f64, @floatFromInt(raylib.getScreenHeight()));
+        const proj_matrix = raylib.Matrix.perspective(@as(f64, camera.fovy) * std.math.pi / 180.0, aspect, 0.1, 1000.0);
+        const view_proj = view_matrix.multiply(proj_matrix);
 
         // Extract frustum planes from view-projection matrix
         // Left plane

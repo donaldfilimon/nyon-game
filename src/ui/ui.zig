@@ -48,7 +48,7 @@ pub const FontSet = struct {
 
     pub fn loadDefault(self: *FontSet) void {
         // Load default font for all slots
-        const default_font = raylib.getFontDefault();
+        const default_font = raylib.getFontDefault() catch std.mem.zeroes(raylib.Font);
         self.regular = default_font;
         self.bold = default_font;
         self.mono = default_font;
@@ -57,15 +57,16 @@ pub const FontSet = struct {
 
     pub fn loadCustomFonts(self: *FontSet, font_size: i32) void {
         // Try to load system fonts with fallbacks
-        self.regular = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeui.ttf", font_size, null, 0) catch raylib.getFontDefault();
+        const fallback = raylib.getFontDefault() catch std.mem.zeroes(raylib.Font);
+        self.regular = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeui.ttf", font_size, null, 0) catch fallback;
         self.bold = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeuib.ttf", font_size, null, 0) catch self.regular;
         self.mono = raylib.loadFontEx("C:\\Windows\\Fonts\\consola.ttf", font_size, null, 0) catch self.regular;
-        self.icon = raylib.getFontDefault(); // Placeholder
+        self.icon = raylib.getFontDefault() catch self.regular; // Placeholder
     }
 
     pub fn unload(self: FontSet) void {
         // Only unload if not the default font
-        const default_font = raylib.getFontDefault();
+        const default_font = raylib.getFontDefault() catch std.mem.zeroes(raylib.Font);
         if (self.regular.texture.id != default_font.texture.id) raylib.unloadFont(self.regular);
         if (self.bold.texture.id != default_font.texture.id and self.bold.texture.id != self.regular.texture.id) raylib.unloadFont(self.bold);
         if (self.mono.texture.id != default_font.texture.id and self.mono.texture.id != self.regular.texture.id) raylib.unloadFont(self.mono);
@@ -333,7 +334,7 @@ pub const UiContext = struct {
         Shapes.drawRectangleRounded(rect, radius / @min(rect.width, rect.height), 8, bg_color);
 
         // Draw border
-        Shapes.drawRectangleRoundedLines(rect, radius / @min(rect.width, rect.height), 8, self.style.border_width, self.style.panel_border);
+        Shapes.drawRectangleRoundedLinesEx(rect, radius / @min(rect.width, rect.height), 8, self.style.border_width, self.style.panel_border);
 
         const title_color = if (highlight) self.style.accent_hover else self.style.text;
         const title_y: i32 = @as(i32, @intFromFloat(rect.y)) + @divTrunc(self.style.padding, 2);
@@ -455,7 +456,7 @@ pub const UiContext = struct {
         const bg_color = if (value.*) self.style.accent else self.style.panel_bg;
 
         Shapes.drawRectangleRounded(box, radius / @min(box.width, box.height), 4, bg_color);
-        Shapes.drawRectangleRoundedLines(box, radius / @min(box.width, box.height), 4, self.style.border_width, self.style.panel_border);
+        Shapes.drawRectangleRoundedLinesEx(box, radius / @min(box.width, box.height), 4, self.style.border_width, self.style.panel_border);
         if (value.*) {
             const mark = Rectangle{
                 .x = box.x + 4,
@@ -494,7 +495,7 @@ pub const UiContext = struct {
 
         const radius = self.style.corner_radius * 0.3;
         Shapes.drawRectangleRounded(rect, radius / @min(rect.width, rect.height), 6, self.style.panel_bg);
-        Shapes.drawRectangleRoundedLines(rect, radius / @min(rect.width, rect.height), 6, self.style.border_width, self.style.panel_border);
+        Shapes.drawRectangleRoundedLinesEx(rect, radius / @min(rect.width, rect.height), 6, self.style.border_width, self.style.panel_border);
 
         const ratio = (value.* - min) / (max - min);
         const fill_w = rect.width * (if (ratio < 0.0) 0.0 else if (ratio > 1.0) 1.0 else ratio);

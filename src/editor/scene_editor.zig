@@ -87,7 +87,7 @@ pub const SceneEditor = struct {
 
             // Simple orbit (would be more sophisticated in a real implementation)
             const orbit_speed = 0.01;
-            const distance = raylib.vector3Distance(self.camera_position, self.camera_target);
+            const distance = self.camera_position.distance(self.camera_target);
 
             self.camera_position.x = self.camera_target.x + distance * @cos(delta_x * orbit_speed);
             self.camera_position.z = self.camera_target.z + distance * @sin(delta_x * orbit_speed);
@@ -104,9 +104,9 @@ pub const SceneEditor = struct {
         const wheel = raylib.getMouseWheelMove();
         if (wheel != 0) {
             const zoom_speed = 2.0;
-            const direction = raylib.vector3Normalize(raylib.vector3Subtract(self.camera_position, self.camera_target));
-            const zoom_delta = raylib.vector3Scale(direction, wheel * zoom_speed);
-            self.camera_position = raylib.vector3Add(self.camera_position, zoom_delta);
+            const direction = self.camera_position.subtract(self.camera_target).normalize();
+            const zoom_delta = direction.scale(wheel * zoom_speed);
+            self.camera_position = self.camera_position.add(zoom_delta);
         }
     }
 

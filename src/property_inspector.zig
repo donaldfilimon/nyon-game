@@ -101,27 +101,27 @@ pub const PropertyInspector = struct {
         }
     }
 
-    pub fn renderSceneNodeProperties(self: *PropertyInspector, node_id: usize, x: f32, y: f32, width: f32) f32 {
-        var current_y = y;
+    fn renderSceneNodeProperties(self: *PropertyInspector, x: f32, y: f32, width: f32) f32 {
+            var current_y = y;
 
-        // Header
-        current_y = self.drawPropertyHeader("Scene Node", x, current_y, width);
+            // Header
+            current_y = self.drawPropertyHeader("Scene Node", x, current_y, width);
 
-        // Position
-        current_y = self.drawVector3Property("Position", .{ .x = 0, .y = 0, .z = 0 }, x, current_y, width);
+            // Position
+            current_y = self.drawVector3Property("Position", .{ .x = 0, .y = 0, .z = 0 }, x, current_y, width);
 
-        // Rotation
-        current_y = self.drawVector3Property("Rotation", .{ .x = 0, .y = 0, .z = 0 }, x, current_y, width);
+            // Rotation
+            current_y = self.drawVector3Property("Rotation", .{ .x = 0, .y = 0, .z = 0 }, x, current_y, width);
 
-        // Scale
-        current_y = self.drawVector3Property("Scale", .{ .x = 1, .y = 1, .z = 1 }, x, current_y, width);
+            // Scale
+            current_y = self.drawVector3Property("Scale", .{ .x = 1, .y = 1, .z = 1 }, x, current_y, width);
 
-        // Material
-        current_y = self.drawPropertyHeader("Material", x, current_y, width);
-        current_y = self.drawColorProperty("Diffuse Color", raylib.Color.white, x, current_y, width);
+            // Material
+            current_y = self.drawPropertyHeader("Material", x, current_y, width);
+            current_y = self.drawColorProperty("Diffuse Color", raylib.Color.white, x, current_y, width);
 
-        return current_y;
-    }
+            return current_y;
+        }
 
     fn renderGeometryNodeProperties(self: *PropertyInspector, _: usize, x: f32, y: f32, width: f32) f32 {
         var current_y = y;

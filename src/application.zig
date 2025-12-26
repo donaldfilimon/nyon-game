@@ -1,5 +1,5 @@
 const std = @import("std");
-const nyon_game = @import("root.zig");
+const nyon_game = @import("nyon_game");
 const engine_mod = nyon_game.engine;
 const status_msg = nyon_game.status_message;
 

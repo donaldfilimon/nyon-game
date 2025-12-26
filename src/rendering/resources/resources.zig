@@ -4,7 +4,7 @@
 //! buffers, shaders, and other GPU resources used in rendering.
 
 const std = @import("std");
-const nyon = @import("../../nyon_game.zig");
+const nyon = @import("nyon_game");
 const render_graph = @import("../render_graph.zig");
 
 // ============================================================================

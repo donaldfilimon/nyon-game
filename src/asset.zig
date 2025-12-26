@@ -134,7 +134,7 @@ pub const AssetManager = struct {
     }
 
     /// Load a model asset
-    pub fn loadModel(_: *AssetManager, file_path: []const u8, _: LoadOptions) (AssetError || error{OutOfMemory})!raylib.Model {
+    pub fn loadModel(self: *AssetManager, file_path: []const u8, _: LoadOptions) (AssetError || error{OutOfMemory})!raylib.Model {
         // Check if file exists before loading
         const file = std.fs.cwd().openFile(file_path, .{}) catch {
             return AssetError{ .file_not_found = .{
@@ -146,7 +146,16 @@ pub const AssetManager = struct {
 
         // Options not yet implemented for models
         // For now, just load directly without caching
-        const model = raylib.loadModel(file_path.ptr);
+        const path_z = try self.allocator.dupeZ(u8, file_path);
+        defer self.allocator.free(path_z);
+
+        const model = raylib.loadModel(path_z) catch {
+            return AssetError{ .invalid_asset_data = .{
+                .path = file_path,
+                .expected_format = "Valid 3D model file (.obj, .gltf, etc.)",
+                .actual_format = "Raylib failed to load model",
+            } };
+        };
 
         // Check if model loaded successfully
         if (model.meshCount == 0) {
@@ -179,10 +188,8 @@ pub const AssetManager = struct {
 
         // Load new texture
         var texture: raylib.Texture = undefined;
-
-        if (options.flip_textures) {
-            raylib.imageFlipVertical(&raylib.loadImage(file_path.ptr));
-        }
+        const path_z = try self.allocator.dupeZ(u8, file_path);
+        defer self.allocator.free(path_z);
 
         const ext = std.fs.path.extension(file_path);
         if (std.mem.eql(u8, ext, ".png") or
@@ -190,7 +197,29 @@ pub const AssetManager = struct {
             std.mem.eql(u8, ext, ".jpeg") or
             std.mem.eql(u8, ext, ".bmp"))
         {
-            texture = raylib.loadTexture(file_path.ptr);
+            if (options.flip_textures) {
+                var image = raylib.loadImage(path_z) catch {
+                    return AssetError{ .texture_load_failed = .{
+                        .path = file_path,
+                        .reason = "Raylib failed to load image for flipping",
+                    } };
+                };
+                defer raylib.unloadImage(image);
+                raylib.imageFlipVertical(&image);
+                texture = raylib.loadTextureFromImage(image) catch {
+                    return AssetError{ .texture_load_failed = .{
+                        .path = file_path,
+                        .reason = "Raylib failed to load texture from image",
+                    } };
+                };
+            } else {
+                texture = raylib.loadTexture(path_z) catch {
+                    return AssetError{ .texture_load_failed = .{
+                        .path = file_path,
+                        .reason = "Raylib failed to load texture",
+                    } };
+                };
+            }
         } else {
             return AssetError{ .unsupported_texture_format = .{
                 .path = file_path,

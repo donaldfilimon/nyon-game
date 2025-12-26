@@ -610,7 +610,7 @@ pub const MainEditor = struct {
             camera.update(dt);
             if (raylib.isMouseButtonDown(.right)) {
                 const delta = raylib.getMouseDelta();
-                const distance = raylib.vector3Distance(camera.camera.target, camera.camera.position);
+                const distance = camera.camera.target.distance(camera.camera.position);
                 camera.orbit(
                     camera.camera.target,
                     distance,

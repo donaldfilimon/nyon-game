@@ -1,6 +1,5 @@
 const std = @import("std");
 
-// Raylib Zig bindings stub - For development when raylib is not available
 // TODO: Replace with proper raylib-zig bindings
 
 // Raylib Zig bindings - Minimal stub for development

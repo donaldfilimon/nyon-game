@@ -1104,19 +1104,19 @@ pub const Models = struct {
 
     /// Load a 3D model from .obj file
     /// Raylib automatically detects format from file extension
-    pub fn loadObj(fileName: [:0]const u8) raylib.Model {
+    pub fn loadObj(fileName: [:0]const u8) !raylib.Model {
         return raylib.loadModel(fileName);
     }
 
     /// Load a 3D model from .gltf or .glb file
     /// Raylib automatically detects format from file extension
-    pub fn loadGltf(fileName: [:0]const u8) raylib.Model {
+    pub fn loadGltf(fileName: [:0]const u8) !raylib.Model {
         return raylib.loadModel(fileName);
     }
 
     /// Load model with materials and animations for advanced usage
     pub fn loadAdvanced(allocator: std.mem.Allocator, fileName: [:0]const u8) !struct { model: raylib.Model, materials: []raylib.Material, animations: []raylib.ModelAnimation } {
-        var model = raylib.loadModel(fileName);
+        var model = try raylib.loadModel(fileName);
         errdefer raylib.unloadModel(model);
 
         // Load materials
@@ -1210,20 +1210,21 @@ pub const Materials = struct {
     pub const setMeshMaterial = raylib.setModelMeshMaterial;
 
     /// Load a material from file with texture support
-    pub fn loadFromFile(fileName: [:0]const u8) raylib.Material {
-        return raylib.loadModel(fileName).materials[0];
+    pub fn loadFromFile(fileName: [:0]const u8) !raylib.Material {
+        const model = try raylib.loadModel(fileName);
+        return model.materials[0];
     }
 
     /// Create a basic material with diffuse texture
-    pub fn createBasic(diffuse_texture: raylib.Texture) raylib.Material {
-        var material = raylib.loadMaterialDefault();
+    pub fn createBasic(diffuse_texture: raylib.Texture) !raylib.Material {
+        var material = try raylib.loadMaterialDefault();
         material.maps[raylib.MATERIAL_MAP_DIFFUSE].texture = diffuse_texture;
         return material;
     }
 
     /// Create a PBR material (Physically Based Rendering)
-    pub fn createPBR(albedo: raylib.Texture, normal: ?raylib.Texture, metallic_roughness: ?raylib.Texture, emissive: ?raylib.Texture) raylib.Material {
-        var material = raylib.loadMaterialDefault();
+    pub fn createPBR(albedo: raylib.Texture, normal: ?raylib.Texture, metallic_roughness: ?raylib.Texture, emissive: ?raylib.Texture) !raylib.Material {
+        var material = try raylib.loadMaterialDefault();
 
         // Albedo/Base color
         material.maps[raylib.MATERIAL_MAP_ALBEDO].texture = albedo;

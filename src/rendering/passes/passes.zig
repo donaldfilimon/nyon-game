@@ -5,7 +5,7 @@
 
 const std = @import("std");
 const render_graph = @import("render_graph.zig");
-const nyon = @import("../../nyon_game.zig");
+const nyon = @import("nyon_game");
 
 // ============================================================================
 // Geometry Pass
@@ -31,8 +31,8 @@ pub const GeometryPass = struct {
         const data = try allocator.create(Data);
         data.* = .{
             .camera_position = nyon.Vector3{ .x = 0, .y = 0, .z = 5 },
-            .camera_matrix = nyon.matrixIdentity(),
-            .projection_matrix = nyon.matrixPerspective(
+            .camera_matrix = nyon.Matrix.identity(),
+            .projection_matrix = nyon.Matrix.perspective(
                 60.0 * std.math.pi / 180.0,
                 16.0 / 9.0,
                 0.1,
