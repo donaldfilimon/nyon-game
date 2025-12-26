@@ -13,18 +13,18 @@ pub const PhysicsIntegration = struct {
     entity_world: *ecs.ECSWorld,
 
     /// Map from entity ID to physics body ID
-    entity_to_body: std.HashMap(usize, physics.RigidBodyId),
+    entity_to_body: std.HashMap(usize, physics.world.BodyHandle, std.hash_map.AutoContext(usize), std.hash_map.default_max_load_percentage),
 
     /// Map from physics body ID to entity ID
-    body_to_entity: std.HashMap(physics.RigidBodyId, usize),
+    body_to_entity: std.HashMap(physics.world.BodyHandle, usize, std.hash_map.AutoContext(physics.world.BodyHandle), std.hash_map.default_max_load_percentage),
 
     pub fn init(allocator: std.mem.Allocator, physics_world: *physics.PhysicsWorld, entity_world: *ecs.ECSWorld) !PhysicsIntegration {
         return PhysicsIntegration{
             .allocator = allocator,
             .physics_world = physics_world,
             .entity_world = entity_world,
-            .entity_to_body = std.HashMap(usize, physics.RigidBodyId).init(allocator),
-            .body_to_entity = std.HashMap(physics.RigidBodyId, usize).init(allocator),
+            .entity_to_body = std.HashMap(usize, physics.world.BodyHandle, std.hash_map.AutoContext(usize), std.hash_map.default_max_load_percentage).init(allocator),
+            .body_to_entity = std.HashMap(physics.world.BodyHandle, usize, std.hash_map.AutoContext(physics.world.BodyHandle), std.hash_map.default_max_load_percentage).init(allocator),
         };
     }
 
@@ -35,18 +35,30 @@ pub const PhysicsIntegration = struct {
 
     /// Create a rigid body for a game entity
     pub fn createRigidBodyForEntity(self: *PhysicsIntegration, entity_id: usize, config: RigidBodyConfig) !void {
-        const rigidbody = try physics.RigidBody.init(
-            self.allocator,
-            config.position,
-            config.mass,
-            config.shape,
-        );
-        defer rigidbody.deinit(self.allocator);
+        var body = if (config.is_kinematic)
+            physics.RigidBody.kinematic(config.position)
+        else if (config.mass == 0.0)
+            physics.RigidBody.static(config.position)
+        else
+            physics.RigidBody.dynamic(config.mass, config.position);
 
-        const body_id = try self.physics_world.addRigidBody(rigidbody);
+        body.material.restitution = config.restitution;
+        body.material.friction = config.friction;
 
-        try self.entity_to_body.put(entity_id, body_id);
-        try self.body_to_entity.put(body_id, entity_id);
+        const body_handle = try self.physics_world.createBody(body);
+
+        // Attach collider
+        const collider = switch (config.shape) {
+            .sphere => physics.Collider.sphere(config.position, config.radius),
+            .box => physics.Collider.box(config.position, physics.Vector3.init(config.width * 0.5, config.height * 0.5, config.depth * 0.5)),
+            .capsule => physics.Collider.capsule(config.position, config.radius, config.height),
+            .cylinder => physics.Collider.sphere(config.position, config.radius), // Cylinder fallback to sphere for now
+        };
+
+        try self.physics_world.attachCollider(body_handle, collider);
+
+        try self.entity_to_body.put(entity_id, body_handle);
+        try self.body_to_entity.put(body_handle, entity_id);
     }
 
     /// Update game entities from physics simulation
@@ -58,32 +70,61 @@ pub const PhysicsIntegration = struct {
 
             if (self.physics_world.getRigidBody(body_id)) |body| {
                 // Update entity transform from physics body
-                // This would require actual ECS component access
-                _ = body;
-                _ = entity_id;
+                const pos = body.position;
+                const rot = body.orientation;
+
+                // Update Position component
+                if (self.entity_world.getComponent(entity_id, ecs.Position)) |p| {
+                    p.x = pos.x;
+                    p.y = pos.y;
+                    p.z = pos.z;
+                }
+
+                // Update Rotation component
+                if (self.entity_world.getComponent(entity_id, ecs.Rotation)) |r| {
+                    r.x = rot.x;
+                    r.y = rot.y;
+                    r.z = rot.z;
+                    r.w = rot.w;
+                }
+
+                // Update combined Transform component if it exists
+                if (self.entity_world.getComponent(entity_id, ecs.Transform)) |t| {
+                    t.position.x = pos.x;
+                    t.position.y = pos.y;
+                    t.position.z = pos.z;
+                    t.rotation.x = rot.x;
+                    t.rotation.y = rot.y;
+                    t.rotation.z = rot.z;
+                    t.rotation.w = rot.w;
+                }
             }
         }
     }
 
     /// Apply force to entity's rigid body
     pub fn applyForceToEntity(self: *PhysicsIntegration, entity_id: usize, force: physics.Vector3) !void {
-        if (self.entity_to_body.get(entity_id)) |body_id| {
-            try self.physics_world.applyForce(body_id, force);
+        if (self.entity_to_body.get(entity_id)) |body_handle| {
+            if (self.physics_world.getBody(body_handle)) |body| {
+                body.addForce(force);
+            }
         }
     }
 
     /// Set velocity for entity's rigid body
     pub fn setEntityVelocity(self: *PhysicsIntegration, entity_id: usize, velocity: physics.Vector3) !void {
-        if (self.entity_to_body.get(entity_id)) |body_id| {
-            try self.physics_world.setVelocity(body_id, velocity);
+        if (self.entity_to_body.get(entity_id)) |body_handle| {
+            if (self.physics_world.getBody(body_handle)) |body| {
+                body.setLinearVelocity(velocity);
+            }
         }
     }
 
     /// Get entity velocity from physics body
     pub fn getEntityVelocity(self: *PhysicsIntegration, entity_id: usize) ?physics.Vector3 {
-        if (self.entity_to_body.get(entity_id)) |body_id| {
-            if (self.physics_world.getRigidBody(body_id)) |body| {
-                return body.velocity;
+        if (self.entity_to_body.get(entity_id)) |body_handle| {
+            if (self.physics_world.getBody(body_handle)) |body| {
+                return body.linear_velocity;
             }
         }
         return null;
@@ -160,12 +201,11 @@ pub const PhysicsIntegration = struct {
 
     /// Handle collisions between entities
     pub fn handleCollisions(self: *PhysicsIntegration, callback: *const fn (entity_id_a: usize, entity_id_b: usize) void) !void {
-        const collisions = try self.physics_world.getCollisions(self.allocator);
-        defer self.allocator.free(collisions);
+        const manifolds = self.physics_world.manifolds.items;
 
-        for (collisions) |collision| {
-            if (self.body_to_entity.get(collision.body_a)) |entity_a| {
-                if (self.body_to_entity.get(collision.body_b)) |entity_b| {
+        for (manifolds) |manifold| {
+            if (self.body_to_entity.get(manifold.body_a)) |entity_a| {
+                if (self.body_to_entity.get(manifold.body_b)) |entity_b| {
                     callback(entity_a, entity_b);
                 }
             }
@@ -173,11 +213,11 @@ pub const PhysicsIntegration = struct {
     }
 
     /// Remove physics body for entity
-    pub fn removeEntityRigidBody(self: *PhysicsIntegration, entity_id: usize) !void {
+    pub fn removeEntityRigidBody(self: *PhysicsIntegration, entity_id: usize) void {
         if (self.entity_to_body.fetchRemove(entity_id)) |entry| {
-            const body_id = entry.value;
-            _ = self.body_to_entity.remove(body_id);
-            try self.physics_world.removeRigidBody(body_id);
+            const body_handle = entry.value;
+            _ = self.body_to_entity.remove(body_handle);
+            self.physics_world.destroyBody(body_handle);
         }
     }
 };

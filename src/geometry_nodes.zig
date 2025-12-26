@@ -355,40 +355,43 @@ pub const RotateNode = struct {
 
         const rotated_vertex_count: usize = @intCast(rotated_mesh.vertexCount);
         // Apply rotation to all vertices (ZXY order)
-        for (0..rotated_vertex_count) |i| {
-            const vertex_index = i * 3;
-            var x = rotated_mesh.vertices[vertex_index];
-            var y = rotated_mesh.vertices[vertex_index + 1];
-            var z = rotated_mesh.vertices[vertex_index + 2];
+        if (rotated_mesh.vertices) |vertices| {
+            const vertex_slice = vertices[0..@intCast(rotated_vertex_count * 3)];
+            for (0..rotated_vertex_count) |i| {
+                const vertex_index = i * 3;
+                var x = vertex_slice[vertex_index];
+                var y = vertex_slice[vertex_index + 1];
+                var z = vertex_slice[vertex_index + 2];
 
-            // Apply rotations
-            // First Z rotation
-            const cos_z = @cos(rot_z_rad);
-            const sin_z = @sin(rot_z_rad);
-            const new_x_z = x * cos_z - y * sin_z;
-            const new_y_z = x * sin_z + y * cos_z;
-            x = new_x_z;
-            y = new_y_z;
+                // Apply rotations
+                // First Z rotation
+                const cos_z = @cos(rot_z_rad);
+                const sin_z = @sin(rot_z_rad);
+                const new_x_z = x * cos_z - y * sin_z;
+                const new_y_z = x * sin_z + y * cos_z;
+                x = new_x_z;
+                y = new_y_z;
 
-            // Then X rotation
-            const cos_x = @cos(rot_x_rad);
-            const sin_x = @sin(rot_x_rad);
-            const new_y_x = y * cos_x - z * sin_x;
-            const new_z_x = y * sin_x + z * cos_x;
-            y = new_y_x;
-            z = new_z_x;
+                // Then X rotation
+                const cos_x = @cos(rot_x_rad);
+                const sin_x = @sin(rot_x_rad);
+                const new_y_x = y * cos_x - z * sin_x;
+                const new_z_x = y * sin_x + z * cos_x;
+                y = new_y_x;
+                z = new_z_x;
 
-            // Finally Y rotation
-            const cos_y = @cos(rot_y_rad);
-            const sin_y = @sin(rot_y_rad);
-            const new_x_y = x * cos_y + z * sin_y;
-            const new_z_y = -x * sin_y + z * cos_y;
-            x = new_x_y;
-            z = new_z_y;
+                // Finally Y rotation
+                const cos_y = @cos(rot_y_rad);
+                const sin_y = @sin(rot_y_rad);
+                const new_x_y = x * cos_y + z * sin_y;
+                const new_z_y = -x * sin_y + z * cos_y;
+                x = new_x_y;
+                z = new_z_y;
 
-            rotated_mesh.vertices[vertex_index] = x;
-            rotated_mesh.vertices[vertex_index + 1] = y;
-            rotated_mesh.vertices[vertex_index + 2] = z;
+                vertex_slice[vertex_index] = x;
+                vertex_slice[vertex_index + 1] = y;
+                vertex_slice[vertex_index + 2] = z;
+            }
         }
 
         // Recalculate normals if present
@@ -420,17 +423,13 @@ pub const UnionNode = struct {
     }
 
     fn execute(_: *nodes.NodeGraph.Node, inputs: []const nodes.NodeGraph.Value, allocator: std.mem.Allocator) ![]nodes.NodeGraph.Value {
-        if (inputs.len != 2) return error.InvalidInputCount;
-
         const mesh_a = inputs[0].mesh;
         const mesh_b = inputs[1].mesh;
 
-        // Implement CSG Intersection
-        const result_mesh = try performIntersection(mesh_a, mesh_b, allocator);
+        // Implement CSG Union
+        const result_mesh = try performUnion(mesh_a, mesh_b, allocator);
 
-        var outputs = try allocator.alloc(nodes.NodeGraph.Value, 1);
-        outputs[0] = .{ .mesh = result_mesh };
-        return outputs;
+        return try allocator.dupe(nodes.NodeGraph.Value, &[_]nodes.NodeGraph.Value{.{ .mesh = result_mesh }});
     }
 
     fn deinit(node: *nodes.NodeGraph.Node, allocator: std.mem.Allocator) void {
@@ -457,13 +456,13 @@ pub const DifferenceNode = struct {
     fn execute(_: *nodes.NodeGraph.Node, inputs: []const nodes.NodeGraph.Value, allocator: std.mem.Allocator) ![]nodes.NodeGraph.Value {
         if (inputs.len != 2) return error.InvalidInputCount;
 
-        // For Phase 1, just return the first mesh (placeholder for proper CSG)
         const mesh_a = inputs[0].mesh;
-        const result_mesh = try copyMesh(mesh_a, allocator);
+        const mesh_b = inputs[1].mesh;
 
-        var outputs = try allocator.alloc(nodes.NodeGraph.Value, 1);
-        outputs[0] = .{ .mesh = result_mesh };
-        return outputs;
+        // Implement CSG Difference
+        const result_mesh = try performDifference(mesh_a, mesh_b, allocator);
+
+        return try allocator.dupe(nodes.NodeGraph.Value, &[_]nodes.NodeGraph.Value{.{ .mesh = result_mesh }});
     }
 
     fn deinit(node: *nodes.NodeGraph.Node, allocator: std.mem.Allocator) void {
@@ -490,9 +489,13 @@ pub const IntersectionNode = struct {
     fn execute(_: *nodes.NodeGraph.Node, inputs: []const nodes.NodeGraph.Value, allocator: std.mem.Allocator) ![]nodes.NodeGraph.Value {
         if (inputs.len != 2) return error.InvalidInputCount;
 
-        // For Phase 1, just return an empty mesh (placeholder for proper CSG)
-        const mesh = raylib.genMeshCube(0.1, 0.1, 0.1); // Very small cube as placeholder
-        return try allocator.dupe(nodes.NodeGraph.Value, &[_]nodes.NodeGraph.Value{.{ .mesh = mesh }});
+        const mesh_a = inputs[0].mesh;
+        const mesh_b = inputs[1].mesh;
+
+        // Implement CSG Intersection
+        const result_mesh = try performIntersection(mesh_a, mesh_b, allocator);
+
+        return try allocator.dupe(nodes.NodeGraph.Value, &[_]nodes.NodeGraph.Value{.{ .mesh = result_mesh }});
     }
 
     fn deinit(node: *nodes.NodeGraph.Node, allocator: std.mem.Allocator) void {
@@ -996,6 +999,26 @@ fn performUnion(mesh_a: raylib.Mesh, mesh_b: raylib.Mesh, allocator: std.mem.All
         @memcpy(vertices[offset .. offset + vertex_count_b * 3], src_b);
     }
 
+    // Handle indices
+    var indices: ?[*]u16 = null;
+    const index_count_a = if (mesh_a.indices != null) @as(usize, @intCast(mesh_a.triangleCount)) * 3 else 0;
+    const index_count_b = if (mesh_b.indices != null) @as(usize, @intCast(mesh_b.triangleCount)) * 3 else 0;
+    const total_indices = index_count_a + index_count_b;
+
+    if (total_indices > 0) {
+        const index_data = try allocator.alloc(u16, total_indices);
+        if (index_count_a > 0) {
+            @memcpy(index_data[0..index_count_a], mesh_a.indices[0..index_count_a]);
+        }
+        if (index_count_b > 0) {
+            const offset = index_count_a;
+            for (0..index_count_b) |i| {
+                index_data[offset + i] = mesh_b.indices[i] + @as(u16, @intCast(vertex_count_a));
+            }
+        }
+        indices = index_data.ptr;
+    }
+
     var result_mesh = raylib.Mesh{
         .vertexCount = @intCast(total_vertices),
         .triangleCount = @intCast(total_triangles),
@@ -1005,7 +1028,7 @@ fn performUnion(mesh_a: raylib.Mesh, mesh_b: raylib.Mesh, allocator: std.mem.All
         .normals = null,
         .tangents = null,
         .colors = null,
-        .indices = null,
+        .indices = indices,
         .animVertices = null,
         .animNormals = null,
         .boneIds = null,

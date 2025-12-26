@@ -40,6 +40,7 @@ pub const UndoRedoSystem = struct {
             deinit: *const fn (*anyopaque, std.mem.Allocator) void,
             clone: *const fn (*anyopaque, std.mem.Allocator) anyerror!*Command,
             getMemoryUsage: *const fn (*anyopaque) usize,
+            getTypeName: *const fn (*anyopaque) []const u8,
         };
 
         /// Execute the command
@@ -64,7 +65,12 @@ pub const UndoRedoSystem = struct {
 
         /// Get memory usage of the command
         pub fn getMemoryUsage(self: *Command) usize {
-            return self.vtable.getMemoryUsage(self);
+            return self.vtable.getMemoryUsage(self.impl_ptr);
+        }
+
+        /// Get the type name of the command
+        pub fn getTypeName(self: *Command) []const u8 {
+            return self.vtable.getTypeName(self.impl_ptr);
         }
     };
 
@@ -112,6 +118,7 @@ pub const UndoRedoSystem = struct {
             .deinit = deinitImpl,
             .clone = cloneImpl,
             .getMemoryUsage = getMemoryUsageImpl,
+            .getTypeName = getTypeNameImpl,
         };
 
         fn executeImpl(cmd: *Command) !void {
@@ -150,13 +157,17 @@ pub const UndoRedoSystem = struct {
             return &new_compound.base;
         }
 
-        fn getMemoryUsageImpl(cmd: *Command) usize {
-            const compound: *CompoundCommand = @ptrCast(cmd);
+        fn getMemoryUsageImpl(cmd: *anyopaque) usize {
+            const compound: *CompoundCommand = @ptrCast(@alignCast(cmd));
             var total: usize = @sizeOf(CompoundCommand) + compound.base.description.len;
             for (compound.commands.items) |command| {
                 total += command.getMemoryUsage();
             }
             return total;
+        }
+
+        fn getTypeNameImpl(_: *anyopaque) []const u8 {
+            return "CompoundCommand";
         }
     };
 
@@ -169,7 +180,7 @@ pub const UndoRedoSystem = struct {
 
     /// Initialize the undo/redo system
     pub fn init(allocator: std.mem.Allocator) UndoRedoSystem {
-        return .{
+        var self = UndoRedoSystem{
             .allocator = allocator,
             .undo_stack = std.ArrayList(*Command).initCapacity(allocator, 0) catch unreachable,
             .redo_stack = std.ArrayList(*Command).initCapacity(allocator, 0) catch unreachable,
@@ -177,6 +188,11 @@ pub const UndoRedoSystem = struct {
             .current_compound = null,
             .command_types = std.StringHashMap(CommandType).init(allocator),
         };
+
+        // Register default command types
+        self.registerCommandType("SceneTransformCommand", SceneTransformCommand.getCommandType()) catch {};
+
+        return self;
     }
 
     /// Deinitialize the undo/redo system
@@ -396,11 +412,8 @@ pub const UndoRedoSystem = struct {
 
     /// Helper to get command type from command instance
     fn getCommandType(self: *const UndoRedoSystem, command: *Command) ?CommandType {
-        _ = self;
-        _ = command;
-        // This would need to be implemented based on command type identification
-        // For now, return null (serialization not fully implemented)
-        return null;
+        const type_name = command.getTypeName();
+        return self.command_types.get(type_name);
     }
 };
 
@@ -469,30 +482,76 @@ pub const SceneTransformCommand = struct {
         .deinit = deinitImpl,
         .clone = cloneImpl,
         .getMemoryUsage = getMemoryUsageImpl,
+        .getTypeName = getTypeNameImpl,
     };
 
-    fn executeImpl(cmd: *UndoRedoSystem.Command) !void {
-        const self: *SceneTransformCommand = @ptrCast(cmd);
+    pub fn getCommandType() UndoRedoSystem.CommandType {
+        return .{
+            .name = "SceneTransformCommand",
+            .createFn = createFromJson,
+            .serializeFn = serializeToJson,
+        };
+    }
+
+    fn createFromJson(allocator: std.mem.Allocator, json_value: std.json.Value) anyerror!*UndoRedoSystem.Command {
+        _ = allocator;
+        const root = json_value.object;
+        const description = if (root.get("description")) |d| d.string else "Scene Transform";
+        const entity_id = if (root.get("entity_id")) |id| @as(usize, @intCast(id.integer)) else 0;
+        _ = description;
+        _ = entity_id;
+
+        // In a real system, we'd need a reference to the scene from somewhere
+        // For now, we'll return an error if scene is not available
+        return error.SceneReferenceMissing;
+    }
+
+    fn serializeToJson(cmd: *UndoRedoSystem.Command, allocator: std.mem.Allocator) anyerror!std.json.Value {
+        const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd.impl_ptr));
+        var root = std.json.ObjectMap.init(allocator);
+
+        try root.put("type", std.json.Value{ .string = "SceneTransformCommand" });
+        try root.put("description", std.json.Value{ .string = self.base.description });
+        try root.put("entity_id", std.json.Value{ .integer = @intCast(self.entity_id) });
+
+        // Serialize transform vectors
+        var old_pos = std.json.ObjectMap.init(allocator);
+        try old_pos.put("x", std.json.Value{ .float = self.old_position.x });
+        try old_pos.put("y", std.json.Value{ .float = self.old_position.y });
+        try old_pos.put("z", std.json.Value{ .float = self.old_position.z });
+        try root.put("old_position", std.json.Value{ .object = old_pos });
+
+        var new_pos = std.json.ObjectMap.init(allocator);
+        try new_pos.put("x", std.json.Value{ .float = self.new_position.x });
+        try new_pos.put("y", std.json.Value{ .float = self.new_position.y });
+        try new_pos.put("z", std.json.Value{ .float = self.new_position.z });
+        try root.put("new_position", std.json.Value{ .object = new_pos });
+
+        return std.json.Value{ .object = root };
+    }
+
+    fn executeImpl(cmd: *anyopaque) !void {
+        const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd));
         self.scene.setPosition(self.entity_id, self.new_position);
         self.scene.setRotation(self.entity_id, self.new_rotation);
         self.scene.setScale(self.entity_id, self.new_scale);
     }
 
-    fn undoImpl(cmd: *UndoRedoSystem.Command) !void {
-        const self: *SceneTransformCommand = @ptrCast(cmd);
+    fn undoImpl(cmd: *anyopaque) !void {
+        const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd));
         self.scene.setPosition(self.entity_id, self.old_position);
         self.scene.setRotation(self.entity_id, self.old_rotation);
         self.scene.setScale(self.entity_id, self.old_scale);
     }
 
-    fn deinitImpl(cmd: *UndoRedoSystem.Command, allocator: std.mem.Allocator) void {
-        const self: *SceneTransformCommand = @ptrCast(cmd);
+    fn deinitImpl(cmd: *anyopaque, allocator: std.mem.Allocator) void {
+        const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd));
         allocator.free(self.base.description);
         allocator.destroy(self);
     }
 
-    fn cloneImpl(cmd: *UndoRedoSystem.Command, allocator: std.mem.Allocator) !*UndoRedoSystem.Command {
-        const self: *SceneTransformCommand = @ptrCast(cmd);
+    fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) !*UndoRedoSystem.Command {
+        const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd));
         const cloned = try SceneTransformCommand.create(allocator, self.scene, self.entity_id, self.base.description);
         cloned.new_position = self.new_position;
         cloned.new_rotation = self.new_rotation;
@@ -500,8 +559,12 @@ pub const SceneTransformCommand = struct {
         return &cloned.base;
     }
 
-    fn getMemoryUsageImpl(cmd: *UndoRedoSystem.Command) usize {
-        const self: *SceneTransformCommand = @ptrCast(cmd);
+    fn getMemoryUsageImpl(cmd: *anyopaque) usize {
+        const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd));
         return @sizeOf(SceneTransformCommand) + self.base.description.len;
+    }
+
+    fn getTypeNameImpl(_: *anyopaque) []const u8 {
+        return "SceneTransformCommand";
     }
 };

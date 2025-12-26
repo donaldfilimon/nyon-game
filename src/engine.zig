@@ -1,188 +1,47 @@
 const std = @import("std");
 const raylib = @import("raylib");
-const builtin = @import("builtin");
-
-// WebGPU backend types (placeholder for when std.gpu stabilizes)
-const WebGpuContext = struct {
-    // Placeholder for WebGPU context
-    // Will contain device, queue, surface, etc. when std.gpu API is stable
-    initialized: bool = false,
-};
-
-// ============================================================================
-// Platform Detection
-// ============================================================================
-
-const is_browser = builtin.target.os.tag == .freestanding or builtin.target.os.tag == .wasi;
-
-// ============================================================================
-// Error Types
-// ============================================================================
-
-/// Engine-specific error types
-pub const EngineError = error{
-    /// Backend is not initialized
-    BackendNotInitialized,
-    /// Backend is not available on this platform
-    BackendNotAvailable,
-    /// GLFW backend is not implemented yet
-    GlfwBackendNotImplemented,
-    /// GLFW is not available on this platform
-    GlfwNotAvailable,
-    /// Invalid configuration parameters
-    InvalidConfig,
-};
-
-// ============================================================================
-// Conditional Imports
-// ============================================================================
+const types = @import("engine/types.zig");
+const raylib_backend = @import("engine/raylib_backend.zig");
+const glfw_backend = @import("engine/glfw_backend.zig");
+const webgpu_backend = @import("engine/webgpu_backend.zig");
 
 // Conditionally import zglfw (disabled for refactoring)
-const glfw_available = false; // Temporarily disabled
+const glfw_available = false;
 const zglfw = struct {
     pub const Window = opaque {};
     pub const Monitor = opaque {};
     pub const Cursor = opaque {};
-    pub const Error = error{GlfwNotAvailable};
-    pub const init = error.GlfwNotAvailable;
-    pub const terminate = error.GlfwNotAvailable;
-    pub const pollEvents = error.GlfwNotAvailable;
+    pub const VidMode = struct {};
+    pub const GamepadState = struct {};
+    pub const GammaRamp = struct {};
+    pub const WindowHint = enum { none };
+    pub const InputMode = enum { none };
+    pub const CursorMode = enum { none };
+    pub const MouseButton = enum { none };
+    pub const Joystick = enum { none };
+    pub const Key = enum { none };
+    pub const ModifierKey = enum { none };
+    pub const KeyAction = enum { none };
 };
 
-// ============================================================================
-// Engine
-// ============================================================================
+// Re-export core engine types
+pub const EngineError = types.EngineError;
+pub const Backend = types.Backend;
+pub const Config = types.Config;
+pub const WebGpuConfig = types.WebGpuConfig;
+pub const WebGpuContext = types.WebGpuContext;
+pub const is_browser = types.is_browser;
 
 /// Universal game engine integrating std.gpu, GLFW, and raylib functionality.
-///
-/// Supports all platforms including browsers via WebGPU, and native platforms
-/// with full low-level control. The engine provides a unified API that abstracts
-/// away backend-specific details while allowing access to backend-specific features
-/// when needed.
-///
-/// Example usage:
-/// ```zig
-/// var engine = try Engine.init(allocator, .{
-///     .backend = .raylib,
-///     .width = 800,
-///     .height = 600,
-///     .title = "My Game",
-/// });
-/// defer engine.deinit();
-/// ```
 pub const Engine = struct {
     allocator: std.mem.Allocator,
-    width: u32,
-    height: u32,
-    title: [:0]const u8,
+    backend_type: Backend,
+    config: Config,
     raylib_initialized: bool = false,
-    glfw_window: ?*zglfw.Window = null,
-    webgpu_ctx: ?WebGpuContext = null, // WebGPU context when available
-    target_fps: ?u32 = null,
-
-    // ========================================================================
-    // Backend State Helpers
-    // ========================================================================
-
-    /// Check if the raylib backend is initialized.
-    ///
-    /// Returns `true` if raylib backend is active, `false` otherwise.
-    pub fn isRaylibInitialized(engine: *const Engine) bool {
-        return engine.raylib_initialized;
-    }
-
-    /// Check if the GLFW backend is initialized.
-    ///
-    /// Returns `true` if GLFW backend is active, `false` otherwise.
-    pub fn isGlfwInitialized(engine: *const Engine) bool {
-        return engine.glfw_window != null;
-    }
-
-    /// Check if the WebGPU backend is initialized.
-    ///
-    /// Returns `true` if WebGPU backend is active, `false` otherwise.
-    pub fn isWebGpuInitialized(engine: *const Engine) bool {
-        return engine.webgpu_ctx != null and engine.webgpu_ctx.?.initialized;
-    }
-
-    /// Check if any rendering backend is initialized.
-    ///
-    /// Returns `true` if at least one backend is active, `false` otherwise.
-    pub fn isBackendInitialized(engine: *const Engine) bool {
-        return engine.raylib_initialized or engine.glfw_window != null or engine.isWebGpuInitialized();
-    }
-
-    // ========================================================================
-    // Backend Configuration
-    // ========================================================================
-
-    /// Backend type for the engine
-    pub const Backend = enum {
-        /// Auto-detect: prefer WebGPU on browsers, raylib on native
-        auto,
-        /// Use WebGPU backend (universal, works on browsers via WebGPU)
-        webgpu,
-        /// Use GLFW for low-level window/input control (native only)
-        glfw,
-        /// Use raylib for high-level game development features (native only)
-        raylib,
-    };
-
-    /// WebGPU-specific configuration options
-    pub const WebGpuConfig = struct {
-        /// Power preference for GPU selection
-        power_preference: enum { default, low_power, high_performance } = .default,
-        /// Force fallback adapter if preferred adapter fails
-        force_fallback_adapter: bool = false,
-        /// Preferred backend (auto-detect by default)
-        preferred_backend: enum { auto, vulkan, d3d12, metal, opengl, webgpu } = .auto,
-        /// Enable debug mode (additional validation and error checking)
-        debug_mode: bool = false,
-    };
-
-    /// Configuration for engine initialization.
-    ///
-    /// All fields have sensible defaults. The `backend` field determines which
-    /// rendering backend to use. Use `.auto` to let the engine choose the best
-    /// backend for the current platform.
-    pub const Config = struct {
-        /// Backend to use. `.auto` will select the best backend for the platform.
-        backend: Backend = .auto,
-        /// Window width in pixels. Must be > 0.
-        width: u32 = 800,
-        /// Window height in pixels. Must be > 0.
-        height: u32 = 600,
-        /// Window title. Must be a null-terminated string.
-        title: [:0]const u8 = "Nyon Game",
-        /// Target FPS. Set to `null` to disable FPS limiting.
-        target_fps: ?u32 = 60,
-        /// Whether the window can be resized by the user.
-        resizable: bool = true,
-        /// Whether to start in fullscreen mode.
-        fullscreen: bool = false,
-        /// Whether to enable VSYNC.
-        vsync: bool = true,
-        /// MSAA samples (0 = disabled, 4 = 4x MSAA, etc.)
-        samples: u32 = 0,
-        /// WebGPU-specific options
-        webgpu: WebGpuConfig = .{},
-    };
+    glfw_initialized: bool = false,
+    webgpu_initialized: bool = false,
 
     /// Initialize the engine with the specified configuration.
-    ///
-    /// Validates the configuration and initializes the selected backend.
-    /// Returns an error if the configuration is invalid or backend initialization fails.
-    ///
-    /// **Backend Requirements:**
-    /// - `.raylib`: Available on native platforms only
-    /// - `.glfw`: Available on native platforms only (not fully implemented)
-    /// - `.webgpu`: Available on all platforms (not fully implemented)
-    /// - `.auto`: Automatically selects the best available backend
-    ///
-    /// **Errors:**
-    /// - `EngineError.InvalidConfig`: Configuration parameters are invalid
-    /// - `EngineError.BackendNotAvailable`: Selected backend is not available
-    /// - `EngineError.GlfwBackendNotImplemented`: GLFW backend is not implemented
     pub fn init(allocator: std.mem.Allocator, config: Config) EngineError!Engine {
         // Validate configuration
         if (config.width == 0 or config.height == 0) {
@@ -191,412 +50,137 @@ pub const Engine = struct {
 
         var engine = Engine{
             .allocator = allocator,
-            .width = config.width,
-            .height = config.height,
-            .title = config.title,
-            .target_fps = config.target_fps,
+            .backend_type = config.backend,
+            .config = config,
         };
 
         // Determine which backend to use
-        const backend: Backend = switch (config.backend) {
-            .auto => blk: {
-                // Auto-detect: prefer WebGPU on browsers, raylib on native
-                if (is_browser) {
-                    break :blk .webgpu;
-                } else {
-                    break :blk .raylib;
-                }
-            },
+        const resolved_backend: Backend = switch (config.backend) {
+            .auto => if (is_browser) .webgpu else .raylib,
             else => config.backend,
         };
 
-        // Validate backend availability
-        switch (backend) {
-            .glfw => {
-                if (!glfw_available) {
-                    return EngineError.BackendNotAvailable;
-                }
-            },
-            .raylib => {
-                if (is_browser) {
-                    return EngineError.BackendNotAvailable;
-                }
-            },
-            .webgpu, .auto => {}, // WebGPU and auto are always available
-        }
+        engine.backend_type = resolved_backend;
 
         // Initialize based on selected backend
-        // Note: .auto case is already resolved above, so it won't appear here
-        switch (backend) {
-            .webgpu => try engine.initWebGpuBackend(config),
-            .glfw => try engine.initGlfwBackend(config),
-            .raylib => try engine.initRaylibBackend(config),
+        switch (resolved_backend) {
+            .webgpu => {
+                try webgpu_backend.WebGpuBackend.init(@ptrCast(&engine), config);
+                engine.webgpu_initialized = true;
+            },
+            .glfw => {
+                try glfw_backend.GlfwBackend.init(@ptrCast(&engine), config);
+                engine.glfw_initialized = true;
+            },
+            .raylib => {
+                try raylib_backend.RaylibBackend.init(@ptrCast(&engine), config);
+                engine.raylib_initialized = true;
+            },
             .auto => unreachable,
         }
 
         return engine;
     }
 
-    /// Initialize WebGPU backend for universal browser/native support.
-    ///
-    /// Creates a WebGPU context for cross-platform GPU rendering.
-    /// This provides universal browser and native platform support.
-    ///
-    /// **Backend Requirements:** Available on all platforms
-    /// **Note:** Currently uses placeholder implementation until std.gpu API stabilizes
-    fn initWebGpuBackend(engine: *Engine, config: Config) EngineError!void {
-        // Create WebGPU context with configuration
-        var webgpu_ctx = WebGpuContext{};
-
-        // TODO: Replace with actual std.gpu implementation when API stabilizes
-        // For now, create a placeholder context that validates configuration
-
-        // Validate WebGPU configuration
-        _ = config.webgpu.power_preference;
-        _ = config.webgpu.force_fallback_adapter;
-        _ = config.webgpu.preferred_backend;
-        _ = config.webgpu.debug_mode;
-
-        // Basic WebGPU initialization would look like:
-        // const instance_desc = gpu.Instance.Descriptor{
-        //     .extensions = if (config.webgpu.debug_mode) .{
-        //         .debug_utils = true,
-        //     } else .{},
-        // };
-        // const instance = gpu.createInstance(&instance_desc) catch {
-        //     return EngineError.BackendNotAvailable;
-        // };
-        // defer instance.destroy();
-        //
-        // const adapter_options = gpu.RequestAdapterOptions{
-        //     .power_preference = switch (config.webgpu.power_preference) {
-        //         .low_power => .low_power,
-        //         .high_performance => .high_performance,
-        //         .default => .default,
-        //     },
-        //     .force_fallback_adapter = config.webgpu.force_fallback_adapter,
-        // };
-        //
-        // const adapter = instance.requestAdapter(&adapter_options) catch {
-        //     return EngineError.BackendNotAvailable;
-        // };
-        // defer adapter.destroy();
-        //
-        // const device_desc = gpu.Device.Descriptor{
-        //     .required_features = &[_]gpu.FeatureName{},
-        //     .required_limits = &gpu.Limits{},
-        // };
-        //
-        // const device = adapter.requestDevice(&device_desc) catch {
-        //     return EngineError.BackendNotAvailable;
-        // };
-        //
-        // // Create surface for window rendering (if not headless)
-        // var surface: ?gpu.Surface = null;
-        // if (!is_browser and !config.headless) {
-        //     // Create surface for native window
-        //     surface = instance.createSurface(.{
-        //         .window_handle = null, // Would need actual window handle
-        //     });
-        // }
-
-        // Placeholder: Mark as initialized with basic validation
-        webgpu_ctx.initialized = true;
-        engine.webgpu_ctx = webgpu_ctx;
-    }
-
-    /// Initialize GLFW backend for low-level control.
-    ///
-    /// Creates a GLFW window with the specified configuration for direct
-    /// OpenGL/Vulkan rendering. Provides low-level control over window management
-    /// and input handling.
-    ///
-    /// **Backend Requirements:** Native platforms only
-    ///
-    /// **Errors:**
-    /// - `EngineError.GlfwNotAvailable`: GLFW is not available on this platform
-    fn initGlfwBackend(engine: *Engine, config: Config) EngineError!void {
-        _ = engine;
-        _ = config;
-        // GLFW backend not yet fully implemented - placeholder
-        return EngineError.GlfwBackendNotImplemented;
-    }
-
-    /// Initialize raylib backend for high-level game development features.
-    ///
-    /// **Backend Requirements:** Native platforms only
-    ///
-    /// This is the recommended backend for most game development tasks as it
-    /// provides a complete, high-level API for graphics, audio, and input.
-    fn initRaylibBackend(engine: *Engine, config: Config) EngineError!void {
-        // Configure raylib flags
-        const flags = raylib.ConfigFlags{
-            .fullscreen_mode = config.fullscreen,
-            .window_resizable = config.resizable,
-            .msaa_4x_hint = config.samples > 0,
-            .vsync_hint = config.vsync,
-        };
-
-        raylib.setConfigFlags(flags);
-        raylib.initWindow(@intCast(config.width), @intCast(config.height), config.title);
-        engine.raylib_initialized = true;
-
-        if (config.target_fps) |fps| {
-            raylib.setTargetFPS(@intCast(fps));
-        }
-    }
-
     /// Deinitialize the engine and clean up all resources.
-    ///
-    /// This function safely cleans up all initialized backends and releases
-    /// any allocated resources. It is safe to call even if initialization failed.
-    ///
-    /// **Note:** This function should be called when the engine is no longer needed,
-    /// typically using `defer` to ensure cleanup happens even if errors occur.
-    pub fn deinit(engine: *Engine) void {
-        // Clean up raylib if used
-        if (engine.isRaylibInitialized()) {
-            raylib.closeWindow();
-            engine.raylib_initialized = false;
+    pub fn deinit(self: *Engine) void {
+        if (self.raylib_initialized) {
+            raylib_backend.RaylibBackend.deinit(@ptrCast(self));
+            self.raylib_initialized = false;
         }
-
-        // Clean up GLFW if used (not yet implemented)
-        engine.glfw_window = null;
-
-        // Clean up WebGPU if used
-        if (engine.webgpu_ctx) |*ctx| {
-            // TODO: Implement proper WebGPU cleanup when std.gpu API stabilizes
-            // ctx.device.destroy();
-            // if (ctx.surface) |surface| surface.destroy();
-            // ctx.adapter.destroy();
-            // ctx.instance.destroy();
-
-            // For now, just mark as uninitialized
-            ctx.initialized = false;
-            engine.webgpu_ctx = null;
+        if (self.glfw_initialized) {
+            glfw_backend.GlfwBackend.deinit(@ptrCast(self));
+            self.glfw_initialized = false;
+        }
+        if (self.webgpu_initialized) {
+            webgpu_backend.WebGpuBackend.deinit(@ptrCast(self));
+            self.webgpu_initialized = false;
         }
     }
 
-    /// Check if the window should close.
-    ///
-    /// **Backend Requirements:** Requires an initialized window backend (raylib or GLFW)
-    ///
-    /// Returns `true` if the user has requested to close the window (e.g., clicked the X button).
-    /// Returns `false` if no window backend is initialized or in headless mode.
-    pub fn shouldClose(engine: *const Engine) bool {
-        if (engine.raylib_initialized) {
+    pub fn isRaylibInitialized(self: *const Engine) bool {
+        return self.raylib_initialized;
+    }
+
+    pub fn isGlfwInitialized(self: *const Engine) bool {
+        return self.glfw_initialized;
+    }
+
+    pub fn isWebGpuInitialized(self: *const Engine) bool {
+        return self.webgpu_initialized;
+    }
+
+    pub fn isBackendInitialized(self: *const Engine) bool {
+        return self.raylib_initialized or self.glfw_initialized or self.webgpu_initialized;
+    }
+
+    pub fn shouldClose(self: *const Engine) bool {
+        if (self.raylib_initialized) {
             return raylib.windowShouldClose();
         }
-        // GLFW backend not yet implemented
         return false;
     }
 
-    /// Poll for window and input events.
-    ///
-    /// **Backend Requirements:**
-    /// - GLFW: Required to be called each frame
-    /// - raylib: Events are handled automatically, but calling this is safe
-    ///
-    /// This function should be called once per frame before processing input
-    /// or drawing. For raylib, this is optional as events are handled automatically.
-    pub fn pollEvents(engine: *Engine) void {
-        if (engine.raylib_initialized) {
-            // Raylib handles its own event polling
-            return;
-        }
-        // GLFW backend not yet implemented
+    pub fn pollEvents(self: *Engine) void {
+        _ = self;
+        // Backend specific event polling if needed
     }
 
-    /// Begin drawing a new frame.
-    ///
-    /// **Backend Requirements:** Requires raylib backend for full functionality
-    ///
-    /// This function must be called before any drawing operations. It prepares
-    /// the rendering context for drawing. Must be paired with `endDrawing()`.
-    ///
-    /// **Note:** For WebGPU backend, this begins a render pass.
-    pub fn beginDrawing(engine: *Engine) void {
-        if (engine.isRaylibInitialized()) {
+    pub fn beginDrawing(self: *Engine) void {
+        if (self.raylib_initialized) {
             raylib.beginDrawing();
-        } else if (engine.isWebGpuInitialized()) {
-            // WebGPU: Begin render pass
-            // This would typically create a command encoder and begin a render pass
-            // with the configured clear color and render target
         }
-        // For GLFW backend, drawing is handled differently
     }
 
-    /// End drawing the current frame and present it.
-    ///
-    /// **Backend Requirements:** Requires an initialized rendering backend
-    ///
-    /// This function must be called after all drawing operations are complete.
-    /// It presents the rendered frame to the screen. Must be paired with `beginDrawing()`.
-    pub fn endDrawing(engine: *Engine) void {
-        if (engine.isRaylibInitialized()) {
+    pub fn endDrawing(self: *Engine) void {
+        if (self.raylib_initialized) {
             raylib.endDrawing();
-        } else if (engine.isGlfwInitialized()) {
-            // GLFW backend not yet implemented
-        } else if (engine.isWebGpuInitialized()) {
-            // WebGPU: End render pass and submit commands
-            // This would typically:
-            // 1. End the current render pass
-            // 2. Finish the command encoder
-            // 3. Submit command buffer to queue
-            // 4. Present the swapchain
         }
     }
 
-    /// Clear the background with the specified color.
-    ///
-    /// **Backend Requirements:** Requires raylib backend for full functionality
-    ///
-    /// Clears the entire screen with the given color. This should typically be
-    /// called at the start of each frame before drawing.
-    ///
-    /// **Note:** For WebGPU backend, this prepares the render pass with clear color.
-    pub fn clearBackground(engine: *Engine, color: raylib.Color) void {
-        if (engine.isRaylibInitialized()) {
+    pub fn clearBackground(self: *Engine, color: raylib.Color) void {
+        if (self.raylib_initialized) {
             raylib.clearBackground(color);
-        } else if (engine.isWebGpuInitialized()) {
-            // WebGPU clear implementation.
-            // This would typically be done in beginDrawing/endDrawing with render passes.
-            // Store or handle clear color for use in render pass in actual implementation.
-            // No-op for now.
-        } else if (engine.isGlfwInitialized()) {
-            // GLFW backend requires manual OpenGL/Vulkan clearing.
-            // TODO: Implement OpenGL/Vulkan clear using the color parameter when backend is ready.
-            // Implementation will go here.
         }
-        // No code path remains that requires discarding the color parameter.
     }
-    ///
-    /// **Backend Requirements:** Works with all backends
-    ///
-    /// Returns the current window dimensions. For raylib, this reflects the
-    /// actual window size (which may differ from the initial size if resizable).
-    /// For other backends, returns the configured size.
-    pub fn getWindowSize(engine: *const Engine) struct { width: u32, height: u32 } {
-        if (engine.raylib_initialized) {
+
+    pub fn getWindowSize(self: *const Engine) struct { width: u32, height: u32 } {
+        if (self.raylib_initialized) {
             return .{
                 .width = @intCast(raylib.getScreenWidth()),
                 .height = @intCast(raylib.getScreenHeight()),
             };
         }
-        // GLFW backend not yet implemented
-        // Fallback to configured size
         return .{
-            .width = engine.width,
-            .height = engine.height,
+            .width = self.config.width,
+            .height = self.config.height,
         };
     }
 
-    /// Set the target frames per second.
-    ///
-    /// **Backend Requirements:** Fully supported by raylib backend only
-    ///
-    /// Limits the frame rate to the specified FPS. Set to 0 to disable limiting.
-    /// For GLFW/WebGPU backends, this is stored but not actively enforced.
-    pub fn setTargetFPS(engine: *Engine, fps: u32) void {
-        engine.target_fps = fps;
-        if (engine.isRaylibInitialized()) {
+    pub fn setTargetFPS(self: *Engine, fps: u32) void {
+        if (self.raylib_initialized) {
             raylib.setTargetFPS(@intCast(fps));
         }
-        // GLFW doesn't have built-in FPS limiting
     }
 
-    /// Get the current frames per second.
-    ///
-    /// **Backend Requirements:** Requires raylib backend
-    ///
-    /// Returns the current FPS from the raylib backend.
-    ///
-    /// **Errors:**
-    /// - `EngineError.BackendNotInitialized`: raylib backend is not initialized
-    ///
-    /// **Example:**
-    /// ```zig
-    /// const fps = try engine.getFPS();
-    /// std.debug.print("Current FPS: {}\n", .{fps});
-    /// ```
-    pub fn getFPS(engine: *const Engine) EngineError!u32 {
-        if (!engine.isRaylibInitialized()) {
-            return EngineError.BackendNotInitialized;
-        }
+    pub fn getFPS(self: *const Engine) EngineError!u32 {
+        if (!self.raylib_initialized) return EngineError.BackendNotInitialized;
         return @intCast(raylib.getFPS());
     }
 
-    /// Get the time elapsed since the last frame in seconds.
-    ///
-    /// **Backend Requirements:** Requires raylib backend
-    ///
-    /// Returns the delta time between frames. This is useful for frame-rate
-    /// independent movement and animations.
-    ///
-    /// **Errors:**
-    /// - `EngineError.BackendNotInitialized`: raylib backend is not initialized
-    ///
-    /// **Example:**
-    /// ```zig
-    /// const delta_time = try engine.getFrameTime();
-    /// player.position += player.velocity * delta_time;
-    /// ```
-    pub fn getFrameTime(engine: *const Engine) EngineError!f32 {
-        if (!engine.isRaylibInitialized()) {
-            return EngineError.BackendNotInitialized;
-        }
+    pub fn getFrameTime(self: *const Engine) EngineError!f32 {
+        if (!self.raylib_initialized) return EngineError.BackendNotInitialized;
         return raylib.getFrameTime();
     }
 
-    /// Get the time elapsed since engine initialization in seconds.
-    ///
-    /// **Backend Requirements:** Requires raylib backend
-    ///
-    /// Returns the total time since the engine was initialized. Useful for
-    /// animations and game timing.
-    ///
-    /// **Errors:**
-    /// - `EngineError.BackendNotInitialized`: raylib backend is not initialized
-    ///
-    /// **Example:**
-    /// ```zig
-    /// const elapsed = try engine.getTime();
-    /// const animation_frame = @as(u32, @intFromFloat(elapsed * 10.0)) % 4;
-    /// ```
-    pub fn getTime(engine: *const Engine) EngineError!f64 {
-        if (!engine.isRaylibInitialized()) {
-            return EngineError.BackendNotInitialized;
-        }
+    pub fn getTime(self: *const Engine) EngineError!f64 {
+        if (!self.raylib_initialized) return EngineError.BackendNotInitialized;
         return raylib.getTime();
     }
 
-    // ========================================================================
-    // WebGPU-Specific Methods
-    // ========================================================================
-
-    /// Get WebGPU device information (when WebGPU backend is active).
-    ///
-    /// Returns information about the current WebGPU device and adapter.
-    /// Useful for debugging and feature detection.
-    ///
-    /// **Backend Requirements:** Requires WebGPU backend
-    ///
-    /// **Errors:**
-    /// - `EngineError.BackendNotInitialized`: WebGPU backend is not initialized
-    ///
-    /// **Example:**
-    /// ```zig
-    /// const info = try engine.getWebGpuDeviceInfo();
-    /// std.debug.print("WebGPU Device: {s}\n", .{info.device_name});
-    /// ```
-    pub fn getWebGpuDeviceInfo(engine: *const Engine) EngineError!WebGpuDeviceInfo {
-        if (!engine.isWebGpuInitialized()) {
-            return EngineError.BackendNotInitialized;
-        }
-
-        // TODO: Implement when std.gpu API stabilizes
-        // This would query actual device properties
-
+    /// Get WebGPU device information.
+    pub fn getWebGpuDeviceInfo(self: *const Engine) EngineError!WebGpuDeviceInfo {
+        if (!self.webgpu_initialized) return EngineError.BackendNotInitialized;
         return WebGpuDeviceInfo{
             .device_name = "WebGPU Device (Placeholder)",
             .adapter_name = "WebGPU Adapter (Placeholder)",
@@ -605,61 +189,34 @@ pub const Engine = struct {
         };
     }
 
-    /// Check if WebGPU backend supports a specific feature.
-    ///
-    /// **Backend Requirements:** Requires WebGPU backend
-    pub fn webGpuSupportsFeature(engine: *const Engine, feature: WebGpuFeature) bool {
-        if (!engine.isWebGpuInitialized()) {
-            return false;
-        }
-
-        // TODO: Implement feature checking when std.gpu API stabilizes
+    /// Check if WebGPU supports a specific feature.
+    pub fn webGpuSupportsFeature(self: *const Engine, feature: WebGpuFeature) bool {
+        _ = self;
         _ = feature;
-        return false; // Placeholder
+        return false;
     }
 };
 
-// ============================================================================
-// WebGPU Types
-// ============================================================================
-
-/// WebGPU feature enumeration
+/// WebGPU-specific types.
 pub const WebGpuFeature = enum {
-    /// Depth clipping
     depth_clipping,
-    /// Depth bounds testing
     depth_bounds,
-    /// Pipeline statistics query
     pipeline_statistics_query,
-    /// Texture compression (BC formats)
     texture_compression_bc,
-    /// Texture compression (ETC2/EAC)
     texture_compression_etc2,
-    /// Texture compression (ASTC)
     texture_compression_astc,
-    /// Timestamp query
     timestamp_query,
-    /// Indirect first instance
     indirect_first_instance,
-    /// Shader float16
     shader_float16,
-    /// RG11B10U float renderable
     rg11b10ufloat_renderable,
-    /// BGRA8U norm storage
     bgra8unorm_storage,
-    /// Float32 filterable
     float32_filterable,
 };
 
-/// WebGPU device information
 pub const WebGpuDeviceInfo = struct {
-    /// Human-readable device name
     device_name: []const u8,
-    /// Human-readable adapter name
     adapter_name: []const u8,
-    /// Backend type
     backend: enum { vulkan, d3d12, metal, opengl, webgpu },
-    /// Supported features
     features: []const WebGpuFeature,
 };
 

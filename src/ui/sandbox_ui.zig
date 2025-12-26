@@ -6,6 +6,7 @@ const ui_mod = nyon_game.ui;
 const StatusMessage = nyon_game.status_message.StatusMessage;
 const sandbox_mod = @import("../game/sandbox.zig");
 const game_ui_mod = @import("game_ui.zig");
+const engine = nyon_game.engine;
 
 pub const SandboxUiState = game_ui_mod.GameUiState;
 pub const defaultUiScaleFromDpi = game_ui_mod.defaultUiScaleFromDpi;
@@ -16,11 +17,11 @@ const STATUS_MESSAGE_FONT_SIZE: i32 = 18;
 const STATUS_MESSAGE_DURATION: f32 = 3.0;
 const STATUS_MESSAGE_Y_OFFSET: i32 = 8;
 
-const COLOR_TEXT_GRAY = nyon_game.engine.Color{ .r = 210, .g = 210, .b = 210, .a = 255 };
-const COLOR_STATUS_MESSAGE = nyon_game.engine.Color{ .r = 200, .g = 220, .b = 255, .a = 255 };
-const COLOR_CROSSHAIR = nyon_game.engine.Color{ .r = 255, .g = 255, .b = 255, .a = 200 };
+const COLOR_TEXT_GRAY = engine.Color{ .r = 210, .g = 210, .b = 210, .a = 255 };
+const COLOR_STATUS_MESSAGE = engine.Color{ .r = 200, .g = 220, .b = 255, .a = 255 };
+const COLOR_CROSSHAIR = engine.Color{ .r = 255, .g = 255, .b = 255, .a = 200 };
 
-fn clampPanelRect(rect: *nyon_game.engine.Rectangle, screen_width: f32, screen_height: f32) void {
+fn clampPanelRect(rect: *engine.Rectangle, screen_width: f32, screen_height: f32) void {
     if (rect.width > screen_width) rect.width = screen_width;
     if (rect.height > screen_height) rect.height = screen_height;
 
@@ -62,18 +63,18 @@ fn drawHudPanel(
     const active_world = world_name orelse "Unsaved World";
     var world_buf: [96:0]u8 = undefined;
     const world_str = try std.fmt.bufPrintZ(&world_buf, "World: {s}", .{active_world});
-    nyon_game.engine.Text.draw(world_str, text_x, line_y, style.font_size, style.text);
+    engine.Text.draw(world_str, text_x, line_y, style.font_size, style.text);
 
     line_y += line_step;
     var block_buf: [64:0]u8 = undefined;
     const block_str = try std.fmt.bufPrintZ(&block_buf, "Blocks: {d}", .{sandbox_state.world.count()});
-    nyon_game.engine.Text.draw(block_str, text_x, line_y, style.font_size, style.accent);
+    engine.Text.draw(block_str, text_x, line_y, style.font_size, style.accent);
 
     line_y += line_step;
     const active_color = sandbox_state.activeColor();
     var color_buf: [64:0]u8 = undefined;
     const color_str = try std.fmt.bufPrintZ(&color_buf, "Block: {s}", .{active_color.name});
-    nyon_game.engine.Text.draw(color_str, text_x, line_y, style.font_size, style.text);
+    engine.Text.draw(color_str, text_x, line_y, style.font_size, style.text);
 
     line_y += line_step;
     var cam_buf: [96:0]u8 = undefined;
@@ -83,7 +84,7 @@ fn drawHudPanel(
         cam_pos.y,
         cam_pos.z,
     });
-    nyon_game.engine.Text.draw(cam_str, text_x, line_y, style.small_font_size, style.text_muted);
+    engine.Text.draw(cam_str, text_x, line_y, style.small_font_size, style.text_muted);
 }
 
 fn drawSettingsPanel(
@@ -115,17 +116,17 @@ fn drawSettingsPanel(
     const row_h: f32 = @floatFromInt(@max(style.small_font_size + 8, 22));
 
     if (ui_state.edit_mode) {
-        nyon_game.engine.Text.draw("UI Edit Mode (F1 to exit)", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
+        engine.Text.draw("UI Edit Mode (F1 to exit)", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
         y += row_h;
     } else {
-        nyon_game.engine.Text.draw("Press F1 to edit UI layout", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.text_muted);
+        engine.Text.draw("Press F1 to edit UI layout", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.text_muted);
         y += row_h;
     }
 
     const show_hud_id: u64 = std.hash.Wyhash.hash(0, "settings_show_hud");
     _ = ui_state.ctx.checkbox(
         show_hud_id,
-        nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
+        engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Show HUD",
         &ui_state.config.hud.visible,
     );
@@ -134,7 +135,7 @@ fn drawSettingsPanel(
     var theme_buf: [32:0]u8 = undefined;
     const theme_label = try std.fmt.bufPrintZ(&theme_buf, "Theme: {s}", .{if (ui_state.config.theme == .dark) "Dark" else "Light"});
     const theme_id: u64 = std.hash.Wyhash.hash(0, "settings_theme");
-    if (ui_state.ctx.button(theme_id, nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h + 6 }, theme_label)) {
+    if (ui_state.ctx.button(theme_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h + 6 }, theme_label)) {
         ui_state.config.theme = if (ui_state.config.theme == .dark) .light else .dark;
         ui_state.dirty = true;
     }
@@ -142,7 +143,7 @@ fn drawSettingsPanel(
 
     const scale_id: u64 = std.hash.Wyhash.hash(0, "settings_scale");
     var scale = ui_state.config.scale;
-    if (ui_state.ctx.sliderFloat(scale_id, nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Scale", &scale, 0.6, 2.5)) {
+    if (ui_state.ctx.sliderFloat(scale_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Scale", &scale, 0.6, 2.5)) {
         ui_state.config.scale = scale;
         ui_state.dirty = true;
     }
@@ -150,7 +151,7 @@ fn drawSettingsPanel(
 
     const opacity_id: u64 = std.hash.Wyhash.hash(0, "settings_opacity");
     var opacity_f: f32 = @floatFromInt(ui_state.config.opacity);
-    if (ui_state.ctx.sliderFloat(opacity_id, nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Panel Opacity", &opacity_f, 60.0, 255.0)) {
+    if (ui_state.ctx.sliderFloat(opacity_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Panel Opacity", &opacity_f, 60.0, 255.0)) {
         const rounded = std.math.round(opacity_f);
         const clamped = if (rounded < 0.0) 0.0 else if (rounded > 255.0) 255.0 else rounded;
         ui_state.config.opacity = @intFromFloat(clamped);
@@ -158,12 +159,12 @@ fn drawSettingsPanel(
     }
     y += row_h + 18;
 
-    nyon_game.engine.Text.draw("Audio", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
+    engine.Text.draw("Audio", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
     y += row_h;
 
     const master_vol_id: u64 = std.hash.Wyhash.hash(0, "settings_master_volume");
     var master_vol = ui_state.config.game.master_volume;
-    if (ui_state.ctx.sliderFloat(master_vol_id, nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Master Volume", &master_vol, 0.0, 1.0)) {
+    if (ui_state.ctx.sliderFloat(master_vol_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Master Volume", &master_vol, 0.0, 1.0)) {
         ui_state.config.game.master_volume = master_vol;
         ui_state.dirty = true;
     }
@@ -171,7 +172,7 @@ fn drawSettingsPanel(
 
     const music_vol_id: u64 = std.hash.Wyhash.hash(0, "settings_music_volume");
     var music_vol = ui_state.config.game.music_volume;
-    if (ui_state.ctx.sliderFloat(music_vol_id, nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Music Volume", &music_vol, 0.0, 1.0)) {
+    if (ui_state.ctx.sliderFloat(music_vol_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Music Volume", &music_vol, 0.0, 1.0)) {
         ui_state.config.game.music_volume = music_vol;
         ui_state.dirty = true;
     }
@@ -179,19 +180,19 @@ fn drawSettingsPanel(
 
     const sfx_vol_id: u64 = std.hash.Wyhash.hash(0, "settings_sfx_volume");
     var sfx_vol = ui_state.config.game.sfx_volume;
-    if (ui_state.ctx.sliderFloat(sfx_vol_id, nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "SFX Volume", &sfx_vol, 0.0, 1.0)) {
+    if (ui_state.ctx.sliderFloat(sfx_vol_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "SFX Volume", &sfx_vol, 0.0, 1.0)) {
         ui_state.config.game.sfx_volume = sfx_vol;
         ui_state.dirty = true;
     }
     y += row_h + 12;
 
-    nyon_game.engine.Text.draw("Graphics", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
+    engine.Text.draw("Graphics", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
     y += row_h;
 
     const show_fps_id: u64 = std.hash.Wyhash.hash(0, "settings_show_fps");
     _ = ui_state.ctx.checkbox(
         show_fps_id,
-        nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
+        engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Show FPS",
         &ui_state.config.game.show_fps,
     );
@@ -200,7 +201,7 @@ fn drawSettingsPanel(
     const vsync_id: u64 = std.hash.Wyhash.hash(0, "settings_vsync");
     _ = ui_state.ctx.checkbox(
         vsync_id,
-        nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
+        engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "VSync",
         &ui_state.config.game.vsync,
     );
@@ -209,19 +210,19 @@ fn drawSettingsPanel(
     const fullscreen_id: u64 = std.hash.Wyhash.hash(0, "settings_fullscreen");
     _ = ui_state.ctx.checkbox(
         fullscreen_id,
-        nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
+        engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Fullscreen",
         &ui_state.config.game.fullscreen,
     );
     y += row_h + 12;
 
-    nyon_game.engine.Text.draw("Accessibility", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
+    engine.Text.draw("Accessibility", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
     y += row_h;
 
     const high_contrast_id: u64 = std.hash.Wyhash.hash(0, "settings_high_contrast");
     _ = ui_state.ctx.checkbox(
         high_contrast_id,
-        nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
+        engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "High Contrast",
         &ui_state.config.game.high_contrast,
     );
@@ -230,7 +231,7 @@ fn drawSettingsPanel(
     const large_text_id: u64 = std.hash.Wyhash.hash(0, "settings_large_text");
     _ = ui_state.ctx.checkbox(
         large_text_id,
-        nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
+        engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Large Text",
         &ui_state.config.game.large_text,
     );
@@ -239,19 +240,19 @@ fn drawSettingsPanel(
     const reduced_motion_id: u64 = std.hash.Wyhash.hash(0, "settings_reduced_motion");
     _ = ui_state.ctx.checkbox(
         reduced_motion_id,
-        nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
+        engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Reduced Motion",
         &ui_state.config.game.reduced_motion,
     );
     y += row_h + 12;
 
-    nyon_game.engine.Text.draw("Fonts", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
+    engine.Text.draw("Fonts", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
     y += row_h;
 
     const system_font_id: u64 = std.hash.Wyhash.hash(0, "settings_system_font");
     _ = ui_state.ctx.checkbox(
         system_font_id,
-        nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
+        engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Use System Font",
         &ui_state.config.font.use_system_font,
     );
@@ -259,7 +260,7 @@ fn drawSettingsPanel(
 
     const dpi_scale_id: u64 = std.hash.Wyhash.hash(0, "settings_dpi_scale");
     var dpi_scale = ui_state.config.font.dpi_scale;
-    if (ui_state.ctx.sliderFloat(dpi_scale_id, nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "DPI Scale", &dpi_scale, 0.5, 2.0)) {
+    if (ui_state.ctx.sliderFloat(dpi_scale_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "DPI Scale", &dpi_scale, 0.5, 2.0)) {
         ui_state.config.font.dpi_scale = dpi_scale;
         ui_state.dirty = true;
     }
@@ -268,7 +269,7 @@ fn drawSettingsPanel(
     const save_id: u64 = std.hash.Wyhash.hash(0, "settings_save");
     const reset_id: u64 = std.hash.Wyhash.hash(0, "settings_reset");
     const half_w = (w - 10.0) / 2.0;
-    if (ui_state.ctx.button(save_id, nyon_game.engine.Rectangle{ .x = x, .y = y, .width = half_w, .height = row_h + 8 }, "Save Layout")) {
+    if (ui_state.ctx.button(save_id, engine.Rectangle{ .x = x, .y = y, .width = half_w, .height = row_h + 8 }, "Save Layout")) {
         ui_state.config.save(allocator, ui_mod.UiConfig.DEFAULT_PATH) catch {
             status_message.set("Failed to save UI layout", STATUS_MESSAGE_DURATION);
             return;
@@ -276,7 +277,7 @@ fn drawSettingsPanel(
         ui_state.dirty = false;
         status_message.set("Saved UI layout", STATUS_MESSAGE_DURATION);
     }
-    if (ui_state.ctx.button(reset_id, nyon_game.engine.Rectangle{ .x = x + half_w + 10.0, .y = y, .width = half_w, .height = row_h + 8 }, "Reset")) {
+    if (ui_state.ctx.button(reset_id, engine.Rectangle{ .x = x + half_w + 10.0, .y = y, .width = half_w, .height = row_h + 8 }, "Reset")) {
         ui_state.config = ui_mod.UiConfig{};
         ui_state.dirty = true;
         status_message.set("Reset UI layout", STATUS_MESSAGE_DURATION);
@@ -284,7 +285,7 @@ fn drawSettingsPanel(
 
     if (ui_state.dirty) {
         const note_y: i32 = @intFromFloat(rect.y + rect.height - pad_f - @as(f32, @floatFromInt(style.small_font_size)));
-        nyon_game.engine.Text.draw("Unsaved changes", @intFromFloat(x), note_y, style.small_font_size, style.text_muted);
+        engine.Text.draw("Unsaved changes", @intFromFloat(x), note_y, style.small_font_size, style.text_muted);
     }
 }
 
@@ -303,7 +304,7 @@ fn splitDockPanels(moving: *ui_mod.PanelConfig, target: *ui_mod.PanelConfig, pos
     switch (position) {
         .left => {
             const half = @max(min_w, target_rect.width / 2.0);
-            moving.rect = nyon_game.engine.Rectangle{
+            moving.rect = engine.Rectangle{
                 .x = target_rect.x,
                 .y = target_rect.y,
                 .width = half,
@@ -314,7 +315,7 @@ fn splitDockPanels(moving: *ui_mod.PanelConfig, target: *ui_mod.PanelConfig, pos
         },
         .right => {
             const half = @max(min_w, target_rect.width / 2.0);
-            moving.rect = nyon_game.engine.Rectangle{
+            moving.rect = engine.Rectangle{
                 .x = target_rect.x + target_rect.width - half,
                 .y = target_rect.y,
                 .width = half,
@@ -324,7 +325,7 @@ fn splitDockPanels(moving: *ui_mod.PanelConfig, target: *ui_mod.PanelConfig, pos
         },
         .top => {
             const half = @max(min_h, target_rect.height / 2.0);
-            moving.rect = nyon_game.engine.Rectangle{
+            moving.rect = engine.Rectangle{
                 .x = target_rect.x,
                 .y = target_rect.y,
                 .width = target_rect.width,
@@ -335,7 +336,7 @@ fn splitDockPanels(moving: *ui_mod.PanelConfig, target: *ui_mod.PanelConfig, pos
         },
         .bottom => {
             const half = @max(min_h, target_rect.height / 2.0);
-            moving.rect = nyon_game.engine.Rectangle{
+            moving.rect = engine.Rectangle{
                 .x = target_rect.x,
                 .y = target_rect.y + target_rect.height - half,
                 .width = target_rect.width,
@@ -424,17 +425,17 @@ pub fn drawCrosshair(screen_width: f32, screen_height: f32) void {
     const center_x: i32 = @intFromFloat(screen_width * 0.5);
     const center_y: i32 = @intFromFloat(screen_height * 0.5);
     const half: i32 = 6;
-    nyon_game.engine.Shapes.drawLine(center_x - half, center_y, center_x + half, center_y, COLOR_CROSSHAIR);
-    nyon_game.engine.Shapes.drawLine(center_x, center_y - half, center_x, center_y + half, COLOR_CROSSHAIR);
+    engine.Shapes.drawLine(center_x - half, center_y, center_x + half, center_y, COLOR_CROSSHAIR);
+    engine.Shapes.drawLine(center_x, center_y - half, center_x, center_y + half, COLOR_CROSSHAIR);
 }
 
 pub fn drawInstructions(screen_width: f32, screen_height: f32) void {
     const instructions = "WASD move, QE up/down, RMB look, LMB place, Ctrl+LMB remove, Tab color, R reset, Ctrl+S save, F1 UI edit, F2 settings";
-    const text_width = nyon_game.engine.Text.measure(instructions, UI_INSTRUCTION_FONT_SIZE);
+    const text_width = engine.Text.measure(instructions, UI_INSTRUCTION_FONT_SIZE);
     const text_x: i32 = @intFromFloat((screen_width - @as(f32, @floatFromInt(text_width))) / 2.0);
     const text_y: i32 = @intFromFloat(screen_height - UI_INSTRUCTION_Y_OFFSET);
 
-    nyon_game.engine.Text.draw(
+    engine.Text.draw(
         instructions,
         text_x,
         text_y,
@@ -447,16 +448,16 @@ pub fn drawStatusMessage(status: *const StatusMessage, screen_width: f32) void {
     if (!status.isActive()) return;
 
     const text = status.textZ();
-    const text_width = nyon_game.engine.Text.measure(text, STATUS_MESSAGE_FONT_SIZE);
+    const text_width = engine.Text.measure(text, STATUS_MESSAGE_FONT_SIZE);
     const text_x: i32 = @intFromFloat((screen_width - @as(f32, @floatFromInt(text_width))) / 2.0);
 
     const alpha_byte = status.alphaU8();
-    const message_color = nyon_game.engine.Color{
+    const message_color = engine.Color{
         .r = COLOR_STATUS_MESSAGE.r,
         .g = COLOR_STATUS_MESSAGE.g,
         .b = COLOR_STATUS_MESSAGE.b,
         .a = alpha_byte,
     };
 
-    nyon_game.engine.Text.draw(text, text_x, STATUS_MESSAGE_Y_OFFSET, STATUS_MESSAGE_FONT_SIZE, message_color);
+    engine.Text.draw(text, text_x, STATUS_MESSAGE_Y_OFFSET, STATUS_MESSAGE_FONT_SIZE, message_color);
 }

@@ -57,6 +57,10 @@ pub const MainEditor = struct {
     geometry_node_editor: geometry_nodes.GeometryNodeSystem,
     material_node_editor: MaterialNodeEditor,
 
+    /// Post-processing system.
+    post_processing_system: post_processing.PostProcessingSystem,
+    viewport_texture: raylib.RenderTexture2D,
+
     /// Which functional editor mode is currently active.
     current_mode: EditorMode,
 
@@ -111,6 +115,17 @@ pub const MainEditor = struct {
         errdefer keyframe_sys.deinit();
         var anim_sys = animation.AnimationSystem.init(allocator);
         errdefer anim_sys.deinit();
+
+        var post_sys = try post_processing.PostProcessingSystem.init(allocator);
+        errdefer post_sys.deinit();
+
+        // Load post-processing shaders
+        post_sys.loadEffect(.grayscale, "src/shaders/grayscale.glsl") catch {};
+        post_sys.loadEffect(.inversion, "src/shaders/inversion.glsl") catch {};
+        post_sys.loadEffect(.sepia, "src/shaders/sepia.glsl") catch {};
+
+        // Create viewport render texture
+        const viewport_tex = try raylib.loadRenderTexture(@intCast(@as(i32, @intFromFloat(screen_width))), @intCast(@as(i32, @intFromFloat(screen_height))));
 
         // Editor UI system initialization.
         var dock_sys = docking.DockingSystem.init(allocator, screen_width, screen_height);
@@ -169,6 +184,8 @@ pub const MainEditor = struct {
             .property_inspector = prop_inspector,
             .geometry_node_editor = geom_node_editor,
             .material_node_editor = mat_node_editor,
+            .post_processing_system = post_sys,
+            .viewport_texture = viewport_tex,
             .current_mode = .scene_editor,
             .screen_width = screen_width,
             .screen_height = screen_height,
@@ -196,6 +213,8 @@ pub const MainEditor = struct {
         self.property_inspector.deinit();
         self.geometry_node_editor.deinit();
         self.material_node_editor.deinit();
+        self.post_processing_system.deinit();
+        raylib.unloadRenderTexture(self.viewport_texture);
 
         self.tui_command_buffer.deinit(self.allocator);
         for (self.tui_command_history.items) |cmd| self.allocator.free(cmd);
@@ -270,6 +289,12 @@ pub const MainEditor = struct {
             .animation_editor => try self.handleAnimationEditorInput(),
             .tui_mode => self.handleTUIInput(),
         }
+
+        // Handle post-processing hotkeys
+        if (raylib.isKeyPressed(.f3)) self.post_processing_system.active_effect = .grayscale;
+        if (raylib.isKeyPressed(.f4)) self.post_processing_system.active_effect = .inversion;
+        if (raylib.isKeyPressed(.f5)) self.post_processing_system.active_effect = .sepia;
+        if (raylib.isKeyPressed(.f6)) self.post_processing_system.active_effect = .none;
     }
 
     /// Toolbar UI including contextual buttons depending on current mode.
@@ -636,14 +661,11 @@ pub const MainEditor = struct {
     }
 
     fn renderSceneEditor(self: *MainEditor, content_rect: raylib.Rectangle) !void {
-        raylib.beginScissorMode(
-            @intFromFloat(content_rect.x),
-            @intFromFloat(content_rect.y),
-            @intFromFloat(content_rect.width),
-            @intFromFloat(content_rect.height),
-        );
-        self.rendering_system.beginRendering();
+        // Render scene to texture
+        raylib.beginTextureMode(self.viewport_texture);
         raylib.clearBackground(raylib.Color{ .r = 30, .g = 30, .b = 40, .a = 255 });
+
+        self.rendering_system.beginRendering();
         self.scene_system.render();
         self.rendering_system.renderLights();
         self.drawGrid();
@@ -653,6 +675,43 @@ pub const MainEditor = struct {
             }
         }
         self.rendering_system.endRendering();
+        raylib.endTextureMode();
+
+        // Draw texture to screen with post-processing inside scissor
+        raylib.beginScissorMode(
+            @intFromFloat(content_rect.x),
+            @intFromFloat(content_rect.y),
+            @intFromFloat(content_rect.width),
+            @intFromFloat(content_rect.height),
+        );
+
+        // Use a sub-rectangle for the viewport texture to match content_rect
+        const source_rect = raylib.Rectangle{
+            .x = content_rect.x,
+            .y = self.screen_height - content_rect.y - content_rect.height,
+            .width = content_rect.width,
+            .height = -content_rect.height, // Flip Y for OpenGL texture
+        };
+        const dest_rect = raylib.Rectangle{
+            .x = content_rect.x,
+            .y = content_rect.y,
+            .width = content_rect.width,
+            .height = content_rect.height,
+        };
+
+        // Apply post-processing effect
+        if (self.post_processing_system.active_effect != .none) {
+            if (self.post_processing_system.shaders.get(@tagName(self.post_processing_system.active_effect))) |shader| {
+                raylib.beginShaderMode(shader);
+                raylib.drawTexturePro(self.viewport_texture.texture, source_rect, dest_rect, .{ .x = 0, .y = 0 }, 0.0, raylib.Color.white);
+                raylib.endShaderMode();
+            } else {
+                raylib.drawTexturePro(self.viewport_texture.texture, source_rect, dest_rect, .{ .x = 0, .y = 0 }, 0.0, raylib.Color.white);
+            }
+        } else {
+            raylib.drawTexturePro(self.viewport_texture.texture, source_rect, dest_rect, .{ .x = 0, .y = 0 }, 0.0, raylib.Color.white);
+        }
+
         raylib.endScissorMode();
         self.renderSceneUI();
     }
