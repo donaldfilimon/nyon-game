@@ -28,6 +28,9 @@ const ui_context = @import("ui_context.zig");
 const undo_redo = @import("undo_redo.zig");
 const material_nodes = @import("material_nodes.zig");
 const audio = @import("game/audio_system.zig");
+const ecs = @import("ecs/ecs.zig");
+const physics = @import("physics/ecs_integration.zig");
+const physics_core = @import("physics/physics.zig");
 
 // ============================================================================
 // Imports and Dependencies
@@ -63,6 +66,8 @@ pub const MainEditor = struct {
     post_processing_system: post_processing.PostProcessingSystem,
     viewport_texture: raylib.RenderTexture2D,
     audio_system: audio.AudioSystem,
+    world: ecs.World,
+    physics_system: physics.PhysicsSystem,
 
     /// Which functional editor mode is currently active.
     current_mode: EditorMode,
@@ -112,6 +117,9 @@ pub const MainEditor = struct {
         errdefer asset_mgr.deinit();
         var undo_redo_sys = undo_redo.UndoRedoSystem.init(allocator);
         errdefer undo_redo_sys.deinit();
+
+        undo_redo_sys.registerCommandType(undo_redo.AddObjectCommand.getCommandType()) catch {};
+        undo_redo_sys.registerCommandType(undo_redo.RemoveObjectCommand.getCommandType()) catch {};
         var perf_sys = performance.PerformanceSystem.init(allocator);
         errdefer perf_sys.deinit();
         var keyframe_sys = keyframe.KeyframeSystem.init(allocator);
@@ -141,6 +149,12 @@ pub const MainEditor = struct {
         errdefer geom_node_editor.deinit();
         var mat_node_editor = try MaterialNodeEditor.init(allocator);
         errdefer mat_node_editor.deinit();
+
+        var world = ecs.World.init(allocator);
+        errdefer world.deinit();
+
+        var physics_sys = physics.PhysicsSystem.init(allocator, .{});
+        errdefer physics_sys.deinit();
 
         // Default camera and light setup.
         const default_camera_id = try render_sys.addCamera(rendering.RenderingSystem.Camera.create(
@@ -190,6 +204,8 @@ pub const MainEditor = struct {
             .post_processing_system = post_sys,
             .viewport_texture = viewport_tex,
             .audio_system = audio.AudioSystem.init(asset_mgr),
+            .world = world,
+            .physics_system = physics_sys,
             .current_mode = .scene_editor,
             .screen_width = screen_width,
             .screen_height = screen_height,
@@ -218,6 +234,8 @@ pub const MainEditor = struct {
         self.geometry_node_editor.deinit();
         self.material_node_editor.deinit();
         self.post_processing_system.deinit();
+        self.world.deinit();
+        self.physics_system.deinit();
         raylib.unloadRenderTexture(self.viewport_texture);
 
         self.tui_command_buffer.deinit(self.allocator);
@@ -229,6 +247,36 @@ pub const MainEditor = struct {
 
     /// Main update loop: calls the active mode's update, handles mode switches, etc.
     pub fn update(self: *MainEditor, dt: f32) !void {
+        try self.physics_system.update(&self.world, dt);
+
+        // Sync ECS transforms back to legacy scene system
+        {
+            var query = self.world.createQuery();
+            defer query.deinit();
+            var sync_q = query.with(ecs.Transform).build() catch null;
+            if (sync_q) |*q| {
+                defer q.deinit();
+                q.updateMatches(self.world.archetypes.items);
+                var iter = q.iter();
+                while (iter.next()) |data| {
+                    const transform = data.get(ecs.Transform).?;
+                    // Find matching object in scene (very simplified search)
+                    for (0..self.scene_system.modelCount()) |i| {
+                        if (self.scene_system.getModelInfo(i)) |info| {
+                            // If they are at the same spot, we assume they are the same object
+                            if (std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.05) and
+                                std.math.approxEqAbs(f32, info.position.y, transform.position.y, 0.05) and
+                                std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.05))
+                            {
+                                self.scene_system.setPosition(i, raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z });
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         self.audio_system.update(&self.world, dt);
         self.performance_system.updateCameras(dt);
 
@@ -503,6 +551,67 @@ pub const MainEditor = struct {
             for (self.tui_output_lines.items) |line| self.allocator.free(line);
             self.tui_output_lines.clearRetainingCapacity();
             self.addTUIOutput("Terminal cleared");
+        } else if (std.mem.eql(u8, command, "undo")) {
+            self.undo_redo_system.undo() catch |err| {
+                var buf: [64]u8 = undefined;
+                self.addTUIOutput(std.fmt.bufPrint(&buf, "Undo failed: {any}", .{err}) catch "Undo failed");
+                return;
+            };
+            self.addTUIOutput("Undone successfully");
+        } else if (std.mem.eql(u8, command, "redo")) {
+            self.undo_redo_system.redo() catch |err| {
+                var buf: [64]u8 = undefined;
+                self.addTUIOutput(std.fmt.bufPrint(&buf, "Redo failed: {any}", .{err}) catch "Redo failed");
+                return;
+            };
+            self.addTUIOutput("Redone successfully");
+        } else if (std.mem.startsWith(u8, command, "add ")) {
+            const model_path = command[4..];
+            const cmd = undo_redo.AddObjectCommand.create(
+                self.allocator,
+                &self.scene_system,
+                &self.asset_manager,
+                &self.world,
+                &self.physics_system,
+                model_path,
+                .{ .x = 0, .y = 0, .z = 0 },
+                "Add object through TUI",
+            ) catch |err| {
+                var buf: [64]u8 = undefined;
+                self.addTUIOutput(std.fmt.bufPrint(&buf, "Failed to create add command: {any}", .{err}) catch "Add failed");
+                return;
+            };
+            self.undo_redo_system.executeCommand(&cmd.base) catch |err| {
+                var buf: [64]u8 = undefined;
+                self.addTUIOutput(std.fmt.bufPrint(&buf, "Failed to execute add command: {any}", .{err}) catch "Add execution failed");
+                return;
+            };
+            self.addTUIOutput("Object added");
+        } else if (std.mem.startsWith(u8, command, "remove ")) {
+            const index_str = command[7..];
+            const index = std.fmt.parseInt(usize, index_str, 10) catch {
+                self.addTUIOutput("Invalid index");
+                return;
+            };
+            const cmd = undo_redo.RemoveObjectCommand.create(
+                self.allocator,
+                &self.scene_system,
+                &self.asset_manager,
+                &self.world,
+                &self.physics_system,
+                index,
+                "Remove object through TUI",
+            ) catch |err| {
+                var buf: [64]u8 = undefined;
+                self.addTUIOutput(std.fmt.bufPrint(&buf, "Failed to create remove command: {any}", .{err}) catch "Remove failed");
+                return;
+            };
+            self.undo_redo_system.executeCommand(&cmd.base) catch |err| {
+                var buf: [64]u8 = undefined;
+                self.addTUIOutput(std.fmt.bufPrint(&buf, "Failed to execute remove command: {any}", .{err}) catch "Remove execution failed");
+                return;
+            };
+            self.addTUIOutput("Object removed");
         } else if (std.mem.startsWith(u8, command, "mode ")) {
             const mode_arg = command[5..];
             if (std.mem.eql(u8, mode_arg, "scene")) {
@@ -679,6 +788,35 @@ pub const MainEditor = struct {
                 raylib.drawCubeWires(info.position, 1.1, 1.1, 1.1, raylib.Color.yellow);
             }
         }
+
+        // --- Physics Debug Drawing ---
+        var query = self.world.createQuery();
+        defer query.deinit();
+        var collider_query = query.with(ecs.Transform).with(ecs.Collider).build() catch null;
+        if (collider_query) |*q| {
+            defer q.deinit();
+            q.updateMatches(self.world.archetypes.items);
+            var iter = q.iter();
+            while (iter.next()) |data| {
+                const transform = data.get(ecs.Transform).?;
+                const collider = data.get(ecs.Collider).?;
+                const pos = raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z };
+
+                switch (collider.*) {
+                    .box_collider => |box| {
+                        raylib.drawCubeWires(pos, box.half_extents[0] * 2, box.half_extents[1] * 2, box.half_extents[2] * 2, raylib.Color.green);
+                    },
+                    .sphere_collider => |sphere| {
+                        raylib.drawSphereWires(pos, sphere.radius, 16, 16, raylib.Color.green);
+                    },
+                    .capsule_collider => |capsule| {
+                        raylib.drawCapsuleWires(pos, .{ .x = pos.x, .y = pos.y + capsule.height, .z = pos.z }, capsule.radius, 16, 16, raylib.Color.green);
+                    },
+                    else => {},
+                }
+            }
+        }
+        // -----------------------------
         self.rendering_system.endRendering();
         raylib.endTextureMode();
 

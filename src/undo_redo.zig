@@ -668,11 +668,14 @@ pub const AddObjectCommand = struct {
     base: UndoRedoSystem.Command,
     scene: *nyon.Scene,
     asset_mgr: *nyon.AssetManager,
+    ecs_world: *nyon.ecs.World,
+    physics_system: *nyon.ecs.PhysicsSystem,
     model_path: []const u8,
     position: nyon.Vector3,
     added_index: ?usize,
+    entity: ?nyon.ecs.EntityId,
 
-    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, model_path: []const u8, position: nyon.Vector3, description: []const u8) !*AddObjectCommand {
+    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, ecs_world: *nyon.ecs.World, physics_system: *nyon.ecs.PhysicsSystem, model_path: []const u8, position: nyon.Vector3, description: []const u8) !*AddObjectCommand {
         const self = try allocator.create(AddObjectCommand);
         self.* = .{
             .base = .{
@@ -688,9 +691,12 @@ pub const AddObjectCommand = struct {
             },
             .scene = scene,
             .asset_mgr = asset_mgr,
+            .ecs_world = ecs_world,
+            .physics_system = physics_system,
             .model_path = try allocator.dupe(u8, model_path),
             .position = position,
             .added_index = null,
+            .entity = null,
         };
         return self;
     }
@@ -701,6 +707,8 @@ pub const AddObjectCommand = struct {
         const EditorContext = struct {
             scene: *nyon.Scene,
             asset_mgr: *nyon.AssetManager,
+            ecs_world: *nyon.ecs.World,
+            physics_system: *nyon.ecs.PhysicsSystem,
         };
         const editor_ctx: *const EditorContext = @ptrCast(@alignCast(ctx));
 
@@ -715,7 +723,7 @@ pub const AddObjectCommand = struct {
             .z = @floatCast(pos_obj.get("z").?.float),
         };
 
-        const cmd = try create(allocator, editor_ctx.scene, editor_ctx.asset_mgr, model_path, position, description);
+        const cmd = try create(allocator, editor_ctx.scene, editor_ctx.asset_mgr, editor_ctx.ecs_world, editor_ctx.physics_system, model_path, position, description);
         return &cmd.base;
     }
 
@@ -742,6 +750,46 @@ pub const AddObjectCommand = struct {
         // We need to convert nyon.Vector3 to raylib.Vector3
         const rl_pos = nyon.raylib.Vector3{ .x = self.position.x, .y = self.position.y, .z = self.position.z };
         self.added_index = try self.scene.addModel(model, rl_pos);
+
+        // ECS and Physics integration
+        const entity = try self.ecs_world.createEntity();
+        self.entity = entity;
+        try self.ecs_world.addComponent(entity, nyon.ecs.Transform{
+            .position = self.position,
+            .rotation = .{ .x = 0, .y = 0, .z = 0, .w = 1 },
+            .scale = .{ .x = 1, .y = 1, .z = 1 },
+        });
+
+        // Add default physics components
+        // Simplified dynamic body for visual objects
+        const rigid_body = nyon.ecs.RigidBody{
+            .mass = 1.0,
+            .inverse_mass = 1.0,
+            .is_static = false,
+            .is_kinematic = false,
+            .linear_velocity = .{ .x = 0, .y = 0, .z = 0 },
+            .angular_velocity = .{ .x = 0, .y = 0, .z = 0 },
+            .linear_damping = 0.1,
+            .angular_damping = 0.1,
+            .gravity_scale = 1.0,
+            .restitution = 0.5,
+            .friction = 0.5,
+        };
+        try self.ecs_world.addComponent(entity, rigid_body);
+
+        // Add a default sphere collider (approximate)
+        const collider = nyon.ecs.Collider{
+            .shape = .sphere,
+            .offset = .{ .x = 0, .y = 0, .z = 0 },
+            .sphere_radius = 1.0, // Default radius
+            .is_trigger = false,
+        };
+        try self.ecs_world.addComponent(entity, collider);
+
+        // Register with physics system
+        // Note: We need some way to convert nyon.ecs.RigidBody/Collider to physics equivalents if names don't match
+        // Assuming they match for now or PhysicsSystem handles them
+        _ = self.physics_system; // Will implement properly in PhysicsSystem.addEntityPhysics
     }
 
     fn undoImpl(cmd: *anyopaque) !void {
@@ -749,6 +797,11 @@ pub const AddObjectCommand = struct {
         if (self.added_index) |idx| {
             self.scene.removeModel(idx);
             self.added_index = null;
+        }
+        if (self.entity) |entity| {
+            self.physics_system.removeRigidBody(entity);
+            self.ecs_world.destroyEntity(entity);
+            self.entity = null;
         }
     }
 
@@ -761,7 +814,7 @@ pub const AddObjectCommand = struct {
 
     fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) !*UndoRedoSystem.Command {
         const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
-        const cloned = try create(allocator, self.scene, self.asset_mgr, self.model_path, self.position, self.base.description);
+        const cloned = try create(allocator, self.scene, self.asset_mgr, self.ecs_world, self.physics_system, self.model_path, self.position, self.base.description);
         return &cloned.base;
     }
 
@@ -788,12 +841,15 @@ pub const RemoveObjectCommand = struct {
     base: UndoRedoSystem.Command,
     scene: *nyon.Scene,
     asset_mgr: *nyon.AssetManager,
+    ecs_world: *nyon.ecs.World,
+    physics_system: *nyon.ecs.PhysicsSystem,
     model_path: []const u8,
     position: nyon.Vector3,
     index: usize,
     removed_model: ?nyon.raylib.Model,
+    entity: ?nyon.ecs.EntityId,
 
-    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, index: usize, description: []const u8) !*RemoveObjectCommand {
+    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, ecs_world: *nyon.ecs.World, physics_system: *nyon.ecs.PhysicsSystem, index: usize, description: []const u8) !*RemoveObjectCommand {
         const info = scene.getModelInfo(index) orelse return error.IndexOutOfBounds;
 
         // We need to know where this model came from to restore it.
@@ -816,10 +872,13 @@ pub const RemoveObjectCommand = struct {
             },
             .scene = scene,
             .asset_mgr = asset_mgr,
+            .ecs_world = ecs_world,
+            .physics_system = physics_system,
             .model_path = try allocator.dupe(u8, model_path),
             .position = nyon.Vector3{ .x = info.position.x, .y = info.position.y, .z = info.position.z },
             .index = index,
             .removed_model = null,
+            .entity = null,
         };
         return self;
     }
@@ -829,6 +888,8 @@ pub const RemoveObjectCommand = struct {
         const EditorContext = struct {
             scene: *nyon.Scene,
             asset_mgr: *nyon.AssetManager,
+            ecs_world: *nyon.ecs.World,
+            physics_system: *nyon.ecs.PhysicsSystem,
         };
         const editor_ctx: *const EditorContext = @ptrCast(@alignCast(ctx));
 
@@ -859,10 +920,13 @@ pub const RemoveObjectCommand = struct {
             },
             .scene = editor_ctx.scene,
             .asset_mgr = editor_ctx.asset_mgr,
+            .ecs_world = editor_ctx.ecs_world,
+            .physics_system = editor_ctx.physics_system,
             .model_path = try allocator.dupe(u8, model_path),
             .position = position,
             .index = index,
             .removed_model = null,
+            .entity = null,
         };
         return &cmd.base;
     }
@@ -887,6 +951,27 @@ pub const RemoveObjectCommand = struct {
     fn executeImpl(cmd: *anyopaque) !void {
         const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
         self.scene.removeModel(self.index);
+
+        // ECS and Physics integration
+        var query = self.ecs_world.createQuery();
+        defer query.deinit();
+        var transform_query = try query.with(nyon.ecs.Transform).build();
+        defer transform_query.deinit();
+        transform_query.updateMatches(self.ecs_world.archetypes.items);
+        var iter = transform_query.iter();
+        while (iter.next()) |data| {
+            if (data.get(nyon.ecs.Transform)) |transform| {
+                if (std.meta.eql(transform.position, self.position)) {
+                    self.entity = data.entity;
+                    break;
+                }
+            }
+        }
+
+        if (self.entity) |entity| {
+            self.physics_system.removeRigidBody(entity);
+            self.ecs_world.destroyEntity(entity);
+        }
     }
 
     fn undoImpl(cmd: *anyopaque) !void {
@@ -894,7 +979,17 @@ pub const RemoveObjectCommand = struct {
         const model = try self.asset_mgr.loadModel(self.model_path, .{});
         const rl_pos = nyon.raylib.Vector3{ .x = self.position.x, .y = self.position.y, .z = self.position.z };
         _ = try self.scene.addModel(model, rl_pos);
-        // Note: This adds it back but maybe not at the same index if other things changed.
+
+        // Restore ECS/Physics
+        const entity = try self.ecs_world.createEntity();
+        self.entity = entity;
+        try self.ecs_world.addComponent(entity, nyon.ecs.Transform{
+            .position = self.position,
+            .rotation = .{ .x = 0, .y = 0, .z = 0, .w = 1 },
+            .scale = .{ .x = 1, .y = 1, .z = 1 },
+        });
+        try self.ecs_world.addComponent(entity, nyon.ecs.RigidBody{ .mass = 1.0 });
+        try self.ecs_world.addComponent(entity, nyon.ecs.Collider{ .shape = .sphere, .sphere_radius = 1.0 });
     }
 
     fn deinitImpl(cmd: *anyopaque, allocator: std.mem.Allocator) void {
@@ -906,10 +1001,7 @@ pub const RemoveObjectCommand = struct {
 
     fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) !*UndoRedoSystem.Command {
         const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
-        const cloned = try allocator.create(RemoveObjectCommand);
-        cloned.* = self.*;
-        cloned.base.description = try allocator.dupe(u8, self.base.description);
-        cloned.model_path = try allocator.dupe(u8, self.model_path);
+        const cloned = try create(allocator, self.scene, self.asset_mgr, self.ecs_world, self.physics_system, self.index, self.base.description);
         return &cloned.base;
     }
 
