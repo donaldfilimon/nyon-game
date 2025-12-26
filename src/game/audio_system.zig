@@ -14,7 +14,6 @@ pub const AudioSystem = struct {
     }
 
     pub fn update(self: *AudioSystem, world: *ecs.World, _: f32) void {
-        _ = self;
         // Update listener position (assume first camera is the listener)
         var camera_query = world.createQuery();
         defer camera_query.deinit();
@@ -29,7 +28,7 @@ pub const AudioSystem = struct {
         if (iter_cam.next()) |match| {
             const pos = match.get(components.Position);
             raylib.setAudioListenerPosition(pos.x, pos.y, pos.z);
-            // Default orientation for now
+            // Default orientation for now: Forward and Up
             raylib.setAudioListenerOrientation(.{ .x = 0, .y = 0, .z = 1 }, .{ .x = 0, .y = 1, .z = 0 });
         }
 
@@ -45,24 +44,38 @@ pub const AudioSystem = struct {
 
         var iter_src = source_iter.iter();
         while (iter_src.next()) |match| {
-            var source = match.get(components.AudioSource);
+            // We use getPtr if we want to modify the component, but here we only read.
+            // Wait, AudioSource might need status updates (e.g. if it finished playing).
+            const source = match.get(components.AudioSource);
             const pos = match.get(components.Position);
 
-            // In a real system, we'd need to map clip_handle to raylib.Sound
-            // For now, we assume the clip is already loaded in asset manager
-            // and we use a mock approach or look it up by some id.
-            // Since clip_handle is u64, let's assume it's a pointer or index.
-            // Actually, let's just use the clip_handle as a key for now if it's a hash.
-            // BUT raylib.Sound is a struct, we need to call raylib functions on it.
+            if (self.asset_manager.getSoundByHandle(source.clip_handle)) |sound| {
+                if (source.playing) {
+                    if (!raylib.isSoundPlaying(sound)) {
+                        raylib.playSound(sound);
+                    }
 
-            // This is a bit tricky without a proper handle-to-sound mapping.
-            // For a demo/placeholder, we'll just demonstrate the logic.
+                    if (source.spatial) {
+                        // Note: Raylib's raudio might not have SetSoundPosition in base bindings.
+                        // If it's missing, we'll need to use setSoundPan or a 3D extension.
+                        // For Nyon Game, we assume the raylib wrapper provides some spatialization.
+                        // If setSoundPosition is not available, we can approximate with pan.
+                        // raylib.setSoundPosition(sound, pos.x, pos.y, pos.z);
 
-            if (source.playing) {
-                // demonstrative: raylib.setSoundPosition(sound, pos.x, pos.y, pos.z);
-                // raylib.setSoundVolume(sound, source.volume);
-                // raylib.setSoundPitch(sound, source.pitch);
-                _ = pos;
+                        // Approx pan based on listener (relative to cam forward)
+                        // This is a placeholder for true 3D audio if the backend supports it.
+                        _ = pos;
+                    }
+
+                    raylib.setSoundVolume(sound, source.volume);
+                    raylib.setSoundPitch(sound, source.pitch);
+                    // Handle looping
+                    // raylib.setSoundLooping(sound, source.looping);
+                } else {
+                    if (raylib.isSoundPlaying(sound)) {
+                        raylib.stopSound(sound);
+                    }
+                }
             }
         }
     }

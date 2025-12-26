@@ -45,6 +45,8 @@ pub const AssetManager = struct {
     materials: std.StringHashMap(AssetEntry(nyon.MaterialSystem.Material)),
     animations: std.StringHashMap(AssetEntry(nyon.AnimationSystem.AnimationClip)),
     audio: std.StringHashMap(AssetEntry(raylib.Sound)),
+    sounds_by_handle: std.AutoHashMap(u64, raylib.Sound),
+    next_audio_handle: u64 = 1,
 
     /// Asset types
     pub const AssetType = enum {
@@ -84,6 +86,8 @@ pub const AssetManager = struct {
             .materials = std.StringHashMap(AssetEntry(nyon.MaterialSystem.Material)).init(allocator),
             .animations = std.StringHashMap(AssetEntry(nyon.AnimationSystem.AnimationClip)).init(allocator),
             .audio = std.StringHashMap(AssetEntry(raylib.Sound)).init(allocator),
+            .sounds_by_handle = std.AutoHashMap(u64, raylib.Sound).init(allocator),
+            .next_audio_handle = 1,
         };
     }
 
@@ -131,6 +135,7 @@ pub const AssetManager = struct {
             entry.value_ptr.metadata.deinit();
         }
         self.audio.deinit();
+        self.sounds_by_handle.deinit();
     }
 
     /// Load a model asset
@@ -221,7 +226,29 @@ pub const AssetManager = struct {
         };
 
         try self.audio.put(path_copy, entry);
+
+        // Assign handle
+        const handle = self.next_audio_handle;
+        self.next_audio_handle += 1;
+        try self.sounds_by_handle.put(handle, sound);
+
         return sound;
+    }
+
+    /// Get sound by its numeric handle
+    pub fn getSoundByHandle(self: *const AssetManager, handle: u64) ?raylib.Sound {
+        return self.sounds_by_handle.get(handle);
+    }
+
+    /// Get handle for a loaded audio asset path
+    pub fn getAudioHandle(self: *const AssetManager, file_path: []const u8) ?u64 {
+        const sound = if (self.audio.get(file_path)) |entry| entry.asset else return null;
+        var iter = self.sounds_by_handle.iterator();
+        while (iter.next()) |entry| {
+            // This is a bit slow but okay for initialization
+            if (entry.value_ptr.id == sound.id) return entry.key_ptr.*;
+        }
+        return null;
     }
 
     /// Load a texture asset

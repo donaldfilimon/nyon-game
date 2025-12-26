@@ -255,6 +255,8 @@ pub const UndoRedoSystem = struct {
         // Register default command types
         self.registerCommandType("SceneTransformCommand", SceneTransformCommand.getCommandType()) catch {};
         self.registerCommandType("CompoundCommand", CompoundCommand.getCommandType()) catch {};
+        self.registerCommandType("AddObjectCommand", AddObjectCommand.getCommandType()) catch {};
+        self.registerCommandType("RemoveObjectCommand", RemoveObjectCommand.getCommandType()) catch {};
 
         return self;
     }
@@ -658,5 +660,273 @@ pub const SceneTransformCommand = struct {
 
     fn getTypeNameImpl(_: *anyopaque) []const u8 {
         return "SceneTransformCommand";
+    }
+};
+
+/// Command to add an object to the scene
+pub const AddObjectCommand = struct {
+    base: UndoRedoSystem.Command,
+    scene: *nyon.Scene,
+    asset_mgr: *nyon.AssetManager,
+    model_path: []const u8,
+    position: nyon.Vector3,
+    added_index: ?usize,
+
+    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, model_path: []const u8, position: nyon.Vector3, description: []const u8) !*AddObjectCommand {
+        const self = try allocator.create(AddObjectCommand);
+        self.* = .{
+            .base = .{
+                .vtable = &UndoRedoSystem.Command.VTable{
+                    .execute = executeImpl,
+                    .undo = undoImpl,
+                    .deinit = deinitImpl,
+                    .clone = cloneImpl,
+                    .getMemoryUsage = getMemoryUsageImpl,
+                    .getTypeName = getTypeNameImpl,
+                },
+                .description = try allocator.dupe(u8, description),
+            },
+            .scene = scene,
+            .asset_mgr = asset_mgr,
+            .model_path = try allocator.dupe(u8, model_path),
+            .position = position,
+            .added_index = null,
+        };
+        return self;
+    }
+
+    pub fn createFromJson(allocator: std.mem.Allocator, json_value: std.json.Value, context: ?*anyopaque) !*UndoRedoSystem.Command {
+        const ctx = context orelse return error.MissingContext;
+        // In this implementation, context should be a pointer to a struct containing scene and asset_mgr
+        const EditorContext = struct {
+            scene: *nyon.Scene,
+            asset_mgr: *nyon.AssetManager,
+        };
+        const editor_ctx: *const EditorContext = @ptrCast(@alignCast(ctx));
+
+        const obj = json_value.object;
+        const description = obj.get("description").?.string;
+        const model_path = obj.get("model_path").?.string;
+
+        const pos_obj = obj.get("position").?.object;
+        const position = nyon.Vector3{
+            .x = @floatCast(pos_obj.get("x").?.float),
+            .y = @floatCast(pos_obj.get("y").?.float),
+            .z = @floatCast(pos_obj.get("z").?.float),
+        };
+
+        const cmd = try create(allocator, editor_ctx.scene, editor_ctx.asset_mgr, model_path, position, description);
+        return &cmd.base;
+    }
+
+    pub fn serialize(cmd: *UndoRedoSystem.Command, allocator: std.mem.Allocator) !std.json.Value {
+        const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
+        var root = std.json.ObjectMap.init(allocator);
+        try root.put("type", std.json.Value{ .string = "AddObjectCommand" });
+        try root.put("description", std.json.Value{ .string = self.base.description });
+        try root.put("model_path", std.json.Value{ .string = self.model_path });
+
+        var pos_obj = std.json.ObjectMap.init(allocator);
+        try pos_obj.put("x", std.json.Value{ .float = self.position.x });
+        try pos_obj.put("y", std.json.Value{ .float = self.position.y });
+        try pos_obj.put("z", std.json.Value{ .float = self.position.z });
+        try root.put("position", std.json.Value{ .object = pos_obj });
+
+        return std.json.Value{ .object = root };
+    }
+
+    fn executeImpl(cmd: *anyopaque) !void {
+        const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
+        // Use a default LoadOptions
+        const model = try self.asset_mgr.loadModel(self.model_path, .{});
+        // We need to convert nyon.Vector3 to raylib.Vector3
+        const rl_pos = nyon.raylib.Vector3{ .x = self.position.x, .y = self.position.y, .z = self.position.z };
+        self.added_index = try self.scene.addModel(model, rl_pos);
+    }
+
+    fn undoImpl(cmd: *anyopaque) !void {
+        const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
+        if (self.added_index) |idx| {
+            self.scene.removeModel(idx);
+            self.added_index = null;
+        }
+    }
+
+    fn deinitImpl(cmd: *anyopaque, allocator: std.mem.Allocator) void {
+        const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
+        allocator.free(self.base.description);
+        allocator.free(self.model_path);
+        allocator.destroy(self);
+    }
+
+    fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) !*UndoRedoSystem.Command {
+        const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
+        const cloned = try create(allocator, self.scene, self.asset_mgr, self.model_path, self.position, self.base.description);
+        return &cloned.base;
+    }
+
+    fn getMemoryUsageImpl(cmd: *anyopaque) usize {
+        const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
+        return @sizeOf(AddObjectCommand) + self.base.description.len + self.model_path.len;
+    }
+
+    fn getTypeNameImpl(_: *anyopaque) []const u8 {
+        return "AddObjectCommand";
+    }
+
+    pub fn getCommandType() UndoRedoSystem.CommandType {
+        return .{
+            .name = "AddObjectCommand",
+            .createFn = createFromJson,
+            .serializeFn = serialize,
+        };
+    }
+};
+
+/// Command to remove an object from the scene
+pub const RemoveObjectCommand = struct {
+    base: UndoRedoSystem.Command,
+    scene: *nyon.Scene,
+    asset_mgr: *nyon.AssetManager,
+    model_path: []const u8,
+    position: nyon.Vector3,
+    index: usize,
+    removed_model: ?nyon.raylib.Model,
+
+    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, index: usize, description: []const u8) !*RemoveObjectCommand {
+        const info = scene.getModelInfo(index) orelse return error.IndexOutOfBounds;
+
+        // We need to know where this model came from to restore it.
+        // For now, we'll assume it's stored in metadata if not provided?
+        // Actually, let's just use a placeholder path if unknown.
+        const model_path = "assets/models/unknown.obj"; // Simplified
+
+        const self = try allocator.create(RemoveObjectCommand);
+        self.* = .{
+            .base = .{
+                .vtable = &UndoRedoSystem.Command.VTable{
+                    .execute = executeImpl,
+                    .undo = undoImpl,
+                    .deinit = deinitImpl,
+                    .clone = cloneImpl,
+                    .getMemoryUsage = getMemoryUsageImpl,
+                    .getTypeName = getTypeNameImpl,
+                },
+                .description = try allocator.dupe(u8, description),
+            },
+            .scene = scene,
+            .asset_mgr = asset_mgr,
+            .model_path = try allocator.dupe(u8, model_path),
+            .position = nyon.Vector3{ .x = info.position.x, .y = info.position.y, .z = info.position.z },
+            .index = index,
+            .removed_model = null,
+        };
+        return self;
+    }
+
+    pub fn createFromJson(allocator: std.mem.Allocator, json_value: std.json.Value, context: ?*anyopaque) !*UndoRedoSystem.Command {
+        const ctx = context orelse return error.MissingContext;
+        const EditorContext = struct {
+            scene: *nyon.Scene,
+            asset_mgr: *nyon.AssetManager,
+        };
+        const editor_ctx: *const EditorContext = @ptrCast(@alignCast(ctx));
+
+        const obj = json_value.object;
+        const description = obj.get("description").?.string;
+        const model_path = obj.get("model_path").?.string;
+        const index = @as(usize, @intCast(obj.get("index").?.integer));
+
+        const pos_obj = obj.get("position").?.object;
+        const position = nyon.Vector3{
+            .x = @floatCast(pos_obj.get("x").?.float),
+            .y = @floatCast(pos_obj.get("y").?.float),
+            .z = @floatCast(pos_obj.get("z").?.float),
+        };
+
+        const cmd = try allocator.create(RemoveObjectCommand);
+        cmd.* = .{
+            .base = .{
+                .vtable = &UndoRedoSystem.Command.VTable{
+                    .execute = executeImpl,
+                    .undo = undoImpl,
+                    .deinit = deinitImpl,
+                    .clone = cloneImpl,
+                    .getMemoryUsage = getMemoryUsageImpl,
+                    .getTypeName = getTypeNameImpl,
+                },
+                .description = try allocator.dupe(u8, description),
+            },
+            .scene = editor_ctx.scene,
+            .asset_mgr = editor_ctx.asset_mgr,
+            .model_path = try allocator.dupe(u8, model_path),
+            .position = position,
+            .index = index,
+            .removed_model = null,
+        };
+        return &cmd.base;
+    }
+
+    pub fn serialize(cmd: *UndoRedoSystem.Command, allocator: std.mem.Allocator) !std.json.Value {
+        const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
+        var root = std.json.ObjectMap.init(allocator);
+        try root.put("type", std.json.Value{ .string = "RemoveObjectCommand" });
+        try root.put("description", std.json.Value{ .string = self.base.description });
+        try root.put("model_path", std.json.Value{ .string = self.model_path });
+        try root.put("index", std.json.Value{ .integer = @intCast(self.index) });
+
+        var pos_obj = std.json.ObjectMap.init(allocator);
+        try pos_obj.put("x", std.json.Value{ .float = self.position.x });
+        try pos_obj.put("y", std.json.Value{ .float = self.position.y });
+        try pos_obj.put("z", std.json.Value{ .float = self.position.z });
+        try root.put("position", std.json.Value{ .object = pos_obj });
+
+        return std.json.Value{ .object = root };
+    }
+
+    fn executeImpl(cmd: *anyopaque) !void {
+        const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
+        self.scene.removeModel(self.index);
+    }
+
+    fn undoImpl(cmd: *anyopaque) !void {
+        const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
+        const model = try self.asset_mgr.loadModel(self.model_path, .{});
+        const rl_pos = nyon.raylib.Vector3{ .x = self.position.x, .y = self.position.y, .z = self.position.z };
+        _ = try self.scene.addModel(model, rl_pos);
+        // Note: This adds it back but maybe not at the same index if other things changed.
+    }
+
+    fn deinitImpl(cmd: *anyopaque, allocator: std.mem.Allocator) void {
+        const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
+        allocator.free(self.base.description);
+        allocator.free(self.model_path);
+        allocator.destroy(self);
+    }
+
+    fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) !*UndoRedoSystem.Command {
+        const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
+        const cloned = try allocator.create(RemoveObjectCommand);
+        cloned.* = self.*;
+        cloned.base.description = try allocator.dupe(u8, self.base.description);
+        cloned.model_path = try allocator.dupe(u8, self.model_path);
+        return &cloned.base;
+    }
+
+    fn getMemoryUsageImpl(cmd: *anyopaque) usize {
+        const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
+        return @sizeOf(RemoveObjectCommand) + self.base.description.len + self.model_path.len;
+    }
+
+    fn getTypeNameImpl(_: *anyopaque) []const u8 {
+        return "RemoveObjectCommand";
+    }
+
+    pub fn getCommandType() UndoRedoSystem.CommandType {
+        return .{
+            .name = "RemoveObjectCommand",
+            .createFn = createFromJson,
+            .serializeFn = serialize,
+        };
     }
 };

@@ -230,6 +230,92 @@ pub const SphereNode = struct {
     }
 };
 
+/// Cylinder primitive node
+pub const CylinderNode = struct {
+    pub fn createVTable() nodes.NodeGraph.Node.NodeVTable {
+        return .{
+            .execute = execute,
+            .deinit = deinit,
+        };
+    }
+
+    fn execute(_: *nodes.NodeGraph.Node, inputs: []const nodes.NodeGraph.Value, allocator: std.mem.Allocator) ![]nodes.NodeGraph.Value {
+        const radius = if (inputs.len > 0 and inputs[0] == .float) inputs[0].float else 1.0;
+        const height = if (inputs.len > 1 and inputs[1] == .float) inputs[1].float else 2.0;
+        const slices = if (inputs.len > 2 and inputs[2] == .int) @as(i32, inputs[2].int) else 16;
+
+        const mesh = raylib.genMeshCylinder(radius, height, slices);
+        return try allocator.dupe(nodes.NodeGraph.Value, &[_]nodes.NodeGraph.Value{.{ .mesh = mesh }});
+    }
+
+    fn deinit(_: *nodes.NodeGraph.Node, _: std.mem.Allocator) void {}
+
+    pub fn initNode(node: *nodes.NodeGraph.Node) !void {
+        try node.addInput("Radius", .float, .{ .float = 1.0 });
+        try node.addInput("Height", .float, .{ .float = 2.0 });
+        try node.addInput("Slices", .int, .{ .int = 16 });
+        try node.addOutput("Geometry", .mesh);
+    }
+};
+
+/// Cone primitive node
+pub const ConeNode = struct {
+    pub fn createVTable() nodes.NodeGraph.Node.NodeVTable {
+        return .{
+            .execute = execute,
+            .deinit = deinit,
+        };
+    }
+
+    fn execute(_: *nodes.NodeGraph.Node, inputs: []const nodes.NodeGraph.Value, allocator: std.mem.Allocator) ![]nodes.NodeGraph.Value {
+        const radius = if (inputs.len > 0 and inputs[0] == .float) inputs[0].float else 1.0;
+        const height = if (inputs.len > 1 and inputs[1] == .float) inputs[1].float else 2.0;
+        const slices = if (inputs.len > 2 and inputs[2] == .int) @as(i32, inputs[2].int) else 16;
+
+        const mesh = raylib.genMeshCone(radius, height, slices);
+        return try allocator.dupe(nodes.NodeGraph.Value, &[_]nodes.NodeGraph.Value{.{ .mesh = mesh }});
+    }
+
+    fn deinit(_: *nodes.NodeGraph.Node, _: std.mem.Allocator) void {}
+
+    pub fn initNode(node: *nodes.NodeGraph.Node) !void {
+        try node.addInput("Radius", .float, .{ .float = 1.0 });
+        try node.addInput("Height", .float, .{ .float = 2.0 });
+        try node.addInput("Slices", .int, .{ .int = 16 });
+        try node.addOutput("Geometry", .mesh);
+    }
+};
+
+/// Plane primitive node
+pub const PlaneNode = struct {
+    pub fn createVTable() nodes.NodeGraph.Node.NodeVTable {
+        return .{
+            .execute = execute,
+            .deinit = deinit,
+        };
+    }
+
+    fn execute(_: *nodes.NodeGraph.Node, inputs: []const nodes.NodeGraph.Value, allocator: std.mem.Allocator) ![]nodes.NodeGraph.Value {
+        const width = if (inputs.len > 0 and inputs[0] == .float) inputs[0].float else 10.0;
+        const length = if (inputs.len > 1 and inputs[1] == .float) inputs[1].float else 10.0;
+        const res_x = if (inputs.len > 2 and inputs[2] == .int) @as(i32, inputs[2].int) else 10;
+        const res_y = if (inputs.len > 3 and inputs[3] == .int) @as(i32, inputs[3].int) else 10;
+
+        const mesh = raylib.genMeshPlane(width, length, res_x, res_y);
+        return try allocator.dupe(nodes.NodeGraph.Value, &[_]nodes.NodeGraph.Value{.{ .mesh = mesh }});
+    }
+
+    fn deinit(_: *nodes.NodeGraph.Node, _: std.mem.Allocator) void {}
+
+    pub fn initNode(node: *nodes.NodeGraph.Node) !void {
+        try node.addInput("Width", .float, .{ .float = 10.0 });
+        try node.addInput("Length", .float, .{ .float = 10.0 });
+        try node.addInput("Res X", .int, .{ .int = 10 });
+        try node.addInput("Res Y", .int, .{ .int = 10 });
+        try node.addOutput("Geometry", .mesh);
+    }
+};
+
 /// Translation transformation node
 pub const TranslateNode = struct {
     pub fn createVTable() nodes.NodeGraph.Node.NodeVTable {
@@ -311,7 +397,25 @@ pub const ScaleNode = struct {
         }
 
         // Recalculate normals if present
-        if (scaled_mesh.normals != null) {}
+        if (scaled_mesh.normals) |normals| {
+            const normal_slice = normals[0 .. scaled_vertex_count * 3];
+            for (0..scaled_vertex_count) |i| {
+                const idx = i * 3;
+                // For uniform scale, normals don't change direction.
+                // For non-uniform, they should be multiplied by (1/scale)
+                normal_slice[idx] *= (1.0 / scale.x);
+                normal_slice[idx + 1] *= (1.0 / scale.y);
+                normal_slice[idx + 2] *= (1.0 / scale.z);
+
+                // Re-normalize
+                const len = @sqrt(normal_slice[idx] * normal_slice[idx] + normal_slice[idx + 1] * normal_slice[idx + 1] + normal_slice[idx + 2] * normal_slice[idx + 2]);
+                if (len > 0.00001) {
+                    normal_slice[idx] /= len;
+                    normal_slice[idx + 1] /= len;
+                    normal_slice[idx + 2] /= len;
+                }
+            }
+        }
 
         var outputs = try allocator.alloc(nodes.NodeGraph.Value, 1);
         outputs[0] = .{ .mesh = scaled_mesh };
@@ -395,7 +499,43 @@ pub const RotateNode = struct {
         }
 
         // Recalculate normals if present
-        if (rotated_mesh.normals != null) {}
+        if (rotated_mesh.normals) |normals| {
+            const normal_slice = normals[0 .. rotated_vertex_count * 3];
+            for (0..rotated_vertex_count) |i| {
+                const idx = i * 3;
+                var nx = normal_slice[idx];
+                var ny = normal_slice[idx + 1];
+                var nz = normal_slice[idx + 2];
+
+                // Apply Z rotation
+                const cos_z = @cos(rot_z_rad);
+                const sin_z = @sin(rot_z_rad);
+                const rx_z = nx * cos_z - ny * sin_z;
+                const ry_z = nx * sin_z + ny * cos_z;
+                nx = rx_z;
+                ny = ry_z;
+
+                // Apply X rotation
+                const cos_x = @cos(rot_x_rad);
+                const sin_x = @sin(rot_x_rad);
+                const ry_x = ny * cos_x - nz * sin_x;
+                const rz_x = ny * sin_x + nz * cos_x;
+                ny = ry_x;
+                nz = rz_x;
+
+                // Apply Y rotation
+                const cos_y = @cos(rot_y_rad);
+                const sin_y = @sin(rot_y_rad);
+                const rx_y = nx * cos_y + nz * sin_y;
+                const rz_y = -nx * sin_y + nz * cos_y;
+                nx = rx_y;
+                nz = rz_y;
+
+                normal_slice[idx] = nx;
+                normal_slice[idx + 1] = ny;
+                normal_slice[idx + 2] = nz;
+            }
+        }
 
         var outputs = try allocator.alloc(nodes.NodeGraph.Value, 1);
         outputs[0] = .{ .mesh = rotated_mesh };
@@ -571,6 +711,12 @@ pub const GeometryNodeSystem = struct {
             vtable = CubeNode.createVTable();
         } else if (std.mem.eql(u8, node_type, "Sphere")) {
             vtable = SphereNode.createVTable();
+        } else if (std.mem.eql(u8, node_type, "Cylinder")) {
+            vtable = CylinderNode.createVTable();
+        } else if (std.mem.eql(u8, node_type, "Cone")) {
+            vtable = ConeNode.createVTable();
+        } else if (std.mem.eql(u8, node_type, "Plane")) {
+            vtable = PlaneNode.createVTable();
         } else if (std.mem.eql(u8, node_type, "Translate")) {
             vtable = TranslateNode.createVTable();
         } else if (std.mem.eql(u8, node_type, "Scale")) {
@@ -590,6 +736,12 @@ pub const GeometryNodeSystem = struct {
             CubeNode.initNode(node) catch {};
         } else if (std.mem.eql(u8, node_type, "Sphere")) {
             SphereNode.initNode(node) catch {};
+        } else if (std.mem.eql(u8, node_type, "Cylinder")) {
+            CylinderNode.initNode(node) catch {};
+        } else if (std.mem.eql(u8, node_type, "Cone")) {
+            ConeNode.initNode(node) catch {};
+        } else if (std.mem.eql(u8, node_type, "Plane")) {
+            PlaneNode.initNode(node) catch {};
         } else if (std.mem.eql(u8, node_type, "Translate")) {
             TranslateNode.initNode(node) catch {};
         } else if (std.mem.eql(u8, node_type, "Scale")) {
@@ -737,7 +889,7 @@ pub const GeometryNodeSystem = struct {
         const button_height = 25;
         var button_y: i32 = 50;
 
-        const node_types = [_][:0]const u8{ "Cube", "Sphere", "Translate", "Scale", "Rotate", "Union", "Difference", "Intersection" };
+        const node_types = [_][:0]const u8{ "Cube", "Sphere", "Cylinder", "Cone", "Plane", "Translate", "Scale", "Rotate", "Union", "Difference", "Intersection" };
 
         for (node_types) |node_type| {
             const button_rect = raylib.Rectangle{
@@ -766,11 +918,50 @@ pub const GeometryNodeSystem = struct {
         const node_count_slice = std.fmt.bufPrintZ(&node_count_buf, "Nodes: {}", .{self.graph.nodes.items.len}) catch "Nodes: ?";
         raylib.drawText(node_count_slice, 10, @as(i32, @intFromFloat(screen_height)) - 30, 16, raylib.Color.gray);
     }
-    /// Draw a single node
+    /// Draw a single connection between nodes
     fn drawConnection(self: *GeometryNodeSystem, conn: *const nodes.NodeGraph.Connection) void {
-        _ = self; // Not used in this simple implementation
-        _ = conn; // TODO: Implement connection drawing between nodes
-        // For now, connections are not visually drawn
+        const from_node_index = self.graph.findNodeIndex(conn.from_node) orelse return;
+        const to_node_index = self.graph.findNodeIndex(conn.to_node) orelse return;
+
+        const from_node = &self.graph.nodes.items[from_node_index];
+        const to_node = &self.graph.nodes.items[to_node_index];
+
+        const start_pos = getSocketPosition(from_node, false, conn.from_output);
+        const end_pos = getSocketPosition(to_node, true, conn.to_input);
+
+        // Calculate control points for a smooth Bezier curve
+        const cp1 = raylib.Vector2{
+            .x = start_pos.x + @max(50, @abs(end_pos.x - start_pos.x) * 0.5),
+            .y = start_pos.y,
+        };
+        const cp2 = raylib.Vector2{
+            .x = end_pos.x - @max(50, @abs(end_pos.x - start_pos.x) * 0.5),
+            .y = end_pos.y,
+        };
+
+        raylib.drawSplineSegmentBezierCubic(start_pos, cp1, cp2, end_pos, 2, raylib.Color.gray);
+    }
+
+    /// Helper to get the screen position of a node socket
+    fn getSocketPosition(node: *const nodes.NodeGraph.Node, is_input: bool, index: usize) raylib.Vector2 {
+        const node_width = 120;
+        var y_offset: f32 = 30;
+
+        if (is_input) {
+            y_offset += @as(f32, @floatFromInt(index)) * 20;
+            return .{
+                .x = node.position.x - 5,
+                .y = node.position.y + y_offset + 8,
+            };
+        } else {
+            // Outputs start after all inputs
+            y_offset += @as(f32, @floatFromInt(node.inputs.items.len)) * 20;
+            y_offset += @as(f32, @floatFromInt(index)) * 20;
+            return .{
+                .x = node.position.x + node_width + 5,
+                .y = node.position.y + y_offset + 8,
+            };
+        }
     }
 
     fn drawNode(self: *GeometryNodeSystem, node: *nodes.NodeGraph.Node, selected: bool) void {
