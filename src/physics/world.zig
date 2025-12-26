@@ -169,7 +169,7 @@ pub const PhysicsWorld = struct {
 
     /// Step the physics simulation
     pub fn step(self: *PhysicsWorld, dt: f32) !void {
-        const start_time = std.time.nanoTimestamp();
+        var timer = std.time.Timer.start() catch null;
 
         // Handle variable timestep with substepping
         const substep_dt = self.config.fixed_timestep;
@@ -179,7 +179,7 @@ pub const PhysicsWorld = struct {
             try self.substep(substep_dt);
         }
 
-        self.stats.solve_time = std.time.nanoTimestamp() - start_time;
+        self.stats.solve_time = if (timer) |*active_timer| active_timer.read() else 0;
     }
 
     /// Single physics substep

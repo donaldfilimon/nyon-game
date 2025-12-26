@@ -1,48 +1,38 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `src/` contains engine and editor code. Entry points are `src/main.zig` (game) and
-  `src/editor.zig` / `src/main_editor.zig` (editor). Public API lives in `src/root.zig`.
-- Subsystems are grouped under `src/ui/`, `src/nodes/`, `src/game/`, `src/io/`, plus
-  `src/rendering.zig` and `src/engine.zig`.
-- `examples/` holds Raylib integration demos; `saves/` stores runtime save data and UI layouts.
-- Build configuration is in `build.zig`, with dependency pins in `build.zig.zon`.
-- Tests live next to code in Zig files using `test "name"` blocks.
+- `src/` stores the engine/editor/library logic. Entry points are `src/main.zig`, `src/editor.zig`, and `src/main_editor.zig`, while `src/root.zig` re-exports the public API. Subsystems live under `src/ui/`, `src/nodes/`, `src/game/`, and `src/io/`, alongside `src/rendering.zig` and `src/engine.zig`. The 3D sandbox runtime/UI now live in `src/game/sandbox.zig` and `src/ui/sandbox_ui.zig`, so mirror their allocator/ownership patterns for block, camera, and HUD flows.
+- `examples/` holds Raylib demos and `saves/` stores persisted worlds and UI layouts (including `nyon_ui.json`). Keep `build.zig`/`build.zig.zon` in sync with dependency pins (`raylib_zig`, `zglfw`) whenever root APIs change.
 
 ## Build, Test, and Development Commands
-- Use Zig 0.16 master for all builds and tests in this codebase.
-- `zig build`: build the main game binary.
-- `zig build run`: build and run the game demo.
-- `zig build run-editor`: build and run the editor.
+- `zig build`: compile the main sandbox executable via `src/root.zig`.
+- `zig build run`: run the sandbox demo (free-fly camera + block build/removal).
+- `zig build run-editor`: build and launch the editor UI.
 - `zig build nyon-cli`: build the CLI helper.
 - `zig build wasm`: produce WebAssembly output.
-- `zig build example-file-browser` / `zig build example-drop-viewer`: build examples.
-- `zig build test` or `zig build test -- path/to/test.zig`: run all tests or a single file.
-- `zig fmt` / `zig fmt --check`: format or lint formatting.
+- `zig build example-file-browser` / `zig build example-drop-viewer`: compile the provided Raylib samples.
+- `zig build test` (or `zig build test -- <path>`): run every test or a targeted Zig file.
+- `zig fmt`: enforce repository formatting before submitting commits.
+
 
 ## Coding Style & Naming Conventions
-- Formatting follows `zig fmt` (4-space indent, aligned fields).
-- Import order: `std`, external deps, then local modules with descriptive aliases
-  (e.g., `engine_mod`).
-- Types in PascalCase, functions/vars in camelCase, constants in ALL_CAPS.
-- Struct layout: public fields, constants, public methods, then private helpers.
-- Prefer explicit error sets, `try`/`catch`, and `!T` for fallible APIs.
-- Use arena allocators for scoped work; prefer `[:0]const u8` for file paths.
-- Document public APIs with `///` and modules with `//!`.
+- Four-space indentation with field alignment that matches `zig fmt`. Order imports as `std`, then external deps (raylib/zglfw), then local modules with descriptive aliases (e.g., `nyon_game @import("../root.zig")`).
+- Use PascalCase for types, camelCase for functions/vars, and ALL_CAPS for constants. Prefer explicit error sets and handle fallible calls with `try`/`catch` or matching `error` branches.
+- Document modules with `//!` and public APIs with `///`. Favored data structures follow Zig 0.16’s unmanaged `std.ArrayList` pattern where ownership is explicit.
+- Keep allocator ownership clear when passing slices to the `RenderGraph`, sandbox world, or UI state.
+
 
 ## Testing Guidelines
-- Use `std.testing`, `std.testing.allocator`, and `std.testing.expect`.
-- Keep tests close to the implementation and name them clearly
-  (e.g., `test "loads scene metadata"`).
-- Run `zig build test` before submitting changes.
+- Tests live alongside their code in Zig files via `test "name"` blocks using `std.testing`, `std.testing.allocator`, and `std.testing.expect`.
+- Run targeted tests for touched modules (e.g., `zig build test -- src/rendering/render_graph.zig`). Note the command(s) in the PR description.
+
 
 ## Commit & Pull Request Guidelines
-- Commit subjects are short, imperative, sentence case (example:
-  `Refactor build.zig and enhance game state management`).
-- PRs should include a brief description, linked issue (if any), and test commands run.
-- Include screenshots or short clips for editor/UI changes and note breaking changes or
-  data format updates.
+- Write short, imperative, sentence-case commit subjects (e.g., `Refactor sandbox camera`). Keep scope focused and cite issues when applicable.
+- PRs should explain the change, list test commands executed, and call out breaking data/format updates. UI/editor work benefits from screenshots or short clips.
+- Reference dependency bumps in `build.zig.zon` and explain tooling updates (new raylib/zglfw versions).
 
-## Dependency Notes
-- Raylib-zig and zglfw may drift with Zig 0.16.x; if builds fail, update
-  `build.zig.zon` to newer commits and adjust build API usage as needed.
+
+## Operational Notes
+- Worlds saved by the sandbox live under `saves/`; bump version metadata if serialization changes.
+- Run `zig fmt` and `zig build` before pushing, and keep `AGENTS.md`/`README.md` aligned when demo behavior changes.

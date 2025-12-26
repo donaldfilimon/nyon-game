@@ -4,7 +4,7 @@
 //! including camera controls, object selection, and gizmo manipulation.
 
 const std = @import("std");
-const raylib = @import("../raylib");
+const raylib = @import("raylib");
 
 const editor_mod = @import("editor.zig");
 

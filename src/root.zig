@@ -99,6 +99,11 @@ pub const geometry_nodes = @import("geometry_nodes.zig");
 pub const worlds = @import("game/worlds.zig");
 pub const WorldEntry = worlds.WorldEntry;
 pub const game_state = @import("game/state.zig");
+pub const sandbox = @import("game/sandbox.zig");
+pub const SandboxState = sandbox.SandboxState;
+pub const SandboxWorld = sandbox.SandboxWorld;
+pub const Block = sandbox.Block;
+pub const BlockPos = sandbox.BlockPos;
 
 // UI system
 pub const ui = @import("ui/ui.zig");

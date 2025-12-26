@@ -5,9 +5,9 @@
 
 const std = @import("std");
 const nyon = @import("nyon_game");
-const render_graph = @import("../rendering/render_graph.zig");
-const passes = @import("../rendering/passes/passes.zig");
-const resources = @import("../rendering/resources/resources.zig");
+const render_graph = @import("../src/rendering/render_graph.zig");
+const passes = @import("../src/rendering/passes/passes.zig");
+const resources = @import("../src/rendering/resources/resources.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -72,6 +72,7 @@ fn setupRenderingPipeline(
             .clear_color = nyon.Color.init(135, 206, 235, 255), // Sky blue
         },
     });
+    try color_target.init();
 
     const normal_target = try graph.createResource(.{
         .render_target = .{
@@ -80,6 +81,7 @@ fn setupRenderingPipeline(
             .format = .rgba8,
         },
     });
+    try normal_target.init();
 
     const depth_target = try graph.createResource(.{
         .depth_stencil = .{
@@ -89,6 +91,7 @@ fn setupRenderingPipeline(
             .clear_depth = 1.0,
         },
     });
+    try depth_target.init();
 
     const bloom_target = try graph.createResource(.{
         .render_target = .{
@@ -97,6 +100,7 @@ fn setupRenderingPipeline(
             .format = .rgba8,
         },
     });
+    try bloom_target.init();
 
     const final_target = try graph.createResource(.{
         .render_target = .{
@@ -105,6 +109,7 @@ fn setupRenderingPipeline(
             .format = .rgba8,
         },
     });
+    try final_target.init();
 
     // Create shadow map for directional light
     const shadow_map = try graph.createResource(.{
@@ -114,20 +119,21 @@ fn setupRenderingPipeline(
             .format = .depth32f,
         },
     });
+    try shadow_map.init();
 
     // Add render passes
     std.debug.print("Setting up render passes...\n", .{});
 
     // 1. Shadow mapping pass
     _ = try graph.addPass(try passes.ShadowMapPass.create(
-        allocator,
+        cache.allocator,
         shadow_map,
-        createLightViewProjectionMatrix(), // Would compute actual light matrix
+        createLightViewProjectionMatrix(),
     ));
 
     // 2. Geometry pass (G-buffer)
     _ = try graph.addPass(try passes.GeometryPass.create(
-        allocator,
+        cache.allocator,
         color_target,
         depth_target,
         normal_target,
@@ -135,9 +141,9 @@ fn setupRenderingPipeline(
 
     // 3. Deferred lighting pass
     _ = try graph.addPass(try passes.DeferredLightingPass.create(
-        allocator,
+        cache.allocator,
         color_target,
-        color_target, // albedo (would be separate target)
+        color_target,
         normal_target,
         depth_target,
     ));
@@ -148,7 +154,7 @@ fn setupRenderingPipeline(
 
     // 5. Post-processing (tone mapping, bloom composite, etc.)
     _ = try graph.addPass(try passes.PostProcessPass.create(
-        allocator,
+        cache.allocator,
         color_target,
         final_target,
         &[_]passes.PostProcessPass.Effect{
@@ -160,16 +166,17 @@ fn setupRenderingPipeline(
     ));
 
     // 6. UI rendering
-    _ = try graph.addPass(try passes.UIPass.create(allocator, final_target));
+    _ = try graph.addPass(try passes.UIPass.create(cache.allocator, final_target));
 
     // 7. Debug visualization
-    _ = try graph.addPass(try passes.DebugPass.create(allocator, final_target, depth_target));
+    _ = try graph.addPass(try passes.DebugPass.create(cache.allocator, final_target, depth_target));
 
     std.debug.print("Render pipeline configured with {} passes\n", .{graph.passes.items.len});
 }
 
 /// Create a custom bloom extraction pass
-fn createBloomExtractPass(input_target: render_graph.ResourceHandle,
+fn createBloomExtractPass(
+    input_target: render_graph.ResourceHandle,
     output_target: render_graph.ResourceHandle,
 ) !render_graph.PassDesc {
     return .{
@@ -384,36 +391,38 @@ fn executePBRLightingPass(context: *render_graph.RenderContext) void {
 
 /// Performance monitoring for render graphs
 pub const RenderGraphProfiler = struct {
+    allocator: std.mem.Allocator,
     frame_times: std.ArrayList(u64),
     pass_times: std.AutoHashMap(render_graph.PassId, std.ArrayList(u64)),
 
     pub fn init(allocator: std.mem.Allocator) RenderGraphProfiler {
         return .{
-            .frame_times = std.ArrayList(u64).init(allocator),
+            .allocator = allocator,
+            .frame_times = std.ArrayList(u64).initCapacity(allocator, 0) catch unreachable,
             .pass_times = std.AutoHashMap(render_graph.PassId, std.ArrayList(u64)).init(allocator),
         };
     }
 
     pub fn deinit(self: *RenderGraphProfiler) void {
-        self.frame_times.deinit();
+        self.frame_times.deinit(self.allocator);
 
         var iter = self.pass_times.iterator();
         while (iter.next()) |entry| {
-            entry.value_ptr.deinit();
+            entry.value_ptr.deinit(self.allocator);
         }
         self.pass_times.deinit();
     }
 
     pub fn recordFrameTime(self: *RenderGraphProfiler, time_ns: u64) !void {
-        try self.frame_times.append(time_ns);
+        try self.frame_times.append(self.allocator, time_ns);
     }
 
     pub fn recordPassTime(self: *RenderGraphProfiler, pass_id: render_graph.PassId, time_ns: u64) !void {
         const gop = try self.pass_times.getOrPut(pass_id);
         if (!gop.found_existing) {
-            gop.value_ptr.* = std.ArrayList(u64).init(self.pass_times.allocator);
+            gop.value_ptr.* = std.ArrayList(u64).initCapacity(self.allocator, 0) catch unreachable;
         }
-        try gop.value_ptr.append(time_ns);
+        try gop.value_ptr.append(self.allocator, time_ns);
     }
 
     pub fn getAverageFrameTime(self: *const RenderGraphProfiler) f32 {
@@ -479,9 +488,9 @@ pub fn setupCompletePipeline() !void {
     try graph.compile();
 
     // Example frame
-    const frame_start = std.time.nanoTimestamp();
+    var frame_timer = try std.time.Timer.start();
     try graph.execute();
-    const frame_time = std.time.nanoTimestamp() - frame_start;
+    const frame_time = frame_timer.read();
 
     try profiler.recordFrameTime(frame_time);
     profiler.printReport();

@@ -26,11 +26,11 @@ pub const TabSystem = struct {
     pub fn init(allocator: std.mem.Allocator) TabSystem {
         return .{
             .allocator = allocator,
-            .tabs = std.ArrayList(Tab).init(allocator),
+            .tabs = std.ArrayList(Tab).initCapacity(allocator, 0) catch unreachable,
         };
     }
 
     pub fn deinit(self: *TabSystem) void {
-        self.tabs.deinit();
+        self.tabs.deinit(self.allocator);
     }
 };

@@ -125,8 +125,8 @@ pub const AnimationSystem = struct {
         return .{
             .allocator = allocator,
             .animation_states = std.AutoHashMap(usize, AnimationState).init(allocator),
-            .animations = std.ArrayList(AnimationClip).init(allocator),
-            .blend_trees = std.ArrayList(BlendTree).init(allocator),
+            .animations = std.ArrayList(AnimationClip).initCapacity(allocator, 0) catch unreachable,
+            .blend_trees = std.ArrayList(BlendTree).initCapacity(allocator, 0) catch unreachable,
         };
     }
 
@@ -139,14 +139,14 @@ pub const AnimationSystem = struct {
         for (self.animations.items) |*anim| {
             anim.deinit(self.allocator);
         }
-        self.animations.deinit();
+        self.animations.deinit(self.allocator);
 
         // Clean up blend trees
         for (self.blend_trees.items) |*tree| {
             self.allocator.free(tree.name);
             // Note: Blend tree cleanup would be more complex in a full implementation
         }
-        self.blend_trees.deinit();
+        self.blend_trees.deinit(self.allocator);
     }
 
     /// Load an animation from file
@@ -167,7 +167,7 @@ pub const AnimationSystem = struct {
 
         const id = self.animations.items.len;
         const clip = try AnimationClip.init(self.allocator, id, name, raylib_anim);
-        try self.animations.append(clip);
+        try self.animations.append(self.allocator, clip);
 
         return id;
     }

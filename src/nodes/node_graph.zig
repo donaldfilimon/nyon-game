@@ -312,7 +312,7 @@ pub const NodeGraph = struct {
         }
 
         // Add new connection
-        try self.connections.append(self.connections.allocator, .{
+        try self.connections.append(self.allocator, .{
             .from_node = from_node,
             .from_output = from_output,
             .to_node = to_node,

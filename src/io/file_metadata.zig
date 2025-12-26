@@ -34,27 +34,33 @@ pub const FileMetadata = struct {
     modified_ns: ?i96,
 };
 
+pub const GetError = error{
+    InvalidPath,
+    FileNotFound,
+    AccessDenied,
+    PermissionDenied,
+    Unexpected,
+};
+
 // ============================================================================
 // API
 // ============================================================================
 
 /// Read file size and modification time for `path`.
-pub fn get(path: []const u8) !FileMetadata {
+pub fn get(path: []const u8) GetError!FileMetadata {
     if (path.len == 0) return error.InvalidPath;
+    if (std.mem.indexOfScalar(u8, path, 0) != null) return error.InvalidPath;
 
     const is_abs = std.fs.path.isAbsolute(path);
 
     if (is_abs) {
         const file = std.fs.openFileAbsolute(path, .{}) catch |err| {
-            return switch (err) {
-                error.FileNotFound => error.FileNotFound,
-                else => error.Unexpected,
-            };
+            return mapOpenError(err);
         };
         defer file.close();
 
-        const stat = file.stat() catch {
-            return error.Unexpected;
+        const stat = file.stat() catch |err| {
+            return mapStatError(err);
         };
 
         return .{
@@ -64,21 +70,35 @@ pub fn get(path: []const u8) !FileMetadata {
     }
 
     const file = std.fs.cwd().openFile(path, .{}) catch |err| {
-        return switch (err) {
-            error.FileNotFound => error.FileNotFound,
-            error.AccessDenied => error.AccessDenied,
-            else => error.Unexpected,
-        };
+        return mapOpenError(err);
     };
     defer file.close();
 
-    const stat = file.stat() catch {
-        return error.Unexpected;
+    const stat = file.stat() catch |err| {
+        return mapStatError(err);
     };
 
     return .{
         .size = @intCast(stat.size),
         .modified_ns = stat.mtime.nanoseconds,
+    };
+}
+
+fn mapOpenError(err: anyerror) GetError {
+    return switch (err) {
+        error.FileNotFound => error.FileNotFound,
+        error.AccessDenied => error.AccessDenied,
+        error.PermissionDenied => error.PermissionDenied,
+        error.NameTooLong, error.BadPathName, error.NotDir, error.IsDir => error.InvalidPath,
+        else => error.Unexpected,
+    };
+}
+
+fn mapStatError(err: anyerror) GetError {
+    return switch (err) {
+        error.AccessDenied => error.AccessDenied,
+        error.PermissionDenied => error.PermissionDenied,
+        else => error.Unexpected,
     };
 }
 

@@ -374,24 +374,28 @@ pub const ResourceCache = struct {
         // Clean up resources
         var tex_iter = self.textures.iterator();
         while (tex_iter.next()) |entry| {
-            _ = entry; // Would release GPU resources
+            self.allocator.free(entry.key_ptr.*);
+            // Would release GPU resources.
         }
         self.textures.deinit();
 
         var shader_iter = self.shaders.iterator();
         while (shader_iter.next()) |entry| {
-            _ = entry; // Would release shader resources
+            self.allocator.free(entry.key_ptr.*);
+            // Would release shader resources.
         }
         self.shaders.deinit();
 
         var mat_iter = self.materials.iterator();
         while (mat_iter.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
             entry.value_ptr.deinit(self.allocator);
         }
         self.materials.deinit();
 
         var mesh_iter = self.meshes.iterator();
         while (mesh_iter.next()) |entry| {
+            self.allocator.free(entry.key_ptr.*);
             entry.value_ptr.deinit(self.allocator);
         }
         self.meshes.deinit();
@@ -423,14 +427,17 @@ pub const ResourceCache = struct {
     }
 
     /// Create or get a cached material
-    pub fn getMaterial(self: *ResourceCache, name: []const u8, shader: Shader) !Material {
-        if (self.materials.get(name)) |material| {
+    pub fn getMaterial(self: *ResourceCache, name: []const u8, shader: Shader) !*Material {
+        if (self.materials.getPtr(name)) |material| {
             return material;
         }
 
         const material = try Material.init(self.allocator, name, shader);
-        try self.materials.put(try self.allocator.dupe(u8, name), material);
-        return material;
+        errdefer material.deinit(self.allocator);
+        const key = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(key);
+        try self.materials.put(key, material);
+        return self.materials.getPtr(key).?;
     }
 };
 
@@ -454,7 +461,7 @@ test "buffer creation" {
     defer graph.deinit();
 
     const vertices = [_]f32{ 0, 0, 0, 1, 1, 1 };
-    const buffer = try Buffer.vertex(&graph, &vertices);
+    const buffer = try Buffer.vertex(&graph, vertices[0..]);
 
     try std.testing.expect(buffer.size == vertices.len * @sizeOf(f32));
 }
@@ -470,8 +477,7 @@ test "material system" {
     const shader = try Shader.fromSource(&graph, null, null);
 
     // Create a material
-    var material = try cache.getMaterial("test_material", shader);
-    defer material.deinit(std.testing.allocator);
+    const material = try cache.getMaterial("test_material", shader);
 
     try std.testing.expect(std.mem.eql(u8, material.name, "test_material"));
 

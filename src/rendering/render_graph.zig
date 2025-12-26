@@ -250,6 +250,12 @@ pub const RenderGraph = struct {
     }
 
     pub fn deinit(self: *RenderGraph) void {
+        for (self.passes.items) |pass| {
+            self.allocator.free(pass.name);
+            self.allocator.free(pass.desc.color_attachments);
+            self.allocator.free(pass.desc.input_attachments);
+            self.allocator.free(pass.output_resources);
+        }
         self.passes.deinit(self.allocator);
         self.resources.deinit();
         self.pass_dependencies.deinit(self.allocator);
@@ -283,11 +289,33 @@ pub const RenderGraph = struct {
             self.resources.addRef(input);
         }
 
+        const pass_name = try self.allocator.dupe(u8, desc.name);
+        errdefer self.allocator.free(pass_name);
+
+        const color_attachments = try self.allocator.alloc(Attachment, desc.color_attachments.len);
+        errdefer self.allocator.free(color_attachments);
+        @memcpy(color_attachments, desc.color_attachments);
+
+        const input_attachments = try self.allocator.alloc(ResourceHandle, desc.input_attachments.len);
+        errdefer self.allocator.free(input_attachments);
+        @memcpy(input_attachments, desc.input_attachments);
+
+        const output_slice = try output_resources.toOwnedSlice(self.allocator);
+        errdefer self.allocator.free(output_slice);
+
+        const pass_desc = PassDesc{
+            .name = pass_name,
+            .color_attachments = color_attachments,
+            .depth_attachment = desc.depth_attachment,
+            .input_attachments = input_attachments,
+            .execute = desc.execute,
+        };
+
         const pass = RenderPass{
             .id = pass_id,
-            .name = try self.allocator.dupe(u8, desc.name),
-            .desc = desc,
-            .output_resources = try output_resources.toOwnedSlice(self.allocator),
+            .name = pass_name,
+            .desc = pass_desc,
+            .output_resources = output_slice,
         };
 
         try self.passes.append(self.allocator, pass);

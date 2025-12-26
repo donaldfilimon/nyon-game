@@ -12,6 +12,7 @@ const JSON_TAG_Y = "y";
 const JSON_TAG_COLLECTED = "collected";
 const JSON_TAG_WORLD_NAME = "world_name";
 const JSON_TAG_WORLD_VERSION = "world_version";
+const DEFAULT_WORLD_NAME = "default_world";
 
 pub const LevelData = struct {
     world_name: []const u8,
@@ -22,14 +23,19 @@ pub const LevelData = struct {
     },
     items: []ItemData,
 
-    pub fn init(allocator: std.mem.Allocator) LevelData {
-        _ = allocator;
+    pub fn init(allocator: std.mem.Allocator) !LevelData {
         return LevelData{
-            .world_name = "default_world",
+            .world_name = try allocator.dupe(u8, DEFAULT_WORLD_NAME),
             .world_version = 1,
             .player_pos = .{ .x = state_mod.PLAYER_START_X, .y = state_mod.PLAYER_START_Y },
-            .items = &[_]ItemData{},
+            .items = try allocator.alloc(ItemData, 0),
         };
+    }
+
+    pub fn deinit(self: *LevelData, allocator: std.mem.Allocator) void {
+        allocator.free(self.world_name);
+        allocator.free(self.items);
+        self.* = undefined;
     }
 };
 
@@ -38,7 +44,7 @@ pub const ItemData = struct {
     y: f32,
     collected: bool,
 
-    pub fn fromGameStateItem(item: state_mod.Item) ItemData {
+    pub fn fromGameStateItem(item: state_mod.CollectibleItem) ItemData {
         return ItemData{
             .x = item.x,
             .y = item.y,
@@ -46,8 +52,8 @@ pub const ItemData = struct {
         };
     }
 
-    pub fn toGameStateItem(self: ItemData) state_mod.Item {
-        return state_mod.Item{
+    pub fn toGameStateItem(self: ItemData) state_mod.CollectibleItem {
+        return state_mod.CollectibleItem{
             .x = self.x,
             .y = self.y,
             .collected = self.collected,
@@ -64,30 +70,29 @@ pub const LevelSaveError = error{
 };
 
 pub fn saveLevel(game_state: *const state_mod.GameState, path: [:0]const u8, allocator: std.mem.Allocator) !void {
-    var json_string = std.ArrayList(u8).init(allocator);
-    defer json_string.deinit();
+    var json_string = std.ArrayList(u8).initCapacity(allocator, 0) catch unreachable;
+    defer json_string.deinit(allocator);
 
-    const writer = json_string.writer();
-    try writer.print("{{\n", .{});
-    try writer.print("  \"{s}\": \"{s}\",\n", .{ JSON_TAG_WORLD_NAME, game_state.world_name });
-    try writer.print("  \"{s}\": {},\n", .{ JSON_TAG_WORLD_VERSION, 1 });
+    try json_string.print(allocator, "{{\n", .{});
+    try json_string.print(allocator, "  \"{s}\": \"{s}\",\n", .{ JSON_TAG_WORLD_NAME, DEFAULT_WORLD_NAME });
+    try json_string.print(allocator, "  \"{s}\": {},\n", .{ JSON_TAG_WORLD_VERSION, 1 });
 
-    try writer.print("  \"{s}\": {{\n", .{JSON_TAG_PLAYER});
-    try writer.print("    \"{s}\": {d:.2},\n", .{ JSON_TAG_X, game_state.player_x });
-    try writer.print("    \"{s}\": {d:.2}\n", .{ JSON_TAG_Y, game_state.player_y });
-    try writer.print("  }},\n", .{});
+    try json_string.print(allocator, "  \"{s}\": {{\n", .{JSON_TAG_PLAYER});
+    try json_string.print(allocator, "    \"{s}\": {d:.2},\n", .{ JSON_TAG_X, game_state.player_x });
+    try json_string.print(allocator, "    \"{s}\": {d:.2}\n", .{ JSON_TAG_Y, game_state.player_y });
+    try json_string.print(allocator, "  }},\n", .{});
 
-    try writer.print("  \"{s}\": [\n", .{JSON_TAG_START_ITEMS});
+    try json_string.print(allocator, "  \"{s}\": [\n", .{JSON_TAG_START_ITEMS});
     for (game_state.items, 0..) |item, i| {
-        try writer.print("    {{\n", .{});
-        try writer.print("      \"{s}\": {d:.2},\n", .{ JSON_TAG_X, item.x });
-        try writer.print("      \"{s}\": {d:.2},\n", .{ JSON_TAG_Y, item.y });
-        try writer.print("      \"{s}\": {}\n", .{ JSON_TAG_COLLECTED, item.collected });
-        try writer.print("    }}{}", .{if (i < game_state.items.len - 1) "," else ""});
-        try writer.print("\n", .{});
+        try json_string.print(allocator, "    {{\n", .{});
+        try json_string.print(allocator, "      \"{s}\": {d:.2},\n", .{ JSON_TAG_X, item.x });
+        try json_string.print(allocator, "      \"{s}\": {d:.2},\n", .{ JSON_TAG_Y, item.y });
+        try json_string.print(allocator, "      \"{s}\": {}\n", .{ JSON_TAG_COLLECTED, item.collected });
+        try json_string.print(allocator, "    }}{}", .{if (i < game_state.items.len - 1) "," else ""});
+        try json_string.print(allocator, "\n", .{});
     }
-    try writer.print("  ]\n", .{});
-    try writer.print("}}\n", .{});
+    try json_string.print(allocator, "  ]\n", .{});
+    try json_string.print(allocator, "}}\n", .{});
 
     const file = try std.fs.cwd().createFile(path, .{});
     defer file.close();
@@ -112,9 +117,10 @@ pub fn loadLevel(path: [:0]const u8, allocator: std.mem.Allocator) !LevelData {
 }
 
 fn parseLevelJSON(content: []const u8, allocator: std.mem.Allocator) !LevelData {
-    var level_data = LevelData.init(allocator);
-    var items = std.ArrayList(ItemData).init(allocator);
-    defer items.deinit();
+    var level_data = try LevelData.init(allocator);
+    errdefer level_data.deinit(allocator);
+    var items = std.ArrayList(ItemData).initCapacity(allocator, 0) catch unreachable;
+    defer items.deinit(allocator);
 
     var i: usize = 0;
     const content_len = content.len;
@@ -133,8 +139,9 @@ fn parseLevelJSON(content: []const u8, allocator: std.mem.Allocator) !LevelData 
             skipWhitespace(content, &i);
 
             if (std.mem.eql(u8, key, JSON_TAG_WORLD_NAME)) {
-                const world_name = parseString(content, &i) catch "default_world";
-                level_data.world_name = world_name;
+                const world_name = parseString(content, &i) catch DEFAULT_WORLD_NAME;
+                allocator.free(level_data.world_name);
+                level_data.world_name = try allocator.dupe(u8, world_name);
             } else if (std.mem.eql(u8, key, JSON_TAG_WORLD_VERSION)) {
                 level_data.world_version = parseNumber(content, &i) catch 1;
             } else if (std.mem.eql(u8, key, JSON_TAG_PLAYER)) {
@@ -196,7 +203,7 @@ fn parseLevelJSON(content: []const u8, allocator: std.mem.Allocator) !LevelData 
                                     i += 1;
                                 }
                             }
-                            try items.append(item_data);
+                            try items.append(allocator, item_data);
                             i += 1;
                         } else {
                             i += 1;
@@ -210,7 +217,8 @@ fn parseLevelJSON(content: []const u8, allocator: std.mem.Allocator) !LevelData 
         }
     }
 
-    level_data.items = try items.toOwnedSlice();
+    allocator.free(level_data.items);
+    level_data.items = try items.toOwnedSlice(allocator);
     return level_data;
 }
 
@@ -244,7 +252,6 @@ fn parseNumber(content: []const u8, i: *usize) !f32 {
 }
 
 pub fn applyLevelData(game_state: *state_mod.GameState, level_data: *const LevelData) void {
-    game_state.world_name = level_data.world_name;
     game_state.player_x = level_data.player_pos.x;
     game_state.player_y = level_data.player_pos.y;
 
@@ -255,13 +262,16 @@ pub fn applyLevelData(game_state: *state_mod.GameState, level_data: *const Level
 }
 
 pub fn exportToGameState(game_state: *state_mod.GameState, allocator: std.mem.Allocator) !LevelData {
+    const world_name = try allocator.dupe(u8, DEFAULT_WORLD_NAME);
+    errdefer allocator.free(world_name);
     var items = try allocator.alloc(ItemData, game_state.items.len);
+    errdefer allocator.free(items);
     for (game_state.items, 0..) |item, i| {
         items[i] = ItemData.fromGameStateItem(item);
     }
 
     return LevelData{
-        .world_name = game_state.world_name,
+        .world_name = world_name,
         .world_version = 1,
         .player_pos = .{ .x = game_state.player_x, .y = game_state.player_y },
         .items = items,

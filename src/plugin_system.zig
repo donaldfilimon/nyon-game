@@ -49,8 +49,8 @@ pub const PluginSystem = struct {
     pub fn init(allocator: std.mem.Allocator) PluginSystem {
         return PluginSystem{
             .allocator = allocator,
-            .plugins = std.ArrayList(Plugin).init(allocator),
-            .plugin_libraries = std.ArrayList(std.DynLib).init(allocator),
+            .plugins = std.ArrayList(Plugin).initCapacity(allocator, 0) catch unreachable,
+            .plugin_libraries = std.ArrayList(std.DynLib).initCapacity(allocator, 0) catch unreachable,
         };
     }
 
@@ -70,8 +70,8 @@ pub const PluginSystem = struct {
             lib.close();
         }
 
-        self.plugins.deinit();
-        self.plugin_libraries.deinit();
+        self.plugins.deinit(self.allocator);
+        self.plugin_libraries.deinit(self.allocator);
     }
 
     /// Load a plugin from a dynamic library file
@@ -132,8 +132,8 @@ pub const PluginSystem = struct {
         };
 
         // Store plugin and library
-        try self.plugins.append(plugin);
-        try self.plugin_libraries.append(library);
+        try self.plugins.append(self.allocator, plugin);
+        try self.plugin_libraries.append(self.allocator, library);
 
         std.debug.print("Loaded plugin: {s} v{s} by {s}\n", .{
             capabilities.name,
@@ -186,32 +186,32 @@ pub const PluginSystem = struct {
 
     /// Get UI panels from UI plugins
     pub fn getUIPanels(self: *const PluginSystem, allocator: std.mem.Allocator) ![]*anyopaque {
-        var panels = std.ArrayList(*anyopaque).init(allocator);
-        defer panels.deinit();
+        var panels = std.ArrayList(*anyopaque).initCapacity(allocator, 0) catch unreachable;
+        defer panels.deinit(allocator);
 
         for (self.plugins.items) |plugin| {
             if (plugin.capabilities.plugin_type == .ui_panel and plugin.get_ui_panel_fn) |get_fn| {
                 if (get_fn(&plugin.context)) |panel| {
-                    try panels.append(panel);
+                    try panels.append(allocator, panel);
                 }
             }
         }
 
-        return panels.toOwnedSlice();
+        return panels.toOwnedSlice(allocator);
     }
 
     /// Get loaded plugins by type
     pub fn getPluginsByType(self: *const PluginSystem, plugin_type: PluginType, allocator: std.mem.Allocator) ![]*const Plugin {
-        var matching_plugins = std.ArrayList(*const Plugin).init(allocator);
-        defer matching_plugins.deinit();
+        var matching_plugins = std.ArrayList(*const Plugin).initCapacity(allocator, 0) catch unreachable;
+        defer matching_plugins.deinit(allocator);
 
         for (self.plugins.items) |*plugin| {
             if (plugin.capabilities.plugin_type == plugin_type) {
-                try matching_plugins.append(plugin);
+                try matching_plugins.append(allocator, plugin);
             }
         }
 
-        return matching_plugins.toOwnedSlice();
+        return matching_plugins.toOwnedSlice(allocator);
     }
 };
 

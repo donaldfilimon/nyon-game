@@ -145,15 +145,15 @@ pub const MainEditor = struct {
         _ = try dock_sys.createPanel(.scene_outliner, "Scene Outliner", raylib.Rectangle{ .x = 0, .y = screen_height - 200, .width = 300, .height = 200 }, null);
 
         // TUI (terminal UI) buffers.
-        var command_buffer = std.ArrayList(u8).init(allocator);
-        errdefer command_buffer.deinit();
-        var command_history = std.ArrayList([]const u8).init(allocator);
-        errdefer command_history.deinit();
-        var output_lines = std.ArrayList([]const u8).init(allocator);
-        errdefer output_lines.deinit();
-        try output_lines.append(try allocator.dupe(u8, "Nyon Game Engine TUI v1.0"));
-        try output_lines.append(try allocator.dupe(u8, "Type 'help' for available commands"));
-        try output_lines.append(try allocator.dupe(u8, ""));
+        var command_buffer = std.ArrayList(u8).initCapacity(allocator, 0) catch unreachable;
+        errdefer command_buffer.deinit(allocator);
+        var command_history = std.ArrayList([]const u8).initCapacity(allocator, 0) catch unreachable;
+        errdefer command_history.deinit(allocator);
+        var output_lines = std.ArrayList([]const u8).initCapacity(allocator, 0) catch unreachable;
+        errdefer output_lines.deinit(allocator);
+        try output_lines.append(allocator, try allocator.dupe(u8, "Nyon Game Engine TUI v1.0"));
+        try output_lines.append(allocator, try allocator.dupe(u8, "Type 'help' for available commands"));
+        try output_lines.append(allocator, try allocator.dupe(u8, ""));
 
         // Construct the editor with all systems.
         return MainEditor{
@@ -197,11 +197,11 @@ pub const MainEditor = struct {
         self.geometry_node_editor.deinit();
         self.material_node_editor.deinit();
 
-        self.tui_command_buffer.deinit();
+        self.tui_command_buffer.deinit(self.allocator);
         for (self.tui_command_history.items) |cmd| self.allocator.free(cmd);
-        self.tui_command_history.deinit();
+        self.tui_command_history.deinit(self.allocator);
         for (self.tui_output_lines.items) |line| self.allocator.free(line);
-        self.tui_output_lines.deinit();
+        self.tui_output_lines.deinit(self.allocator);
     }
 
     /// Main update loop: calls the active mode's update, handles mode switches, etc.

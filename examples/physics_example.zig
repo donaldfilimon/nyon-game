@@ -5,6 +5,7 @@
 //! and realistic physics behavior.
 
 const std = @import("std");
+
 const nyon = @import("nyon_game");
 
 pub fn main() !void {
@@ -138,27 +139,24 @@ fn renderScene(ecs_world: *const nyon.ecs.World) void {
         entity_count += 1;
         const position = entity_data.get(nyon.ecs.Position) orelse continue;
         const renderable = entity_data.get(nyon.ecs.Renderable) orelse continue;
+        _ = renderable; // autofix
 
-        // Simple rendering: draw colored circles/rectangles to represent entities
         const screen_x = 600 + position.x * 15;
+        _ = screen_x; // autofix
         const screen_y = 400 - position.y * 15;
+        _ = screen_y; // autofix
         const size = 20;
 
-        // Color based on entity type (simplified detection)
-        var color: nyon.Color = nyon.Color.blue; // Default
+        var color: nyon.Color = nyon.Color.blue;
         if (position.y < -3) {
-            color = nyon.Color.green; // Ground
+            color = nyon.Color.green;
         } else if (position.y > 5) {
-            color = nyon.Color.red; // Falling objects
+            color = nyon.Color.red;
         } else if (@abs(position.x) > 3) {
-            color = nyon.Color.yellow; // Platform
+            color = nyon.Color.yellow;
         }
 
-        // Draw entity representation (would be replaced with actual 3D rendering)
-        _ = color;
-        _ = screen_x;
-        _ = screen_y;
-        _ = size; // Placeholder for rendering
+        _ = size;
     }
 
     std.debug.print("Rendered {} entities\r", .{entity_count});
@@ -263,7 +261,7 @@ pub fn physicsBenchmark() !void {
     const num_objects = 100;
     std.debug.print("Creating {} physics objects for benchmark...\n", .{num_objects});
 
-    const start_time = std.time.nanoTimestamp();
+    var creation_timer = try std.time.Timer.start();
 
     for (0..num_objects) |i| {
         const entity = try ecs_world.createEntity();
@@ -277,21 +275,21 @@ pub fn physicsBenchmark() !void {
         try physics_system.addRigidBody(&ecs_world, entity, body, collider);
     }
 
-    const creation_time = std.time.nanoTimestamp() - start_time;
+    const creation_time = creation_timer.read();
     std.debug.print("Created {} objects in {d:.2}ms\n", .{
         num_objects,
         @as(f64, @floatFromInt(creation_time)) / 1_000_000.0,
     });
 
     // Benchmark physics simulation
-    const simulation_start = std.time.nanoTimestamp();
+    var simulation_timer = try std.time.Timer.start();
     const frames = 100;
 
     for (0..frames) |_| {
         try physics_system.update(&ecs_world, 1.0 / 60.0);
     }
 
-    const simulation_time = std.time.nanoTimestamp() - simulation_start;
+    const simulation_time = simulation_timer.read();
     const avg_frame_time = @as(f64, @floatFromInt(simulation_time)) / @as(f64, @floatFromInt(frames));
 
     std.debug.print("Simulated {} frames in {d:.2}ms (avg: {d:.2}ms/frame, {d:.1}fps)\n", .{

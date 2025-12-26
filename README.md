@@ -1,11 +1,12 @@
 # Nyon Game Engine
 
-A minimal Zig-based game engine with raylib integration, featuring a collect-and-score demo, node-based geometry editor, and extensible plugin system.
+A minimal Zig-based game engine with raylib integration, featuring a 3D sandbox demo, node-based geometry editor, and extensible plugin system.
 
 ## Features
 
 - **Cross-platform**: Native desktop (Windows/macOS/Linux) and WebAssembly support
 - **Immediate-mode UI**: Custom UI system with F1 edit mode, drag-and-drop panels, and JSON persistence
+- **3D sandbox**: Free-fly camera, block placement/removal, and world save data
 - **Node-based editor**: Geometry nodes system for procedural content creation
 - **Asset management**: Material system with texture loading and management
 - **Undo/Redo**: Command-based history system with serialization support
@@ -25,7 +26,7 @@ git clone <repository>
 cd nyon-game
 zig build
 
-# Run the demo game
+# Run the sandbox
 zig build run
 
 # Run the editor
@@ -65,6 +66,7 @@ nyon-game/
 │   ├── nodes/               # Node graph system
 │   │   └── node_graph.zig
 │   ├── game/                # Game-specific logic
+│   │   ├── sandbox.zig
 │   │   └── worlds.zig
 │   ├── io/                  # File I/O utilities
 │   │   ├── file_detail.zig
@@ -92,12 +94,6 @@ nyon-game/
 - **Material Editor**: Texture and shader management
 - **Animation System**: Keyframe-based animation tools
 
-### File Handling
-- Drag-and-drop support for assets
-- Metadata display in HUD overlays
-- JSON configuration persistence (`nyon_ui.json`)
-- Command-line file loading (`zig build run -- <path>`)
-
 ## Development
 
 ### Coding Conventions
@@ -116,8 +112,14 @@ Follow the guidelines in `AGENTS.md`:
 - Drop JSON files to load custom layouts
 
 ### Key Bindings (Game)
-- `WASD` / Arrow keys: Movement
-- `R`: Restart level
+- `WASD`: Move
+- `Q` / `E`: Move down/up
+- `Right Mouse`: Look around
+- `Left Click`: Place block
+- `Ctrl` + `Left Click`: Remove block
+- `Tab`: Cycle block color
+- `R`: Reset camera
+- `Ctrl` + `S`: Save world
 - `F1`: Toggle UI edit mode
 - `F2`: Settings panel
 

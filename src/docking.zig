@@ -47,7 +47,7 @@ pub const DockingSystem = struct {
     pub fn init(allocator: std.mem.Allocator, screen_width: f32, screen_height: f32) DockingSystem {
         return .{
             .allocator = allocator,
-            .panels = std.ArrayList(Panel).init(allocator),
+            .panels = std.ArrayList(Panel).initCapacity(allocator, 0) catch unreachable,
             .drag_state = null,
             .screen_width = screen_width,
             .screen_height = screen_height,
@@ -57,9 +57,9 @@ pub const DockingSystem = struct {
     pub fn deinit(self: *DockingSystem) void {
         for (self.panels.items) |*panel| {
             self.allocator.free(panel.title);
-            panel.children.deinit();
+            panel.children.deinit(self.allocator);
         }
-        self.panels.deinit();
+        self.panels.deinit(self.allocator);
     }
 
     /// Create a new panel
@@ -74,7 +74,7 @@ pub const DockingSystem = struct {
         const title_copy = try self.allocator.dupe(u8, title);
         errdefer self.allocator.free(title_copy);
 
-        try self.panels.append(.{
+        try self.panels.append(self.allocator, .{
             .id = id,
             .panel_type = panel_type,
             .title = title_copy,
@@ -82,7 +82,7 @@ pub const DockingSystem = struct {
             .is_visible = true,
             .is_docked = false,
             .dock_parent = null,
-            .children = std.ArrayList(PanelId).init(self.allocator),
+            .children = std.ArrayList(PanelId).initCapacity(self.allocator, 0) catch unreachable,
             .content_callback = content_callback,
         });
 
@@ -99,7 +99,7 @@ pub const DockingSystem = struct {
         panel.is_docked = true;
         panel.dock_parent = parent_id;
 
-        try parent.children.append(panel_id);
+        try parent.children.append(self.allocator, panel_id);
 
         // Adjust panel rectangles based on docking position
         try self.adjustDockedRectangles(parent_id, position);

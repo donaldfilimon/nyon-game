@@ -105,7 +105,7 @@ pub const LODSystem = struct {
     pub fn init(allocator: std.mem.Allocator) LODSystem {
         return .{
             .allocator = allocator,
-            .lod_groups = std.ArrayList(LODGroup).init(allocator),
+            .lod_groups = std.ArrayList(LODGroup).initCapacity(allocator, 0) catch unreachable,
             .distances = LODDistances{},
         };
     }
@@ -120,9 +120,9 @@ pub const LODSystem = struct {
                     .billboard => |texture| raylib.unloadTexture(texture),
                 }
             }
-            group.lod_levels.deinit();
+            group.lod_levels.deinit(self.allocator);
         }
-        self.lod_groups.deinit();
+        self.lod_groups.deinit(self.allocator);
     }
 
     /// Create LOD group for an entity
@@ -132,17 +132,17 @@ pub const LODSystem = struct {
         var group = LODGroup{
             .entity_id = entity_id,
             .position = position,
-            .lod_levels = std.ArrayList(LODGroup.LODGeometry).init(self.allocator),
+            .lod_levels = std.ArrayList(LODGroup.LODGeometry).initCapacity(self.allocator, 0) catch unreachable,
             .current_lod = .high_detail,
             .last_distance = 0,
         };
 
         // Add placeholder LOD levels (would be populated with actual geometry)
-        try group.lod_levels.append(.{ .mesh = raylib.genMeshCube(1.0, 1.0, 1.0) }); // High detail
-        try group.lod_levels.append(.{ .mesh = raylib.genMeshCube(1.0, 1.0, 1.0) }); // Medium detail
-        try group.lod_levels.append(.{ .mesh = raylib.genMeshCube(1.0, 1.0, 1.0) }); // Low detail
+        try group.lod_levels.append(self.allocator, .{ .mesh = raylib.genMeshCube(1.0, 1.0, 1.0) }); // High detail
+        try group.lod_levels.append(self.allocator, .{ .mesh = raylib.genMeshCube(1.0, 1.0, 1.0) }); // Medium detail
+        try group.lod_levels.append(self.allocator, .{ .mesh = raylib.genMeshCube(1.0, 1.0, 1.0) }); // Low detail
 
-        try self.lod_groups.append(group);
+        try self.lod_groups.append(self.allocator, group);
         return group_id;
     }
 
@@ -246,7 +246,7 @@ pub const InstancingSystem = struct {
     pub fn init(allocator: std.mem.Allocator) InstancingSystem {
         return .{
             .allocator = allocator,
-            .instance_groups = std.ArrayList(InstanceGroup).init(allocator),
+            .instance_groups = std.ArrayList(InstanceGroup).initCapacity(allocator, 0) catch unreachable,
             .max_instances_per_draw = 1024,
         };
     }
@@ -254,14 +254,14 @@ pub const InstancingSystem = struct {
     /// Deinitialize instancing system
     pub fn deinit(self: *InstancingSystem) void {
         for (self.instance_groups.items) |*group| {
-            group.instances.deinit();
-            group.transforms.deinit();
+            group.instances.deinit(self.allocator);
+            group.transforms.deinit(self.allocator);
             if (group.instance_buffer) |buffer| {
                 raylib.unloadTexture(buffer);
             }
             // Note: mesh and material are owned by asset system
         }
-        self.instance_groups.deinit();
+        self.instance_groups.deinit(self.allocator);
     }
 
     /// Create instance group
@@ -271,12 +271,12 @@ pub const InstancingSystem = struct {
         const group = InstanceGroup{
             .mesh = mesh,
             .material = material,
-            .instances = std.ArrayList(InstanceGroup.InstanceData).init(self.allocator),
-            .transforms = std.ArrayList(raylib.Matrix).init(self.allocator),
+            .instances = std.ArrayList(InstanceGroup.InstanceData).initCapacity(self.allocator, 0) catch unreachable,
+            .transforms = std.ArrayList(raylib.Matrix).initCapacity(self.allocator, 0) catch unreachable,
             .instance_buffer = null,
         };
 
-        try self.instance_groups.append(group);
+        try self.instance_groups.append(self.allocator, group);
         return group_id;
     }
 
@@ -285,11 +285,11 @@ pub const InstancingSystem = struct {
         if (group_id >= self.instance_groups.items.len) return error.InvalidGroupId;
 
         const group = &self.instance_groups.items[group_id];
-        try group.instances.append(instance_data);
+        try group.instances.append(self.allocator, instance_data);
 
         // Update transform matrix
         const transform = self.calculateTransform(instance_data);
-        try group.transforms.append(transform);
+        try group.transforms.append(self.allocator, transform);
     }
 
     /// Update instance in group

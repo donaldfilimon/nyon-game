@@ -95,7 +95,7 @@ pub const RenderingSystem = struct {
             }
 
             pub fn deinit(self: *InstancingRenderer) void {
-                self.instances.deinit();
+                self.instances.deinit(self.allocator);
             }
 
             pub fn addInstance(self: *InstancingRenderer, transform: raylib.Matrix, color: raylib.Color) !void {
@@ -108,7 +108,7 @@ pub const RenderingSystem = struct {
                     .color = color,
                 };
 
-                self.instances.append(instance) catch return error.OutOfMemory;
+                self.instances.append(self.allocator, instance) catch return error.OutOfMemory;
             }
 
             pub fn clearInstances(self: *InstancingRenderer) void {
@@ -232,7 +232,7 @@ pub const RenderingSystem = struct {
             pub fn init(allocator: std.mem.Allocator) PBRMaterialSystem {
                 return PBRMaterialSystem{
                     .allocator = allocator,
-                    .materials = std.ArrayList(PBRMaterial).init(allocator),
+                    .materials = std.ArrayList(PBRMaterial).initCapacity(allocator, 0) catch unreachable,
                 };
             }
 
@@ -240,11 +240,11 @@ pub const RenderingSystem = struct {
                 for (self.materials.items) |material| {
                     material.unload();
                 }
-                self.materials.deinit();
+                self.materials.deinit(self.allocator);
             }
 
             pub fn createMaterial(self: *PBRMaterialSystem, material: PBRMaterial) !usize {
-                try self.materials.append(material);
+                try self.materials.append(self.allocator, material);
                 return self.materials.items.len - 1;
             }
 
@@ -457,11 +457,11 @@ pub const RenderingSystem = struct {
     pub fn init(allocator: std.mem.Allocator) RenderingSystem {
         return .{
             .allocator = allocator,
-            .lights = std.ArrayList(Light).init(allocator),
-            .cameras = std.ArrayList(Camera).init(allocator),
+            .lights = std.ArrayList(Light).initCapacity(allocator, 0) catch unreachable,
+            .cameras = std.ArrayList(Camera).initCapacity(allocator, 0) catch unreachable,
             .active_camera = null,
             .shaders = std.StringHashMap(raylib.Shader).init(allocator),
-            .custom_materials = std.ArrayList(CustomMaterial).init(allocator),
+            .custom_materials = std.ArrayList(CustomMaterial).initCapacity(allocator, 0) catch unreachable,
         };
     }
 
@@ -470,12 +470,12 @@ pub const RenderingSystem = struct {
         for (self.lights.items) |_| {
             // Lights don't need cleanup
         }
-        self.lights.deinit();
+        self.lights.deinit(self.allocator);
 
         for (self.cameras.items) |*camera| {
             camera.deinit(self.allocator);
         }
-        self.cameras.deinit();
+        self.cameras.deinit(self.allocator);
 
         // Clean up Raylib 5.x features
         var shader_iter = self.shaders.iterator();
@@ -487,7 +487,7 @@ pub const RenderingSystem = struct {
         for (self.custom_materials.items) |*material| {
             material.deinit();
         }
-        self.custom_materials.deinit();
+        self.custom_materials.deinit(self.allocator);
     }
 
     /// Add a light to the system
@@ -495,7 +495,7 @@ pub const RenderingSystem = struct {
         var light_copy = light;
         light_copy.id = self.lights.items.len;
 
-        try self.lights.append(light_copy);
+        try self.lights.append(self.allocator, light_copy);
         return light_copy.id;
     }
 
@@ -504,7 +504,7 @@ pub const RenderingSystem = struct {
         var camera_copy = camera;
         camera_copy.id = self.cameras.items.len;
 
-        try self.cameras.append(camera_copy);
+        try self.cameras.append(self.allocator, camera_copy);
         return camera_copy.id;
     }
 
@@ -631,7 +631,7 @@ pub const RenderingSystem = struct {
         const material = try CustomMaterial.init(self.allocator, shader);
 
         const index = self.custom_materials.items.len;
-        try self.custom_materials.append(material);
+        try self.custom_materials.append(self.allocator, material);
         return index;
     }
 

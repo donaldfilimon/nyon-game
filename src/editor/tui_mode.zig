@@ -4,7 +4,7 @@
 //! within the editor for advanced operations and debugging.
 
 const std = @import("std");
-const raylib = @import("../raylib");
+const raylib = @import("raylib");
 
 const editor_mod = @import("editor.zig");
 
@@ -13,6 +13,7 @@ const editor_mod = @import("editor.zig");
 // ============================================================================
 
 pub const TUIMode = struct {
+    allocator: std.mem.Allocator,
     /// Command input buffer
     command_buffer: std.ArrayList(u8),
     /// Command history
@@ -27,21 +28,22 @@ pub const TUIMode = struct {
     scroll_offset: f32 = 0,
 
     pub fn init(allocator: std.mem.Allocator) !TUIMode {
-        var command_buffer = std.ArrayList(u8).init(allocator);
-        errdefer command_buffer.deinit();
+        var command_buffer = std.ArrayList(u8).initCapacity(allocator, 0) catch unreachable;
+        errdefer command_buffer.deinit(allocator);
 
-        var command_history = std.ArrayList([]const u8).init(allocator);
-        errdefer command_history.deinit();
+        var command_history = std.ArrayList([]const u8).initCapacity(allocator, 0) catch unreachable;
+        errdefer command_history.deinit(allocator);
 
-        var output_lines = std.ArrayList([]const u8).init(allocator);
-        errdefer output_lines.deinit();
+        var output_lines = std.ArrayList([]const u8).initCapacity(allocator, 0) catch unreachable;
+        errdefer output_lines.deinit(allocator);
 
         // Add welcome messages
-        try output_lines.append(try allocator.dupe(u8, "Nyon Game Engine TUI v1.0"));
-        try output_lines.append(try allocator.dupe(u8, "Type 'help' for available commands"));
-        try output_lines.append(try allocator.dupe(u8, ""));
+        try output_lines.append(allocator, try allocator.dupe(u8, "Nyon Game Engine TUI v1.0"));
+        try output_lines.append(allocator, try allocator.dupe(u8, "Type 'help' for available commands"));
+        try output_lines.append(allocator, try allocator.dupe(u8, ""));
 
         return TUIMode{
+            .allocator = allocator,
             .command_buffer = command_buffer,
             .command_history = command_history,
             .output_lines = output_lines,
@@ -49,15 +51,15 @@ pub const TUIMode = struct {
     }
 
     pub fn deinit(self: *TUIMode) void {
-        self.command_buffer.deinit();
+        self.command_buffer.deinit(self.allocator);
         for (self.command_history.items) |cmd| {
-            self.command_buffer.allocator.free(cmd);
+            self.allocator.free(cmd);
         }
-        self.command_history.deinit();
+        self.command_history.deinit(self.allocator);
         for (self.output_lines.items) |line| {
-            self.command_buffer.allocator.free(line);
+            self.allocator.free(line);
         }
-        self.output_lines.deinit();
+        self.output_lines.deinit(self.allocator);
     }
 
     pub fn update(self: *TUIMode, editor: *editor_mod.MainEditor, dt: f32) void {
@@ -137,7 +139,7 @@ pub const TUIMode = struct {
 
     fn insertChar(self: *TUIMode, c: u8) void {
         if (self.cursor_pos >= self.command_buffer.items.len) {
-            self.command_buffer.append(c) catch return;
+            self.command_buffer.append(self.allocator, c) catch return;
         } else {
             self.command_buffer.insert(self.cursor_pos, c) catch return;
         }
@@ -160,7 +162,7 @@ pub const TUIMode = struct {
         // Add to history
         if (command.len > 0) {
             const cmd_copy = self.command_buffer.allocator.dupe(u8, command) catch return;
-            self.command_history.append(cmd_copy) catch {
+            self.command_history.append(self.allocator, cmd_copy) catch {
                 self.command_buffer.allocator.free(cmd_copy);
                 return;
             };
@@ -169,7 +171,7 @@ pub const TUIMode = struct {
         // Add command to output
         const prompt = std.fmt.allocPrint(self.command_buffer.allocator, "> {s}", .{command}) catch "> ?";
         defer self.command_buffer.allocator.free(prompt);
-        self.output_lines.append(prompt) catch {};
+        self.output_lines.append(self.allocator, prompt) catch {};
 
         // Execute command
         self.executeCommandLogic(command);
@@ -242,7 +244,7 @@ pub const TUIMode = struct {
 
     fn addOutputLine(self: *TUIMode, line: []const u8) void {
         const line_copy = self.command_buffer.allocator.dupe(u8, line) catch return;
-        self.output_lines.append(line_copy) catch {
+        self.output_lines.append(self.allocator, line_copy) catch {
             self.command_buffer.allocator.free(line_copy);
         };
     }

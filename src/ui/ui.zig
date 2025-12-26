@@ -58,9 +58,9 @@ pub const FontSet = struct {
     pub fn loadCustomFonts(self: *FontSet, font_size: i32) void {
         // Try to load system fonts with fallbacks
         const fallback = raylib.getFontDefault() catch std.mem.zeroes(raylib.Font);
-        self.regular = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeui.ttf", font_size, null, 0) catch fallback;
-        self.bold = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeuib.ttf", font_size, null, 0) catch self.regular;
-        self.mono = raylib.loadFontEx("C:\\Windows\\Fonts\\consola.ttf", font_size, null, 0) catch self.regular;
+        self.regular = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeui.ttf", font_size, null) catch fallback;
+        self.bold = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeuib.ttf", font_size, null) catch self.regular;
+        self.mono = raylib.loadFontEx("C:\\Windows\\Fonts\\consola.ttf", font_size, null) catch self.regular;
         self.icon = raylib.getFontDefault() catch self.regular; // Placeholder
     }
 
@@ -297,8 +297,11 @@ pub const UiContext = struct {
     pub fn getStyle(self: UiContext) UiStyle {
         var style = self.style;
         // Ensure fonts are loaded
-        if (style.fonts.regular.texture.id == 0) {
-            style.fonts.loadDefault();
+        if (style.fonts == null) {
+            style.fonts = FontSet.init();
+        }
+        if (style.fonts.?.regular.texture.id == 0) {
+            style.fonts.?.loadDefault();
         }
         return style;
     }
@@ -309,15 +312,21 @@ pub const UiContext = struct {
 
     pub fn getCurrentStyle(self: *UiContext) UiStyle {
         var style = self.style;
-        if (style.fonts.regular.texture.id == 0) {
-            style.fonts.loadDefault();
-            self.style = style;
+        if (style.fonts == null) {
+            style.fonts = FontSet.init();
         }
+        if (style.fonts.?.regular.texture.id == 0) {
+            style.fonts.?.loadDefault();
+        }
+        self.style = style;
         return style;
     }
 
-    pub fn makeId(comptime prefix: []const u8, extra: []const u8) u64 {
-        return std.hash.Wyhash.hash(0, prefix ++ extra);
+    pub fn makeId(prefix: []const u8, extra: []const u8) u64 {
+        var hasher = std.hash.Wyhash.init(0);
+        hasher.update(prefix);
+        hasher.update(extra);
+        return hasher.final();
     }
 
     fn isMouseOverRect(self: *const UiContext, rect: Rectangle) bool {

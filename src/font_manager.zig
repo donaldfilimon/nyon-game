@@ -3,10 +3,10 @@
 //! Provides high-DPI font loading with system font detection and custom font support.
 
 const std = @import("std");
-const engine = @import("engine.zig");
-const ui_mod = @import("ui/ui.zig");
 
 const raylib = @import("raylib");
+
+const ui_mod = @import("ui/ui.zig");
 
 /// Font manager for loading and managing fonts
 pub const FontManager = struct {
@@ -34,6 +34,7 @@ pub const FontManager = struct {
             if (entry.value_ptr.glyphCount > 0) {
                 raylib.unloadFont(entry.value_ptr.*);
             }
+            self.allocator.free(entry.key_ptr.*);
         }
         self.fonts.deinit();
 
@@ -96,20 +97,11 @@ pub const FontManager = struct {
             font_path = path;
         }
 
-        var font: raylib.Font = undefined;
+        const font = try raylib.getFontDefault();
 
-        if (font_path != null) {
-            // Try to load the font - for now, just use default to avoid API issues
-            font = raylib.getFontDefault();
-
-            // TODO: Implement proper font loading once raylib API stabilizes
-        } else {
-            font = raylib.getFontDefault();
-        }
-
-        // Store the font
-        const name_copy = self.allocator.dupe(u8, name) catch unreachable;
-        defer self.allocator.free(name_copy);
+        // TODO: Implement proper font loading once raylib API stabilizes
+        const name_copy = try self.allocator.dupe(u8, name);
+        errdefer self.allocator.free(name_copy);
 
         try self.fonts.put(name_copy, font);
 

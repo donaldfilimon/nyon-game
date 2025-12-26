@@ -1,6 +1,7 @@
 const std = @import("std");
-const ui = @import("ui/ui.zig");
+
 const editor_tabs = @import("editor_tabs.zig");
+const ui = @import("ui/ui.zig");
 
 pub const UiContext = struct {
     base_context: ui.UiContext,

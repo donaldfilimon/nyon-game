@@ -10,10 +10,9 @@ const Input = engine_mod.Input;
 const KeyboardKey = engine_mod.KeyboardKey;
 
 const StatusMessage = status_msg.StatusMessage;
-const game_ui_mod = @import("ui/game_ui.zig");
+const sandbox_ui_mod = @import("ui/sandbox_ui.zig");
 const menus_mod = @import("ui/menus.zig");
-const game_state_module = @import("game/state.zig");
-const game_logic_module = @import("game/game.zig");
+const sandbox_mod = @import("game/sandbox.zig");
 const worlds_mod = @import("game/worlds.zig");
 
 // Import menu types
@@ -22,17 +21,17 @@ const MenuState = menus_mod.MenuState;
 const WorldSession = menus_mod.WorldSession;
 
 // Game constants
-const WINDOW_WIDTH: u32 = 800;
-const WINDOW_HEIGHT: u32 = 600;
-const WINDOW_TITLE = "Nyon Game - Collect Items!";
+const WINDOW_WIDTH: u32 = 1280;
+const WINDOW_HEIGHT: u32 = 720;
+const WINDOW_TITLE = "Nyon Game - 3D Sandbox";
 const TARGET_FPS: u32 = 60;
 
 pub const Application = struct {
     allocator: std.mem.Allocator,
     engine: Engine,
-    game_state: game_state_module.GameState,
+    sandbox_state: sandbox_mod.SandboxState,
     status_message: StatusMessage,
-    ui_state: game_ui_mod.GameUiState,
+    ui_state: sandbox_ui_mod.SandboxUiState,
     menu_state: MenuState,
     app_mode: AppMode,
     world_session: ?WorldSession,
@@ -51,36 +50,21 @@ pub const Application = struct {
             .samples = 4,
         });
 
-        var game_state = game_state_module.GameState{};
-        game_state_module.resetGameState(&game_state);
+        const sandbox_state = sandbox_mod.SandboxState.init(allocator);
 
         var status_message = StatusMessage{};
-        status_message.set("Collect every item to win!", 3.0);
+        status_message.set("Welcome to the sandbox!", 3.0);
 
-        const ui_state = game_ui_mod.GameUiState.initWithDefaultScale(allocator, game_ui_mod.defaultUiScaleFromDpi());
+        const ui_state = sandbox_ui_mod.SandboxUiState.initWithDefaultScale(allocator, sandbox_ui_mod.defaultUiScaleFromDpi());
         const menu_state = MenuState.init(allocator);
 
         // Initialize audio device
         Audio.initDevice();
 
-        // Load args if provided
-        var args_iter = try std.process.argsWithAllocator(allocator);
-        defer args_iter.deinit();
-        _ = args_iter.skip(); // skip program name
-        if (args_iter.next()) |arg_path| {
-            if (arg_path.len > 0) {
-                game_logic_module.loadFileMetadata(&game_state, &status_message, arg_path) catch {
-                    var err_buf: [128:0]u8 = undefined;
-                    const err_msg = std.fmt.bufPrintZ(&err_buf, "Could not open {s}", .{arg_path}) catch "Could not open file";
-                    status_message.set(err_msg, 3.0);
-                };
-            }
-        }
-
         return .{
             .allocator = allocator,
             .engine = engine,
-            .game_state = game_state,
+            .sandbox_state = sandbox_state,
             .status_message = status_message,
             .ui_state = ui_state,
             .menu_state = menu_state,
@@ -98,13 +82,14 @@ pub const Application = struct {
 
         // Save world session data
         if (self.world_session) |session| {
-            const best_time_ms: ?u32 = if (self.game_state.best_time) |t| @intFromFloat(t * 1000.0) else null;
-            worlds_mod.touchWorld(self.allocator, session.folder, self.game_state.best_score, best_time_ms) catch {};
+            self.sandbox_state.saveWorld(session.folder) catch {};
+            worlds_mod.touchWorld(self.allocator, session.folder, null, null) catch {};
         }
 
         clearWorldSession(&self.world_session);
         self.menu_state.deinit();
         self.ui_state.deinit();
+        self.sandbox_state.deinit();
         self.engine.deinit();
         Audio.closeDevice();
     }
@@ -135,7 +120,7 @@ pub const Application = struct {
             self.status_message.update(delta_time);
 
             // Clear background
-            self.engine.clearBackground(game_ui_mod.COLOR_BACKGROUND);
+            self.engine.clearBackground(sandbox_mod.COLOR_BACKGROUND);
 
             try self.updateAndDraw(delta_time, screen_width, screen_height, ctrl_down, ui_input);
 
@@ -150,7 +135,7 @@ pub const Application = struct {
                 defer self.menu_state.ctx.endFrame();
 
                 const action = menus_mod.drawTitleMenu(&self.menu_state, self.ui_state.style(), &self.status_message, screen_width, screen_height);
-                game_ui_mod.drawStatusMessage(&self.status_message, screen_width);
+                sandbox_ui_mod.drawStatusMessage(&self.status_message, screen_width);
                 if (action == .singleplayer) {
                     self.app_mode = .worlds;
                 } else if (action == .multiplayer) {
@@ -168,7 +153,7 @@ pub const Application = struct {
                 defer self.menu_state.ctx.endFrame();
 
                 const action = menus_mod.drawWorldListMenu(&self.menu_state, self.ui_state.style(), &self.status_message, screen_width, screen_height);
-                game_ui_mod.drawStatusMessage(&self.status_message, screen_width);
+                sandbox_ui_mod.drawStatusMessage(&self.status_message, screen_width);
 
                 if (action == .back) {
                     self.app_mode = .title;
@@ -182,13 +167,10 @@ pub const Application = struct {
                             .folder = try self.allocator.dupe(u8, entry.folder),
                             .name = try self.allocator.dupe(u8, entry.meta.name),
                         });
-                        self.game_state.best_score = entry.meta.best_score;
-                        if (entry.meta.best_time_ms) |ms| {
-                            self.game_state.best_time = @as(f32, @floatFromInt(ms)) / 1000.0;
-                        } else {
-                            self.game_state.best_time = null;
-                        }
-                        game_state_module.resetGameState(&self.game_state);
+                        self.sandbox_state.clearWorld();
+                        self.sandbox_state.loadWorld(entry.folder) catch {
+                            self.status_message.set("Failed to load world data", 3.0);
+                        };
                         self.status_message.set("World loaded!", 3.0);
                         self.app_mode = .playing;
                     }
@@ -203,15 +185,18 @@ pub const Application = struct {
                 defer self.menu_state.ctx.endFrame();
 
                 const result = menus_mod.drawCreateWorldMenu(&self.menu_state, self.ui_state.style(), &self.status_message, screen_width, screen_height);
-                game_ui_mod.drawStatusMessage(&self.status_message, screen_width);
+                sandbox_ui_mod.drawStatusMessage(&self.status_message, screen_width);
                 switch (result) {
                     .none => {},
                     .back => self.app_mode = .worlds,
                     .created => |session| {
                         setWorldSession(&self.world_session, session);
-                        self.game_state.best_score = 0;
-                        self.game_state.best_time = null;
-                        game_state_module.resetGameState(&self.game_state);
+                        self.sandbox_state.clearWorld();
+                        if (self.world_session) |world| {
+                            self.sandbox_state.saveWorld(world.folder) catch {
+                                self.status_message.set("Failed to create world data", 3.0);
+                            };
+                        }
                         self.status_message.set("Entering new world...", 3.0);
                         self.app_mode = .playing;
                     },
@@ -226,21 +211,17 @@ pub const Application = struct {
                 defer self.menu_state.ctx.endFrame();
 
                 const action = menus_mod.drawServerBrowser(&self.menu_state, self.ui_state.style(), &self.status_message, screen_width, screen_height);
-                game_ui_mod.drawStatusMessage(&self.status_message, screen_width);
+                sandbox_ui_mod.drawStatusMessage(&self.status_message, screen_width);
 
                 if (action == .back) {
                     self.app_mode = .title;
                 } else if (action == .connect) {
-                    // TODO: Implement server connection
                     self.status_message.set("Server connection not yet implemented", 3.0);
                 }
             },
             .playing, .paused => {
                 self.ui_state.ctx.beginFrame(ui_input, self.ui_state.style());
                 defer self.ui_state.ctx.endFrame();
-
-                var player_moved_draw = false;
-                var has_won_draw = game_logic_module.isGameWon(&self.game_state);
 
                 if (self.app_mode == .playing) {
                     if (Input.Keyboard.isPressed(KeyboardKey.escape)) {
@@ -259,63 +240,24 @@ pub const Application = struct {
                     }
 
                     if (ctrl_down and Input.Keyboard.isPressed(KeyboardKey.s)) {
-                        self.ui_state.config.save(self.allocator, nyon_game.ui.UiConfig.DEFAULT_PATH) catch {
-                            self.status_message.set("Failed to save UI layout", 3.0);
-                        };
-                        self.ui_state.dirty = false;
-                        self.status_message.set("Saved UI layout", 3.0);
+                        if (self.ui_state.edit_mode) {
+                            self.ui_state.config.save(self.allocator, nyon_game.ui.UiConfig.DEFAULT_PATH) catch {
+                                self.status_message.set("Failed to save UI layout", 3.0);
+                            };
+                            self.ui_state.dirty = false;
+                            self.status_message.set("Saved UI layout", 3.0);
+                        } else if (self.world_session) |session| {
+                            self.sandbox_state.saveWorld(session.folder) catch {
+                                self.status_message.set("Failed to save world data", 3.0);
+                            };
+                            self.status_message.set("World saved", 3.0);
+                        }
                     }
 
                     if (ctrl_down and Input.Keyboard.isPressed(KeyboardKey.r)) {
                         self.ui_state.config = nyon_game.ui.UiConfig{};
                         self.ui_state.dirty = true;
                         self.status_message.set("Reset UI layout", 3.0);
-                    } else if (Input.Keyboard.isPressed(KeyboardKey.r)) {
-                        game_state_module.resetGameState(&self.game_state);
-                        self.status_message.set("Reset complete! Collect them again!", 3.0);
-                    }
-
-                    // TODO: Re-enable file dropping once raylib issues are resolved
-                    // handleDroppedFile(&self.game_state, &self.ui_state, &self.status_message, self.allocator, frame_allocator) catch {
-                    //     self.status_message.set("Failed to read dropped file", 3.0);
-                    // };
-
-                    self.game_state.game_time += delta_time;
-                    const player_moved = if (self.ui_state.edit_mode and (ui_input.mouse_down or ctrl_down))
-                        false
-                    else
-                        game_logic_module.handleInput(&self.game_state, delta_time, screen_width, screen_height);
-                    player_moved_draw = player_moved;
-
-                    const collected = game_logic_module.checkCollisions(&self.game_state);
-                    if (collected > 0 and self.game_state.remaining_items > 0) {
-                        var collect_buf: [80:0]u8 = undefined;
-                        const collect_str = try std.fmt.bufPrintZ(&collect_buf, "{d} item(s) left", .{self.game_state.remaining_items});
-                        self.status_message.set(collect_str, 3.0);
-                    }
-
-                    const has_won = game_logic_module.isGameWon(&self.game_state);
-                    has_won_draw = has_won;
-                    if (has_won and !self.game_state.has_won) {
-                        self.game_state.has_won = true;
-                        const completion_time = self.game_state.game_time;
-                        var win_buf: [128:0]u8 = undefined;
-                        if (self.game_state.best_time) |prev_best| {
-                            if (completion_time < prev_best) {
-                                self.game_state.best_time = completion_time;
-                                const win_str = try std.fmt.bufPrintZ(&win_buf, "New personal best! {d:.2}s", .{completion_time});
-                                self.status_message.set(win_str, 4.5);
-                            } else {
-                                const win_str = try std.fmt.bufPrintZ(&win_buf, "You win! {d:.2}s (best {d:.2}s)", .{ completion_time, prev_best });
-                                self.status_message.set(win_str, 3.0);
-                            }
-                        } else {
-                            self.game_state.best_time = completion_time;
-                            const win_str = try std.fmt.bufPrintZ(&win_buf, "First win in {d:.2}s!", .{completion_time});
-                            self.status_message.set(win_str, 4.5);
-                        }
-                    } else if (!has_won) {
-                        self.game_state.has_won = false;
                     }
                 } else {
                     if (Input.Keyboard.isPressed(KeyboardKey.escape)) {
@@ -323,31 +265,53 @@ pub const Application = struct {
                     }
                 }
 
-                // Draw game elements
-                game_logic_module.drawGrid(screen_width, screen_height);
-                game_logic_module.drawItems(&self.game_state);
-                game_logic_module.drawPlayer(&self.game_state, player_moved_draw);
-
-                // Draw UI
-                try game_ui_mod.drawUI(&self.game_state, &self.ui_state, &self.status_message, self.allocator, screen_width, screen_height);
-                game_ui_mod.drawStatusMessage(&self.status_message, screen_width);
-                game_ui_mod.drawInstructions(screen_width, screen_height);
-
-                if (has_won_draw) {
-                    game_ui_mod.drawWinMessage(screen_width, screen_height);
+                const ui_capture = self.ui_state.edit_mode or (ui_input.mouse_down and isMouseOverPanels(&self.ui_state, ui_input.mouse_pos));
+                const allow_input = self.app_mode == .playing and !ui_capture;
+                const action = self.sandbox_state.update(delta_time, allow_input, screen_width, screen_height);
+                if (self.app_mode == .playing) {
+                    switch (action) {
+                        .none => {},
+                        .placed => |pos| {
+                            var msg_buf: [96:0]u8 = undefined;
+                            const msg = try std.fmt.bufPrintZ(&msg_buf, "Placed block at {d} {d} {d}", .{ pos.x, pos.y, pos.z });
+                            self.status_message.set(msg, 2.0);
+                        },
+                        .removed => |pos| {
+                            var msg_buf: [96:0]u8 = undefined;
+                            const msg = try std.fmt.bufPrintZ(&msg_buf, "Removed block at {d} {d} {d}", .{ pos.x, pos.y, pos.z });
+                            self.status_message.set(msg, 2.0);
+                        },
+                        .color_changed => |_| {
+                            const color = self.sandbox_state.activeColor();
+                            var msg_buf: [64:0]u8 = undefined;
+                            const msg = try std.fmt.bufPrintZ(&msg_buf, "Block color: {s}", .{color.name});
+                            self.status_message.set(msg, 2.0);
+                        },
+                    }
                 }
+
+                self.sandbox_state.drawWorld();
+
+                if (self.app_mode == .playing and !self.ui_state.edit_mode and self.sandbox_state.mouse_look) {
+                    sandbox_ui_mod.drawCrosshair(screen_width, screen_height);
+                }
+
+                const world_name = if (self.world_session) |session| session.name else null;
+                try sandbox_ui_mod.drawUI(&self.sandbox_state, world_name, &self.ui_state, &self.status_message, self.allocator, screen_width, screen_height);
+                sandbox_ui_mod.drawStatusMessage(&self.status_message, screen_width);
+                sandbox_ui_mod.drawInstructions(screen_width, screen_height);
 
                 if (self.app_mode == .paused) {
                     self.menu_state.ctx.beginFrame(ui_input, self.ui_state.style());
                     defer self.menu_state.ctx.endFrame();
 
-                    const action = menus_mod.drawPauseMenu(&self.menu_state, self.ui_state.style(), &self.status_message, screen_width, screen_height);
-                    if (action == .unpause) {
+                    const pause_action = menus_mod.drawPauseMenu(&self.menu_state, self.ui_state.style(), &self.status_message, screen_width, screen_height);
+                    if (pause_action == .unpause) {
                         self.app_mode = .playing;
-                    } else if (action == .quit_to_title) {
+                    } else if (pause_action == .quit_to_title) {
                         if (self.world_session) |session| {
-                            const best_time_ms: ?u32 = if (self.game_state.best_time) |t| @intFromFloat(t * 1000.0) else null;
-                            worlds_mod.touchWorld(self.allocator, session.folder, self.game_state.best_score, best_time_ms) catch {};
+                            self.sandbox_state.saveWorld(session.folder) catch {};
+                            worlds_mod.touchWorld(self.allocator, session.folder, null, null) catch {};
                         }
                         clearWorldSession(&self.world_session);
                         self.app_mode = .title;
@@ -357,6 +321,16 @@ pub const Application = struct {
         }
     }
 };
+
+fn pointInRect(point: engine_mod.Vector2, rect: engine_mod.Rectangle) bool {
+    return point.x >= rect.x and point.y >= rect.y and point.x <= rect.x + rect.width and point.y <= rect.y + rect.height;
+}
+
+fn isMouseOverPanels(ui_state: *sandbox_ui_mod.SandboxUiState, point: engine_mod.Vector2) bool {
+    if (ui_state.config.hud.visible and pointInRect(point, ui_state.config.hud.rect)) return true;
+    if (ui_state.config.settings.visible and pointInRect(point, ui_state.config.settings.rect)) return true;
+    return false;
+}
 
 fn clearWorldSession(session: *?WorldSession) void {
     if (session.*) |*active| {

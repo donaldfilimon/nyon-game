@@ -4,7 +4,7 @@
 //! rendering operations like geometry rendering, shadow mapping, and UI.
 
 const std = @import("std");
-const render_graph = @import("render_graph.zig");
+const render_graph = @import("../render_graph.zig");
 const nyon = @import("nyon_game");
 
 // ============================================================================
@@ -28,17 +28,7 @@ pub const GeometryPass = struct {
         depth_target: render_graph.ResourceHandle,
         normal_target: ?render_graph.ResourceHandle,
     ) !render_graph.PassDesc {
-        const data = try allocator.create(Data);
-        data.* = .{
-            .camera_position = nyon.Vector3{ .x = 0, .y = 0, .z = 5 },
-            .camera_matrix = nyon.Matrix.identity(),
-            .projection_matrix = nyon.Matrix.perspective(
-                60.0 * std.math.pi / 180.0,
-                16.0 / 9.0,
-                0.1,
-                100.0,
-            ),
-        };
+        _ = allocator;
 
         return .{
             .name = "GeometryPass",
@@ -100,8 +90,8 @@ pub const ShadowMapPass = struct {
         shadow_map: render_graph.ResourceHandle,
         light_view_proj: nyon.Matrix,
     ) !render_graph.PassDesc {
-        const data = try allocator.create(nyon.Matrix);
-        data.* = light_view_proj;
+        _ = allocator;
+        _ = light_view_proj;
 
         return .{
             .name = "ShadowMapPass",
@@ -193,7 +183,8 @@ pub const PostProcessPass = struct {
         output_target: render_graph.ResourceHandle,
         effects: []const Effect,
     ) !render_graph.PassDesc {
-        const effects_copy = try allocator.dupe(Effect, effects);
+        _ = allocator;
+        _ = effects;
 
         return .{
             .name = "PostProcessPass",
@@ -415,7 +406,6 @@ test "geometry pass creation" {
     });
 
     const pass_desc = try GeometryPass.create(std.testing.allocator, color_target, depth_target, null);
-    defer std.testing.allocator.free(pass_desc.name);
 
     try std.testing.expect(std.mem.eql(u8, pass_desc.name, "GeometryPass"));
     try std.testing.expect(pass_desc.color_attachments.len == 1);

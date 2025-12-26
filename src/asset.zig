@@ -382,27 +382,27 @@ pub const AssetManager = struct {
 
     /// Export asset manifest (for debugging/project management)
     pub fn exportManifest(self: *const AssetManager, allocator: std.mem.Allocator) ![]const u8 {
-        var manifest = std.ArrayList(u8).init(allocator);
-        defer manifest.deinit();
+        var manifest = std.ArrayList(u8).initCapacity(allocator, 0) catch unreachable;
+        defer manifest.deinit(allocator);
 
-        try manifest.appendSlice("Asset Manifest\n");
-        try manifest.appendSlice("================\n\n");
+        try manifest.appendSlice(allocator, "Asset Manifest\n");
+        try manifest.appendSlice(allocator, "================\n\n");
 
         // Models
-        try manifest.appendSlice("Models:\n");
+        try manifest.appendSlice(allocator, "Models:\n");
         var model_iter = self.models.iterator();
         while (model_iter.next()) |entry| {
-            try manifest.writer().print("  - {s} (refs: {})\n", .{ entry.value_ptr.file_path, entry.value_ptr.ref_count });
+            try manifest.print(allocator, "  - {s} (refs: {})\n", .{ entry.value_ptr.file_path, entry.value_ptr.ref_count });
         }
 
         // Textures
-        try manifest.appendSlice("\nTextures:\n");
+        try manifest.appendSlice(allocator, "\nTextures:\n");
         var tex_iter = self.textures.iterator();
         while (tex_iter.next()) |entry| {
-            try manifest.writer().print("  - {s} (refs: {})\n", .{ entry.value_ptr.file_path, entry.value_ptr.ref_count });
+            try manifest.print(allocator, "  - {s} (refs: {})\n", .{ entry.value_ptr.file_path, entry.value_ptr.ref_count });
         }
 
-        return manifest.toOwnedSlice();
+        return manifest.toOwnedSlice(allocator);
     }
 };
 

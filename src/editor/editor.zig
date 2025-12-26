@@ -4,7 +4,7 @@
 //! managing subsystems and delegating to mode-specific implementations.
 
 const std = @import("std");
-const raylib = @import("../raylib");
+const raylib = @import("raylib");
 
 // ============================================================================
 // Imports and Dependencies

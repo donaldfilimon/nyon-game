@@ -45,18 +45,18 @@ pub const Scene = struct {
 
     /// Add a model to the scene at the specified position
     pub fn addModel(self: *Scene, model: raylib.Model, position: raylib.Vector3) !usize {
-        try self.models.append(model);
-        try self.positions.append(position);
-        try self.rotations.append(.{ .x = 0, .y = 0, .z = 0 });
-        try self.scales.append(.{ .x = 1, .y = 1, .z = 1 });
+        try self.models.append(self.allocator, model);
+        try self.positions.append(self.allocator, position);
+        try self.rotations.append(self.allocator, .{ .x = 0, .y = 0, .z = 0 });
+        try self.scales.append(self.allocator, .{ .x = 1, .y = 1, .z = 1 });
 
         // Calculate bounding box
         const bbox = raylib.getModelBoundingBox(model);
-        try self.bounding_boxes.append(bbox);
+        try self.bounding_boxes.append(self.allocator, bbox);
 
         // Calculate initial transform matrix
         const transform = self.calculateTransform(self.positions.items.len - 1);
-        try self.transforms.append(transform);
+        try self.transforms.append(self.allocator, transform);
 
         return self.models.items.len - 1;
     }
@@ -160,8 +160,8 @@ pub const Scene = struct {
 
     /// Cast a ray and return all hits sorted by distance
     pub fn raycastAll(self: *const Scene, allocator: std.mem.Allocator, ray: raylib.Ray) ![]RaycastHit {
-        var hits = std.ArrayList(RaycastHit).init(allocator);
-        defer hits.deinit();
+        var hits = std.ArrayList(RaycastHit).initCapacity(allocator, 0) catch unreachable;
+        defer hits.deinit(allocator);
 
         for (self.models.items, self.bounding_boxes.items, self.transforms.items, 0..) |model, bbox, transform, i| {
             const world_bbox = self.transformBoundingBox(bbox, transform);
@@ -174,7 +174,7 @@ pub const Scene = struct {
                     var mesh_collision = raylib.getRayCollisionMesh(ray, mesh, mesh_transform);
 
                     if (mesh_collision.hit) {
-                        try hits.append(RaycastHit{
+                        try hits.append(allocator, RaycastHit{
                             .model_index = i,
                             .hit_point = mesh_collision.point,
                             .normal = mesh_collision.normal,
@@ -199,7 +199,7 @@ pub const Scene = struct {
             }
         }
 
-        return hits.toOwnedSlice();
+        return hits.toOwnedSlice(allocator);
     }
 
     /// Transform a bounding box by a matrix

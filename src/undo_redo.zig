@@ -72,6 +72,7 @@ pub const UndoRedoSystem = struct {
     pub const CompoundCommand = struct {
         base: Command,
         commands: std.ArrayList(*Command),
+        allocator: std.mem.Allocator,
 
         pub fn init(allocator: std.mem.Allocator, description: []const u8) !*CompoundCommand {
             const desc_copy = try allocator.dupe(u8, description);
@@ -86,7 +87,8 @@ pub const UndoRedoSystem = struct {
                     .description = desc_copy,
                     .vtable = &vtable,
                 },
-                .commands = std.ArrayList(*Command).init(allocator),
+                .commands = std.ArrayList(*Command).initCapacity(allocator, 0) catch unreachable,
+                .allocator = allocator,
             };
 
             return compound;
@@ -96,12 +98,12 @@ pub const UndoRedoSystem = struct {
             for (compound.commands.items) |cmd| {
                 cmd.deinit(allocator);
             }
-            compound.commands.deinit();
+            compound.commands.deinit(allocator);
             allocator.free(compound.base.description);
         }
 
         pub fn addCommand(compound: *CompoundCommand, command: *Command) !void {
-            try compound.commands.append(command);
+            try compound.commands.append(compound.allocator, command);
         }
 
         const vtable = Command.VTable{
@@ -142,7 +144,7 @@ pub const UndoRedoSystem = struct {
 
             for (compound.commands.items) |command| {
                 const cloned_cmd = try command.clone(allocator);
-                try new_compound.commands.append(cloned_cmd);
+                try new_compound.commands.append(new_compound.allocator, cloned_cmd);
             }
 
             return &new_compound.base;
@@ -169,8 +171,8 @@ pub const UndoRedoSystem = struct {
     pub fn init(allocator: std.mem.Allocator) UndoRedoSystem {
         return .{
             .allocator = allocator,
-            .undo_stack = std.ArrayList(*Command).init(allocator),
-            .redo_stack = std.ArrayList(*Command).init(allocator),
+            .undo_stack = std.ArrayList(*Command).initCapacity(allocator, 0) catch unreachable,
+            .redo_stack = std.ArrayList(*Command).initCapacity(allocator, 0) catch unreachable,
             .max_history_size = 100,
             .current_compound = null,
             .command_types = std.StringHashMap(CommandType).init(allocator),
@@ -183,12 +185,12 @@ pub const UndoRedoSystem = struct {
         for (self.undo_stack.items) |cmd| {
             cmd.deinit(self.allocator);
         }
-        self.undo_stack.deinit();
+        self.undo_stack.deinit(self.allocator);
 
         for (self.redo_stack.items) |cmd| {
             cmd.deinit(self.allocator);
         }
-        self.redo_stack.deinit();
+        self.redo_stack.deinit(self.allocator);
 
         // Clean up compound command if active
         if (self.current_compound) |compound| {
@@ -207,7 +209,7 @@ pub const UndoRedoSystem = struct {
         try command.execute();
 
         // Add to undo stack
-        try self.undo_stack.append(command);
+        try self.undo_stack.append(self.allocator, command);
 
         // Clear redo stack
         for (self.redo_stack.items) |cmd| {
@@ -230,7 +232,7 @@ pub const UndoRedoSystem = struct {
         try command.undo();
 
         // Move to redo stack
-        try self.redo_stack.append(command);
+        try self.redo_stack.append(self.allocator, command);
 
         return true;
     }
@@ -243,7 +245,7 @@ pub const UndoRedoSystem = struct {
         try command.execute();
 
         // Move back to undo stack
-        try self.undo_stack.append(command);
+        try self.undo_stack.append(self.allocator, command);
 
         return true;
     }
@@ -351,11 +353,11 @@ pub const UndoRedoSystem = struct {
         defer arena.deinit();
         const arena_allocator = arena.allocator();
 
-        var undo_array = std.ArrayList(std.json.Value).init(arena_allocator);
+        var undo_array = std.ArrayList(std.json.Value).initCapacity(arena_allocator, 0) catch unreachable;
         for (self.undo_stack.items) |cmd| {
             if (self.getCommandType(cmd)) |cmd_type| {
                 const serialized = try cmd_type.serializeFn(cmd, arena_allocator);
-                try undo_array.append(serialized);
+                try undo_array.append(arena_allocator, serialized);
             }
         }
 
@@ -385,7 +387,7 @@ pub const UndoRedoSystem = struct {
                     const type_name = type_val.string;
                     if (self.command_types.get(type_name)) |cmd_type| {
                         const command = try cmd_type.createFn(self.allocator, cmd_val);
-                        try self.undo_stack.append(command);
+                        try self.undo_stack.append(self.allocator, command);
                     }
                 }
             }

@@ -198,7 +198,7 @@ pub const MaterialLibrary = struct {
     pub fn init(alloc: *std.mem.Allocator) MaterialLibrary {
         return MaterialLibrary{
             .allocator = alloc,
-            .materials = std.ArrayList(*Material).init(alloc),
+            .materials = std.ArrayList(*Material).initCapacity(alloc.*, 0) catch unreachable,
         };
     }
 
@@ -207,14 +207,14 @@ pub const MaterialLibrary = struct {
             material.deinit(self.allocator);
             self.allocator.destroy(material);
         }
-        self.materials.deinit();
+        self.materials.deinit(self.allocator.*);
     }
 
     /// Create and add a new PBR material.
     pub fn createPBRMaterial(self: *MaterialLibrary, name: []const u8) !*Material {
         const material = try self.allocator.create(Material);
         material.* = try Material.initPBR(self.allocator, name);
-        try self.materials.append(material);
+        try self.materials.append(self.allocator.*, material);
         return material;
     }
 

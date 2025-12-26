@@ -217,19 +217,19 @@ pub const QueryBatch = struct {
     pub fn init(allocator: std.mem.Allocator) QueryBatch {
         return .{
             .allocator = allocator,
-            .queries = std.ArrayList(*Query).init(allocator),
-            .entity_data_buffer = std.ArrayList(EntityData).init(allocator),
+            .queries = std.ArrayList(*Query).initCapacity(allocator, 0) catch unreachable,
+            .entity_data_buffer = std.ArrayList(EntityData).initCapacity(allocator, 0) catch unreachable,
         };
     }
 
     pub fn deinit(self: *QueryBatch) void {
-        self.queries.deinit();
-        self.entity_data_buffer.deinit();
+        self.queries.deinit(self.allocator);
+        self.entity_data_buffer.deinit(self.allocator);
     }
 
     /// Add a query to the batch
     pub fn addQuery(self: *QueryBatch, query: *Query) !void {
-        try self.queries.append(query);
+        try self.queries.append(self.allocator, query);
     }
 
     /// Update all queries in the batch (cached queries skip update)

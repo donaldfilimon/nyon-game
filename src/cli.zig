@@ -18,11 +18,13 @@ pub fn main() void {
 
 fn initProject(alloc: std.mem.Allocator, cwd: std.fs.Dir) !void {
     const dir_name = try cwd.getName(alloc);
-    defer alloc.free(dir_name);
-    const proj: Project = .{
+    const root_path = try cwd.realpath("/", alloc);
+    var proj: Project = .{
         .name = dir_name,
-        .root = try cwd.realpath("/", alloc),
+        .root = root_path,
+        .version = try alloc.dupe(u8, "0.1.0"),
     };
+    defer proj.deinit(alloc);
     const zon_path = try std.fs.path.join(alloc, &.{"project.zon"});
     defer alloc.free(zon_path);
     try project_module.saveProject(proj, zon_path, alloc);
@@ -31,7 +33,8 @@ fn initProject(alloc: std.mem.Allocator, cwd: std.fs.Dir) !void {
 
 fn saveProject(alloc: std.mem.Allocator, cwd: std.fs.Dir, zon_path: []const u8) !void {
     _ = cwd; // Not used in this demo implementation
-    const proj = try project_module.loadProject(zon_path, alloc);
+    var proj = try project_module.loadProject(zon_path, alloc);
+    defer proj.deinit(alloc);
     // For demo we simply rewrite the same data; real logic could update metadata.
     try project_module.saveProject(proj, zon_path, alloc);
     std.debug.print("Project saved at {s}\n", .{zon_path});

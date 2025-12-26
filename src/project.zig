@@ -22,12 +22,24 @@ pub const Project = struct {
     name: []const u8,
     root: []const u8,
     version: []const u8 = "0.1.0",
+
+    pub fn deinit(self: *Project, allocator: std.mem.Allocator) void {
+        allocator.free(self.name);
+        allocator.free(self.root);
+        allocator.free(self.version);
+        self.* = undefined;
+    }
 };
 
 /// Serialises a `Project` into a Zon file at `path`.`
 pub fn saveProject(project: Project, path: []const u8, a: std.mem.Allocator) !void {
-    const content = try std.fmt.allocPrint(a, "{ name = {s}, root = {s}, version = {s} }", .{ project.name, project.root, project.version });
-    var file = try std.fs.cwd().createFile(path, .{});
+    const content = try std.fmt.allocPrint(
+        a,
+        "{{\n  name = \"{s}\",\n  root = \"{s}\",\n  version = \"{s}\",\n}}\n",
+        .{ project.name, project.root, project.version },
+    );
+    defer a.free(content);
+    var file = try std.fs.cwd().createFile(path, .{ .truncate = true });
     defer file.close();
     try file.writeAll(content);
 }
@@ -39,36 +51,31 @@ pub fn loadProject(path: []const u8, a: std.mem.Allocator) !Project {
     defer file.close();
     const buf = try file.reader().readAllAlloc(a, 1 << 20);
     defer a.free(buf);
-    // The earlier `name` variable declaration was removed; no further
-    // processing is needed for that placeholder.
-
-    var proj: Project = .{
-        .name = "unknown",
-        .root = "",
-        .version = "0.1.0",
+    var proj = Project{
+        .name = try a.dupe(u8, "unknown"),
+        .root = try a.dupe(u8, ""),
+        .version = try a.dupe(u8, "0.1.0"),
     };
+    errdefer proj.deinit(a);
 
-    const kvs = std.mem.tokenize(u8, buf, ',');
-    var it = kvs.first();
-    while (it) |kv| {
-        const parts = std.mem.split(u8, kv, '=');
-        const key = std.mem.trim(u8, parts.first(), " ");
-        const valraw = parts.rest() orelse "";
-        const val = std.mem.trim(u8, valraw, " \n{}\'\"");
-        try {
-            if (std.mem.eql(u8, key, "name")) {
-                proj.name = try a.dupe(u8, val);
-            } else if (std.mem.eql(u8, key, "root")) {
-                proj.root = try a.dupe(u8, val);
-            } else if (std.mem.eql(u8, key, "version")) {
-                proj.version = try a.dupe(u8, val);
-            }
-        } catch {
-            // If any duplication or other operation fails, treat it as a
-            // parsing error.
+    var it = std.mem.splitScalar(u8, buf, ',');
+    while (it.next()) |kv| {
+        var parts = std.mem.splitScalar(u8, kv, '=');
+        const key = std.mem.trim(u8, parts.next() orelse "", " \n\t{}");
+        const valraw = parts.next() orelse "";
+        const val = std.mem.trim(u8, valraw, " \n\t{}'\"");
 
-            return error.InvalidFormat;
-            it = kvs.next();
-            Expected;
+        if (std.mem.eql(u8, key, "name")) {
+            a.free(proj.name);
+            proj.name = try a.dupe(u8, val);
+        } else if (std.mem.eql(u8, key, "root")) {
+            a.free(proj.root);
+            proj.root = try a.dupe(u8, val);
+        } else if (std.mem.eql(u8, key, "version")) {
+            a.free(proj.version);
+            proj.version = try a.dupe(u8, val);
         }
+    }
+
+    return proj;
 }

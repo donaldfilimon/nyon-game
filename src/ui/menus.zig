@@ -251,7 +251,9 @@ pub fn drawServerBrowser(menu: *MenuState, ui_style: ui_mod.UiStyle, status_mess
     var selected: ?usize = null;
     for (servers, 0..) |server, i| {
         const y = list_y + @as(f32, @floatFromInt(i)) * (row_h + 10.0);
-        const id = std.hash.Wyhash.hash(0, std.fmt.allocPrint(menu.allocator, "server_{d}", .{i}) catch "server");
+        var id_buf: [32]u8 = undefined;
+        const id_label = std.fmt.bufPrint(&id_buf, "server_{d}", .{i}) catch "server";
+        const id = std.hash.Wyhash.hash(0, id_label);
         // Convert server name to null-terminated string for button label
         var server_buf: [128:0]u8 = undefined;
         const server_label = std.fmt.bufPrintZ(&server_buf, "{s}", .{server}) catch "Server";

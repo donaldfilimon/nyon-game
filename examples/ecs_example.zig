@@ -181,7 +181,7 @@ pub fn performanceComparison() !void {
     var world = nyon.ecs.World.init(allocator);
     defer world.deinit();
 
-    const ecs_start = std.time.nanoTimestamp();
+    var ecs_timer = try std.time.Timer.start();
 
     // Create many entities with components
     var i: usize = 0;
@@ -194,13 +194,13 @@ pub fn performanceComparison() !void {
         }
     }
 
-    const ecs_time = std.time.nanoTimestamp() - ecs_start;
+    const ecs_time = ecs_timer.read();
 
     // Test Scene performance (legacy)
     var scene = nyon.Scene.init(allocator);
     defer scene.deinit();
 
-    const scene_start = std.time.nanoTimestamp();
+    var scene_timer = try std.time.Timer.start();
 
     i = 0;
     while (i < entity_count) : (i += 1) {
@@ -212,7 +212,7 @@ pub fn performanceComparison() !void {
         }) catch {};
     }
 
-    const scene_time = std.time.nanoTimestamp() - scene_start;
+    const scene_time = scene_timer.read();
 
     std.debug.print("Performance Comparison ({} entities):\n", .{entity_count});
     std.debug.print("  ECS: {d:.2}ms\n", .{@as(f64, @floatFromInt(ecs_time)) / 1_000_000.0});

@@ -80,7 +80,7 @@ pub const KeyframeSystem = struct {
                 .target_entity = target_entity,
                 .property_type = property_type,
                 .property_name = prop_name_copy,
-                .keyframes = std.ArrayList(Keyframe).init(allocator),
+                .keyframes = std.ArrayList(Keyframe).initCapacity(allocator, 0) catch unreachable,
                 .enabled = true,
             };
         }
@@ -96,17 +96,17 @@ pub const KeyframeSystem = struct {
                 }
             }
 
-            self.keyframes.deinit();
+            self.keyframes.deinit(allocator);
         }
 
         /// Add a keyframe to the track
-        pub fn addKeyframe(self: *AnimationTrack, time: f32, value: PropertyValue, interpolation: Keyframe.InterpolationType) !void {
+        pub fn addKeyframe(self: *AnimationTrack, allocator: std.mem.Allocator, time: f32, value: PropertyValue, interpolation: Keyframe.InterpolationType) !void {
             const keyframe = Keyframe{
                 .time = time,
                 .value = value,
                 .interpolation = interpolation,
             };
-            try self.keyframes.append(keyframe);
+            try self.keyframes.append(allocator, keyframe);
 
             // Sort keyframes by time
             self.sortKeyframes();
@@ -260,8 +260,8 @@ pub const KeyframeSystem = struct {
     pub fn init(allocator: std.mem.Allocator) KeyframeSystem {
         return .{
             .allocator = allocator,
-            .tracks = std.ArrayList(AnimationTrack).init(allocator),
-            .active_animations = std.ArrayList(ActiveAnimation).init(allocator),
+            .tracks = std.ArrayList(AnimationTrack).initCapacity(allocator, 0) catch unreachable,
+            .active_animations = std.ArrayList(ActiveAnimation).initCapacity(allocator, 0) catch unreachable,
             .timeline = .{
                 .current_time = 0,
                 .total_duration = 0,
@@ -277,22 +277,22 @@ pub const KeyframeSystem = struct {
         for (self.tracks.items) |*track| {
             track.deinit(self.allocator);
         }
-        self.tracks.deinit();
-        self.active_animations.deinit();
+        self.tracks.deinit(self.allocator);
+        self.active_animations.deinit(self.allocator);
     }
 
     /// Create a new animation track
     pub fn createTrack(self: *KeyframeSystem, name: []const u8, target_entity: usize, property_type: PropertyType, property_name: []const u8) !TrackId {
         const id = self.tracks.items.len;
         const track = try AnimationTrack.init(self.allocator, id, name, target_entity, property_type, property_name);
-        try self.tracks.append(track);
+        try self.tracks.append(self.allocator, track);
         return id;
     }
 
     /// Add a keyframe to a track
     pub fn addKeyframe(self: *KeyframeSystem, track_id: TrackId, time: f32, value: PropertyValue, interpolation: Keyframe.InterpolationType) !void {
         if (track_id >= self.tracks.items.len) return error.InvalidTrackId;
-        try self.tracks.items[track_id].addKeyframe(time, value, interpolation);
+        try self.tracks.items[track_id].addKeyframe(self.allocator, time, value, interpolation);
         self.updateTimelineDuration();
     }
 
@@ -325,7 +325,7 @@ pub const KeyframeSystem = struct {
             .weight = 1.0,
         };
 
-        try self.active_animations.append(active_anim);
+        try self.active_animations.append(self.allocator, active_anim);
         self.timeline.playing = true;
 
         return id;
