@@ -7,13 +7,13 @@ pub const RaylibBackend = struct {
         if (types.is_browser) return types.EngineError.BackendNotAvailable;
 
         // Set configuration flags
-        var flags: c_uint = 0;
-        if (config.resizable) flags |= raylib.FLAG_WINDOW_RESIZABLE;
-        if (config.fullscreen) flags |= raylib.FLAG_FULLSCREEN_MODE;
-        if (config.vsync) flags |= raylib.FLAG_VSYNC_HINT;
-        if (config.samples > 0) flags |= raylib.FLAG_MSAA_4X_HINT; // Simplified
+        var flags = raylib.ConfigFlags{};
+        flags.window_resizable = config.resizable;
+        flags.fullscreen_mode = config.fullscreen;
+        flags.vsync_hint = config.vsync;
+        if (config.samples > 0) flags.msaa_4x_hint = true;
 
-        raylib.setConfigFlags(flags);
+        raylib.setConfigFlags(@bitCast(flags));
 
         // Initialize Window
         raylib.initWindow(@intCast(config.width), @intCast(config.height), config.title);
@@ -25,9 +25,12 @@ pub const RaylibBackend = struct {
         if (config.target_fps) |fps| {
             raylib.setTargetFPS(@intCast(fps));
         }
+
+        raylib.initAudioDevice();
     }
 
     pub fn deinit(_: *anyopaque) void {
+        raylib.closeAudioDevice();
         raylib.closeWindow();
     }
 };

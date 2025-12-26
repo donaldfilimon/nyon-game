@@ -73,6 +73,8 @@ pub const NodeGraph = struct {
         int: i32,
         bool: bool,
         string: []const u8,
+        color: raylib.Color,
+        texture: raylib.Texture2D,
 
         pub fn deinit(self: *Value, allocator: std.mem.Allocator) void {
             switch (self.*) {
@@ -90,6 +92,8 @@ pub const NodeGraph = struct {
                 .int => |i| .{ .int = i },
                 .bool => |b| .{ .bool = b },
                 .string => |s| .{ .string = try allocator.dupe(u8, s) },
+                .color => |c| .{ .color = c },
+                .texture => |t| .{ .texture = t },
             };
         }
     };
@@ -135,6 +139,8 @@ pub const NodeGraph = struct {
             int,
             bool,
             string,
+            color,
+            texture,
             any,
         };
 

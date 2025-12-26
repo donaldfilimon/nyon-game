@@ -99,6 +99,8 @@ pub const geometry_nodes = @import("geometry_nodes.zig");
 pub const worlds = @import("game/worlds.zig");
 pub const WorldEntry = worlds.WorldEntry;
 pub const game_state = @import("game/state.zig");
+pub const audio_system = @import("game/audio_system.zig");
+pub const AudioSystem = audio_system.AudioSystem;
 pub const sandbox = @import("game/sandbox.zig");
 pub const SandboxState = sandbox.SandboxState;
 pub const SandboxWorld = sandbox.SandboxWorld;
@@ -132,6 +134,9 @@ pub const Application = application.Application;
 // ============================================================================
 
 pub const Engine = engine.Engine;
+pub const EngineError = engine.EngineError;
+pub const Backend = engine.Backend;
+pub const Config = engine.Config;
 pub const Color = engine.Color;
 pub const Vector2 = engine.Vector2;
 pub const Vector3 = engine.Vector3;

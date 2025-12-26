@@ -179,21 +179,15 @@ pub const Engine = struct {
     }
 
     /// Get WebGPU device information.
-    pub fn getWebGpuDeviceInfo(self: *const Engine) EngineError!WebGpuDeviceInfo {
+    pub fn getWebGpuDeviceInfo(self: *const Engine) EngineError!types.WebGpuDeviceInfo {
         if (!self.webgpu_initialized) return EngineError.BackendNotInitialized;
-        return WebGpuDeviceInfo{
-            .device_name = "WebGPU Device (Placeholder)",
-            .adapter_name = "WebGPU Adapter (Placeholder)",
-            .backend = .webgpu,
-            .features = &[_]WebGpuFeature{},
-        };
+        return try webgpu_backend.WebGpuBackend.getDeviceInfo(@ptrCast(@constCast(self)), self.allocator);
     }
 
     /// Check if WebGPU supports a specific feature.
-    pub fn webGpuSupportsFeature(self: *const Engine, feature: WebGpuFeature) bool {
-        _ = self;
-        _ = feature;
-        return false;
+    pub fn webGpuSupportsFeature(self: *const Engine, feature: types.WebGpuFeature) bool {
+        if (!self.webgpu_initialized) return false;
+        return webgpu_backend.WebGpuBackend.supportsFeature(@ptrCast(@constCast(self)), feature);
     }
 };
 

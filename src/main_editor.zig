@@ -26,6 +26,8 @@ const scene = @import("scene.zig");
 const tool_system = @import("tool_system.zig");
 const ui_context = @import("ui_context.zig");
 const undo_redo = @import("undo_redo.zig");
+const material_nodes = @import("material_nodes.zig");
+const audio = @import("game/audio_system.zig");
 
 // ============================================================================
 // Imports and Dependencies
@@ -60,6 +62,7 @@ pub const MainEditor = struct {
     /// Post-processing system.
     post_processing_system: post_processing.PostProcessingSystem,
     viewport_texture: raylib.RenderTexture2D,
+    audio_system: audio.AudioSystem,
 
     /// Which functional editor mode is currently active.
     current_mode: EditorMode,
@@ -186,6 +189,7 @@ pub const MainEditor = struct {
             .material_node_editor = mat_node_editor,
             .post_processing_system = post_sys,
             .viewport_texture = viewport_tex,
+            .audio_system = audio.AudioSystem.init(asset_mgr),
             .current_mode = .scene_editor,
             .screen_width = screen_width,
             .screen_height = screen_height,
@@ -225,6 +229,7 @@ pub const MainEditor = struct {
 
     /// Main update loop: calls the active mode's update, handles mode switches, etc.
     pub fn update(self: *MainEditor, dt: f32) !void {
+        self.audio_system.update(&self.world, dt);
         self.performance_system.updateCameras(dt);
 
         self.handleModeSwitching();
@@ -1037,10 +1042,20 @@ pub const MaterialNodeEditor = struct {
     graph: nodes.NodeGraph,
 
     pub fn init(allocator: std.mem.Allocator) !MaterialNodeEditor {
-        return MaterialNodeEditor{
+        var editor = MaterialNodeEditor{
             .allocator = allocator,
             .graph = nodes.NodeGraph.init(allocator),
         };
+
+        // Create default PBR output node
+        const vtable = material_nodes.PBREutputNode.createVTable();
+        const node_id = try editor.graph.addNode("PBR Output", &vtable);
+        if (editor.graph.findNodeIndex(node_id)) |idx| {
+            try material_nodes.PBREutputNode.initNode(&editor.graph.nodes.items[idx]);
+            editor.graph.nodes.items[idx].position = .{ .x = 400, .y = 300 };
+        }
+
+        return editor;
     }
 
     pub fn deinit(self: *MaterialNodeEditor) void {
@@ -1051,9 +1066,49 @@ pub const MaterialNodeEditor = struct {
         _ = self;
     }
 
-    pub fn render(width: f32, height: f32) void {
+    pub fn render(self: *MaterialNodeEditor, width: f32, height: f32) void {
         raylib.drawRectangle(0, 0, @intFromFloat(width), @intFromFloat(height), raylib.Color{ .r = 30, .g = 30, .b = 40, .a = 255 });
-        raylib.drawText("Material Node Editor", @intFromFloat(width / 2 - 100), @intFromFloat(height / 2 - 10), 20, raylib.Color.gray);
-        raylib.drawText("(Under Development)", @intFromFloat(width / 2 - 80), @intFromFloat(height / 2 + 15), 16, raylib.Color.gray);
+
+        // Draw grid
+        const grid_size = 50;
+        var x: f32 = 0;
+        while (x < width) : (x += grid_size) {
+            raylib.drawLine(@intFromFloat(x), 0, @intFromFloat(x), @intFromFloat(height), raylib.Color{ .r = 45, .g = 45, .b = 55, .a = 255 });
+        }
+        var y: f32 = 0;
+        while (y < height) : (y += grid_size) {
+            raylib.drawLine(0, @intFromFloat(y), @intFromFloat(width), @intFromFloat(y), raylib.Color{ .r = 45, .g = 45, .b = 55, .a = 255 });
+        }
+
+        // Draw nodes
+        for (self.graph.nodes.items) |node| {
+            const node_rect = raylib.Rectangle{ .x = node.position.x, .y = node.position.y, .width = 180, .height = 140 };
+
+            // Node body
+            raylib.drawRectangleRec(node_rect, raylib.Color{ .r = 50, .g = 50, .b = 60, .a = 255 });
+            raylib.drawRectangleLinesEx(node_rect, 2, raylib.Color{ .r = 80, .g = 80, .b = 90, .a = 255 });
+
+            // Header
+            raylib.drawRectangle(@intFromFloat(node.position.x), @intFromFloat(node.position.y), 180, 25, raylib.Color{ .r = 70, .g = 70, .b = 180, .a = 255 });
+            raylib.drawText(node.node_type.ptr, @intFromFloat(node.position.x + 10), @intFromFloat(node.position.y + 5), 14, raylib.Color.white);
+
+            // Inputs
+            for (node.inputs.items, 0..) |input, idx| {
+                const input_y = node.position.y + 35 + @as(f32, @floatFromInt(idx)) * 18;
+                raylib.drawCircle(@intFromFloat(node.position.x), @intFromFloat(input_y), 4, raylib.Color.yellow);
+                raylib.drawText(input.name.ptr, @intFromFloat(node.position.x + 10), @intFromFloat(input_y - 6), 12, raylib.Color.light_gray);
+            }
+
+            // Outputs
+            for (node.outputs.items, 0..) |output, idx| {
+                const output_y = node.position.y + 35 + @as(f32, @floatFromInt(idx)) * 18;
+                raylib.drawCircle(@intFromFloat(node.position.x + 180), @intFromFloat(output_y), 4, raylib.Color.green);
+                const text_width = raylib.measureText(output.name.ptr, 12);
+                raylib.drawText(output.name.ptr, @intFromFloat(node.position.x + 170 - @as(f32, @floatFromInt(text_width))), @intFromFloat(output_y - 6), 12, raylib.Color.light_gray);
+            }
+        }
+
+        raylib.drawText("Material Node Editor", 20, 20, 20, raylib.Color.gray);
+        raylib.drawText("Right-click to add nodes (Coming Soon)", 20, 50, 16, raylib.Color.dark_gray);
     }
 };

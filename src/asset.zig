@@ -169,6 +169,61 @@ pub const AssetManager = struct {
         return model;
     }
 
+    /// Load an audio asset
+    pub fn loadAudio(self: *AssetManager, file_path: []const u8, _: LoadOptions) (AssetError || error{OutOfMemory})!raylib.Sound {
+        // Check cache first
+        if (self.audio.get(file_path)) |*entry| {
+            entry.ref_count += 1;
+            return entry.asset;
+        }
+
+        // Check if file exists
+        const file = std.fs.cwd().openFile(file_path, .{}) catch {
+            return AssetError{ .file_not_found = .{
+                .path = file_path,
+                .attempted_location = "current working directory",
+            } };
+        };
+        file.close();
+
+        // Load new sound
+        const path_z = try self.allocator.dupeZ(u8, file_path);
+        defer self.allocator.free(path_z);
+
+        const sound = raylib.loadSound(path_z) catch {
+            return AssetError{ .invalid_asset_data = .{
+                .path = file_path,
+                .expected_format = "Valid audio file (.wav, .mp3, .ogg)",
+                .actual_format = "Raylib failed to load sound",
+            } };
+        };
+
+        if (sound.frameCount == 0) {
+            return AssetError{ .invalid_asset_data = .{
+                .path = file_path,
+                .expected_format = "Valid audio file",
+                .actual_format = "Empty or corrupted audio file",
+            } };
+        }
+
+        // Create asset entry
+        const path_copy = try self.allocator.dupe(u8, file_path);
+        errdefer self.allocator.free(path_copy);
+
+        const metadata = std.StringHashMap([]const u8).init(self.allocator);
+
+        const entry = AssetEntry(raylib.Sound){
+            .asset = sound,
+            .ref_count = 1,
+            .file_path = path_copy,
+            .asset_type = .audio,
+            .metadata = metadata,
+        };
+
+        try self.audio.put(path_copy, entry);
+        return sound;
+    }
+
     /// Load a texture asset
     pub fn loadTexture(self: *AssetManager, file_path: []const u8, options: LoadOptions) (AssetError || error{OutOfMemory})!raylib.Texture {
         // Check cache first
@@ -288,6 +343,14 @@ pub const AssetManager = struct {
                 self.allocator.free(entry.file_path);
                 entry.metadata.deinit();
                 _ = self.textures.remove(file_path);
+            }
+        } else if (self.audio.getPtr(file_path)) |entry| {
+            entry.ref_count -= 1;
+            if (entry.ref_count == 0) {
+                raylib.unloadSound(entry.asset);
+                self.allocator.free(entry.file_path);
+                entry.metadata.deinit();
+                _ = self.audio.remove(file_path);
             }
         }
         // Note: Materials and animations are managed by their respective systems

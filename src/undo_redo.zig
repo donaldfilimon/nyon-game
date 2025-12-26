@@ -169,12 +169,75 @@ pub const UndoRedoSystem = struct {
         fn getTypeNameImpl(_: *anyopaque) []const u8 {
             return "CompoundCommand";
         }
+
+        pub fn getCommandType() CommandType {
+            return .{
+                .name = "CompoundCommand",
+                .createFn = createFromJson,
+                .serializeFn = serializeToJson,
+            };
+        }
+
+        fn createFromJson(allocator: std.mem.Allocator, json_value: std.json.Value, context: ?*anyopaque) anyerror!*Command {
+            const root = json_value.object;
+            const description = if (root.get("description")) |d| d.string else "Compound Command";
+            const compound = try CompoundCommand.init(allocator, description);
+            errdefer compound.deinitImpl(@ptrCast(compound), allocator);
+
+            if (root.get("commands")) |cmds_val| {
+                for (cmds_val.array.items) |cmd_val| {
+                    if (cmd_val.object.get("type")) |type_val| {
+                        const type_name = type_val.string;
+                        // This requires access to the system's registry, but we only have context.
+                        // Assuming the context also provides a way to find command types or the system itself.
+                        // For generic recursion, we might need to pass the UndoRedoSystem in the context or
+                        // have a global/shared registry.
+                        // Given the current structure, let's assume the context *is* a scene,
+                        // but maybe we should pass a struct containing both scene and system.
+                        // Actually, if we use a helper on the system, it's easier.
+                        // But createFn is static. Let's assume for now it can find SceneTransformCommand at least.
+
+                        if (std.mem.eql(u8, type_name, "SceneTransformCommand")) {
+                            const cmd = try SceneTransformCommand.getCommandType().createFn(allocator, cmd_val, context);
+                            try compound.addCommand(cmd);
+                        } else if (std.mem.eql(u8, type_name, "CompoundCommand")) {
+                            const cmd = try CompoundCommand.getCommandType().createFn(allocator, cmd_val, context);
+                            try compound.addCommand(cmd);
+                        }
+                    }
+                }
+            }
+
+            return &compound.base;
+        }
+
+        fn serializeToJson(cmd: *Command, allocator: std.mem.Allocator) anyerror!std.json.Value {
+            const compound: *CompoundCommand = @ptrCast(cmd);
+            var root = std.json.ObjectMap.init(allocator);
+
+            try root.put("type", std.json.Value{ .string = "CompoundCommand" });
+            try root.put("description", std.json.Value{ .string = compound.base.description });
+
+            var cmds_array = std.json.Array.init(allocator);
+            for (compound.commands.items) |child_cmd| {
+                // Here we need the serializeFn from the registry.
+                // We'll use a manual check for now or assume a way to get it.
+                if (std.mem.eql(u8, child_cmd.getTypeName(), "SceneTransformCommand")) {
+                    try cmds_array.append(try SceneTransformCommand.getCommandType().serializeFn(child_cmd, allocator));
+                } else if (std.mem.eql(u8, child_cmd.getTypeName(), "CompoundCommand")) {
+                    try cmds_array.append(try CompoundCommand.getCommandType().serializeFn(child_cmd, allocator));
+                }
+            }
+            try root.put("commands", std.json.Value{ .array = cmds_array });
+
+            return std.json.Value{ .object = root };
+        }
     };
 
     /// Command type information for serialization
     pub const CommandType = struct {
         name: []const u8,
-        createFn: *const fn (std.mem.Allocator, std.json.Value) anyerror!*Command,
+        createFn: *const fn (std.mem.Allocator, std.json.Value, ?*anyopaque) anyerror!*Command,
         serializeFn: *const fn (*Command, std.mem.Allocator) anyerror!std.json.Value,
     };
 
@@ -191,6 +254,7 @@ pub const UndoRedoSystem = struct {
 
         // Register default command types
         self.registerCommandType("SceneTransformCommand", SceneTransformCommand.getCommandType()) catch {};
+        self.registerCommandType("CompoundCommand", CompoundCommand.getCommandType()) catch {};
 
         return self;
     }
@@ -385,7 +449,7 @@ pub const UndoRedoSystem = struct {
     }
 
     /// Deserialize command history from JSON
-    pub fn deserializeHistory(self: *UndoRedoSystem, json_value: std.json.Value) !void {
+    pub fn deserializeHistory(self: *UndoRedoSystem, json_value: std.json.Value, context: ?*anyopaque) !void {
         const root = json_value.object;
 
         // Clear current history
@@ -402,7 +466,7 @@ pub const UndoRedoSystem = struct {
                 if (cmd_val.object.get("type")) |type_val| {
                     const type_name = type_val.string;
                     if (self.command_types.get(type_name)) |cmd_type| {
-                        const command = try cmd_type.createFn(self.allocator, cmd_val);
+                        const command = try cmd_type.createFn(self.allocator, cmd_val, context);
                         try self.undo_stack.append(self.allocator, command);
                     }
                 }
@@ -493,17 +557,40 @@ pub const SceneTransformCommand = struct {
         };
     }
 
-    fn createFromJson(allocator: std.mem.Allocator, json_value: std.json.Value) anyerror!*UndoRedoSystem.Command {
-        _ = allocator;
+    fn createFromJson(allocator: std.mem.Allocator, json_value: std.json.Value, context: ?*anyopaque) anyerror!*UndoRedoSystem.Command {
         const root = json_value.object;
         const description = if (root.get("description")) |d| d.string else "Scene Transform";
         const entity_id = if (root.get("entity_id")) |id| @as(usize, @intCast(id.integer)) else 0;
-        _ = description;
-        _ = entity_id;
 
-        // In a real system, we'd need a reference to the scene from somewhere
-        // For now, we'll return an error if scene is not available
-        return error.SceneReferenceMissing;
+        if (context == null) return error.SceneReferenceMissing;
+        const scene_ptr: *nyon.Scene = @ptrCast(@alignCast(context.?));
+
+        const command = try SceneTransformCommand.create(allocator, scene_ptr, entity_id, description);
+        errdefer command.deinitImpl(@ptrCast(command), allocator);
+
+        // helper to parse Vector3
+        const parseVec3 = struct {
+            fn parse(val: ?std.json.Value) nyon.Vector3 {
+                if (val) |v| {
+                    const obj = v.object;
+                    return .{
+                        .x = @floatCast(if (obj.get("x")) |x| x.float else 0),
+                        .y = @floatCast(if (obj.get("y")) |y| y.float else 0),
+                        .z = @floatCast(if (obj.get("z")) |z| z.float else 0),
+                    };
+                }
+                return .{ .x = 0, .y = 0, .z = 0 };
+            }
+        }.parse;
+
+        command.old_position = parseVec3(root.get("old_position"));
+        command.old_rotation = parseVec3(root.get("old_rotation"));
+        command.old_scale = parseVec3(root.get("old_scale"));
+        command.new_position = parseVec3(root.get("new_position"));
+        command.new_rotation = parseVec3(root.get("new_rotation"));
+        command.new_scale = parseVec3(root.get("new_scale"));
+
+        return &command.base;
     }
 
     fn serializeToJson(cmd: *UndoRedoSystem.Command, allocator: std.mem.Allocator) anyerror!std.json.Value {
@@ -514,18 +601,23 @@ pub const SceneTransformCommand = struct {
         try root.put("description", std.json.Value{ .string = self.base.description });
         try root.put("entity_id", std.json.Value{ .integer = @intCast(self.entity_id) });
 
-        // Serialize transform vectors
-        var old_pos = std.json.ObjectMap.init(allocator);
-        try old_pos.put("x", std.json.Value{ .float = self.old_position.x });
-        try old_pos.put("y", std.json.Value{ .float = self.old_position.y });
-        try old_pos.put("z", std.json.Value{ .float = self.old_position.z });
-        try root.put("old_position", std.json.Value{ .object = old_pos });
+        // helper to serialize Vector3
+        const serializeVec3 = struct {
+            fn serialize(a: std.mem.Allocator, vec: nyon.Vector3) !std.json.Value {
+                var obj = std.json.ObjectMap.init(a);
+                try obj.put("x", std.json.Value{ .float = vec.x });
+                try obj.put("y", std.json.Value{ .float = vec.y });
+                try obj.put("z", std.json.Value{ .float = vec.z });
+                return std.json.Value{ .object = obj };
+            }
+        }.serialize;
 
-        var new_pos = std.json.ObjectMap.init(allocator);
-        try new_pos.put("x", std.json.Value{ .float = self.new_position.x });
-        try new_pos.put("y", std.json.Value{ .float = self.new_position.y });
-        try new_pos.put("z", std.json.Value{ .float = self.new_position.z });
-        try root.put("new_position", std.json.Value{ .object = new_pos });
+        try root.put("old_position", try serializeVec3(allocator, self.old_position));
+        try root.put("old_rotation", try serializeVec3(allocator, self.old_rotation));
+        try root.put("old_scale", try serializeVec3(allocator, self.old_scale));
+        try root.put("new_position", try serializeVec3(allocator, self.new_position));
+        try root.put("new_rotation", try serializeVec3(allocator, self.new_rotation));
+        try root.put("new_scale", try serializeVec3(allocator, self.new_scale));
 
         return std.json.Value{ .object = root };
     }

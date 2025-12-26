@@ -29,6 +29,27 @@ pub const WebGpuContext = struct {
     initialized: bool = false,
 };
 
+pub const WebGpuFeature = enum {
+    depth_clip_control,
+    depth32float_stencil8,
+    texture_compression_bc,
+    texture_compression_etc2,
+    texture_compression_astc,
+    timestamp_query,
+    indirect_first_instance,
+    shader_float16,
+    rg11b10ufloat_renderable,
+    bgra8unorm_storage,
+    float32_filterable,
+};
+
+pub const WebGpuDeviceInfo = struct {
+    device_name: []const u8,
+    adapter_name: []const u8,
+    backend: Backend,
+    features: []const WebGpuFeature,
+};
+
 /// WebGPU configuration.
 pub const WebGpuConfig = struct {
     power_preference: enum { default, low_power, high_performance } = .default,
