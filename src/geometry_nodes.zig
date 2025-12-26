@@ -250,11 +250,14 @@ pub const TranslateNode = struct {
 
         const transformed_vertex_count: usize = @intCast(transformed_mesh.vertexCount);
         // Apply translation to all vertices
-        for (0..transformed_vertex_count) |i| {
-            const vertex_index = i * 3;
-            transformed_mesh.vertices[vertex_index] += translation.x;
-            transformed_mesh.vertices[vertex_index + 1] += translation.y;
-            transformed_mesh.vertices[vertex_index + 2] += translation.z;
+        if (transformed_mesh.vertices) |vertices| {
+            const vertex_slice = vertices[0..@intCast(transformed_vertex_count * 3)];
+            for (0..transformed_vertex_count) |i| {
+                const vertex_index = i * 3;
+                vertex_slice[vertex_index] += translation.x;
+                vertex_slice[vertex_index + 1] += translation.y;
+                vertex_slice[vertex_index + 2] += translation.z;
+            }
         }
 
         // Recalculate normals if present
@@ -297,11 +300,14 @@ pub const ScaleNode = struct {
 
         const scaled_vertex_count: usize = @intCast(scaled_mesh.vertexCount);
         // Apply scaling to all vertices
-        for (0..scaled_vertex_count) |i| {
-            const vertex_index = i * 3;
-            scaled_mesh.vertices[vertex_index] *= scale.x;
-            scaled_mesh.vertices[vertex_index + 1] *= scale.y;
-            scaled_mesh.vertices[vertex_index + 2] *= scale.z;
+        if (scaled_mesh.vertices) |vertices| {
+            const vertex_slice = vertices[0..@intCast(scaled_vertex_count * 3)];
+            for (0..scaled_vertex_count) |i| {
+                const vertex_index = i * 3;
+                vertex_slice[vertex_index] *= scale.x;
+                vertex_slice[vertex_index + 1] *= scale.y;
+                vertex_slice[vertex_index + 2] *= scale.z;
+            }
         }
 
         // Recalculate normals if present
@@ -721,7 +727,7 @@ pub const GeometryNodeSystem = struct {
         );
 
         // Panel title
-        raylib.drawText("Geometry Nodes", 10, 10, 20, raylib.Color.white);
+        raylib.drawText("Geometry Nodes", 10, 10, 20, raylib.WHITE);
 
         // Node creation buttons
         const button_width = 80;
@@ -743,7 +749,7 @@ pub const GeometryNodeSystem = struct {
             const color = if (hovered) raylib.Color{ .r = 70, .g = 70, .b = 80, .a = 255 } else raylib.Color{ .r = 50, .g = 50, .b = 60, .a = 255 };
 
             raylib.drawRectangleRec(button_rect, color);
-            raylib.drawText(node_type, 15, button_y + 5, 14, raylib.Color.white);
+            raylib.drawText(node_type, 15, button_y + 5, 14, raylib.WHITE);
 
             if (hovered and raylib.isMouseButtonPressed(.left)) {
                 _ = self.createNode(node_type);
@@ -755,7 +761,7 @@ pub const GeometryNodeSystem = struct {
         // Node count
         var node_count_buf: [32:0]u8 = undefined;
         const node_count_slice = std.fmt.bufPrintZ(&node_count_buf, "Nodes: {}", .{self.graph.nodes.items.len}) catch "Nodes: ?";
-        raylib.drawText(node_count_slice, 10, @as(i32, @intFromFloat(screen_height)) - 30, 16, raylib.Color.gray);
+        raylib.drawText(node_count_slice, 10, @as(i32, @intFromFloat(screen_height)) - 30, 16, raylib.GRAY);
     }
     /// Draw a single node
     fn drawConnection(self: *GeometryNodeSystem, conn: *const nodes.NodeGraph.Connection) void {
@@ -799,13 +805,13 @@ pub const GeometryNodeSystem = struct {
             @as(i32, @intFromFloat(node.position.x)) + 5,
             @as(i32, @intFromFloat(node.position.y)) + 5,
             16,
-            raylib.Color.white,
+            raylib.WHITE,
         );
 
         // Draw inputs
         var y_offset: f32 = 30;
         for (node.inputs.items) |input| {
-            const input_color = if (input.connected) raylib.Color.green else raylib.Color.gray;
+            const input_color = if (input.connected) raylib.GREEN else raylib.GRAY;
             raylib.drawCircle(
                 @as(i32, @intFromFloat(node.position.x)) - 5,
                 @intFromFloat(node.position.y + y_offset + 8),
@@ -817,7 +823,7 @@ pub const GeometryNodeSystem = struct {
                 @as(i32, @intFromFloat(node.position.x)) + 5,
                 @intFromFloat(node.position.y + y_offset),
                 12,
-                raylib.Color.white,
+                raylib.WHITE,
             );
             y_offset += 20;
         }
@@ -828,14 +834,14 @@ pub const GeometryNodeSystem = struct {
                 @intFromFloat(node.position.x + node_width + 5),
                 @intFromFloat(node.position.y + y_offset + 8),
                 4,
-                raylib.Color.blue,
+                raylib.BLUE,
             );
             raylib.drawText(
                 output.name[0..output.name.len :0],
                 @as(i32, @intFromFloat(node.position.x)) + 5,
                 @intFromFloat(node.position.y + y_offset),
                 12,
-                raylib.Color.white,
+                raylib.WHITE,
             );
             y_offset += 20;
         }
@@ -847,7 +853,7 @@ pub const GeometryNodeSystem = struct {
                 @intFromFloat(node.position.y - 2),
                 @intFromFloat(node_width + 4),
                 @intFromFloat(node_height + 4),
-                raylib.Color.yellow,
+                raylib.YELLOW,
             );
         }
     }

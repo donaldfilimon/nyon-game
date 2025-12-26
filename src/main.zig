@@ -1,10 +1,10 @@
 const std = @import("std");
 const math = std.math;
-const nyon_game = @import("root.zig");
+const fs = std.fs;
+
+const nyon_game = @import("nyon_game");
 const engine_mod = nyon_game.engine;
 const status_msg = nyon_game.status_message;
-
-// Direct types from engine modules
 const Engine = engine_mod.Engine;
 const Audio = engine_mod.Audio;
 const File = engine_mod.File;
@@ -17,27 +17,12 @@ const MouseButton = engine_mod.MouseButton;
 const Color = engine_mod.Color;
 const Rectangle = engine_mod.Rectangle;
 
-const fs = std.fs;
-const ui_mod = @import("ui/ui.zig");
-const StatusMessage = @import("ui/status_message.zig").StatusMessage;
-const FileDetail = @import("io/file_detail.zig").FileDetail;
-const file_metadata = @import("io/file_metadata.zig");
-const worlds_mod = @import("game/worlds.zig");
 const FontManager = @import("font_manager.zig").FontManager;
-
-// Import game state module
 const game_state_mod = @import("game/state.zig");
-
-// ============================================================================
-// Game Constants
-// ============================================================================
-
 const WINDOW_WIDTH = game_state_mod.WINDOW_WIDTH;
 const WINDOW_HEIGHT = game_state_mod.WINDOW_HEIGHT;
 const WINDOW_TITLE = game_state_mod.WINDOW_TITLE;
 const TARGET_FPS = game_state_mod.TARGET_FPS;
-
-// Game constants
 const PLAYER_START_X = game_state_mod.PLAYER_START_X;
 const PLAYER_START_Y = game_state_mod.PLAYER_START_Y;
 const PLAYER_SPEED = game_state_mod.PLAYER_SPEED;
@@ -47,20 +32,32 @@ const ITEM_COLLECTION_RADIUS = game_state_mod.ITEM_COLLECTION_RADIUS;
 const ITEM_SCORE_VALUE = game_state_mod.ITEM_SCORE_VALUE;
 const DEFAULT_ITEM_COUNT = game_state_mod.DEFAULT_ITEM_COUNT;
 const INITIAL_ITEM_POSITIONS = game_state_mod.INITIAL_ITEM_POSITIONS;
-
-// Animation constants
 const ITEM_PULSE_SPEED = game_state_mod.ITEM_PULSE_SPEED;
 const ITEM_PULSE_AMPLITUDE = game_state_mod.ITEM_PULSE_AMPLITUDE;
-
-// ============================================================================
-// Game State Structures (keeping local copies for now during refactoring)
-// ============================================================================
-
 const CollectibleItem = game_state_mod.CollectibleItem;
 const GameState = game_state_mod.GameState;
 const WorldSession = game_state_mod.WorldSession;
 const clearWorldSession = game_state_mod.clearWorldSession;
 const setWorldSession = game_state_mod.setWorldSession;
+const resetGameState = game_state_mod.resetGameState;
+const updateFileInfo = game_state_mod.updateFileInfo;
+const worlds_mod = @import("game/worlds.zig");
+const FileDetail = @import("io/file_detail.zig").FileDetail;
+const file_metadata = @import("io/file_metadata.zig");
+const StatusMessage = @import("ui/status_message.zig").StatusMessage;
+const ui_mod = @import("ui/ui.zig");
+
+// Direct types from engine modules
+// Import game state module
+// ============================================================================
+// Game Constants
+// ============================================================================
+
+// Game constants
+// Animation constants
+// ============================================================================
+// Game State Structures (keeping local copies for now during refactoring)
+// ============================================================================
 
 // Grid constants
 const GRID_SIZE: f32 = 50.0;
@@ -226,9 +223,6 @@ fn defaultUiScaleFromDpi() f32 {
     if (avg > 2.5) return 2.5;
     return avg;
 }
-
-const resetGameState = game_state_mod.resetGameState;
-const updateFileInfo = game_state_mod.updateFileInfo;
 
 fn loadFileMetadata(game_state: *GameState, status_message: *StatusMessage, path: []const u8) !void {
     try updateFileInfo(game_state, path);
@@ -1201,303 +1195,8 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    // Use arena allocator for frame-based allocations (modern pattern)
-    var frame_arena = std.heap.ArenaAllocator.init(allocator);
-    defer frame_arena.deinit();
-    const frame_allocator = frame_arena.allocator();
+    var app = try application_mod.Application.init(allocator);
+    defer app.deinit();
 
-    // Initialize engine with raylib backend
-    var engine = try Engine.init(allocator, .{
-        .backend = .raylib,
-        .width = WINDOW_WIDTH,
-        .height = WINDOW_HEIGHT,
-        .title = WINDOW_TITLE,
-        .target_fps = TARGET_FPS,
-        .resizable = true,
-        .vsync = true,
-        .samples = 4,
-    });
-    defer engine.deinit();
-
-    var game_state = GameState{};
-    resetGameState(&game_state);
-    var status_message = StatusMessage{};
-    status_message.set("Collect every item to win!", STATUS_MESSAGE_DURATION);
-    var ui_state = GameUiState.initWithDefaultScale(allocator, defaultUiScaleFromDpi());
-    var menu_state = MenuState.init(allocator);
-    defer menu_state.deinit();
-    defer ui_state.deinit();
-
-    var app_mode: AppMode = .title;
-    var world_session: ?WorldSession = null;
-    defer clearWorldSession(&world_session);
-
-    var args = try std.process.argsAlloc(allocator);
-    defer std.process.argsFree(allocator, args);
-    if (args.len > 1) {
-        const arg_path = args[1];
-        if (arg_path.len > 0) {
-            loadFileMetadata(&game_state, &status_message, arg_path) catch {
-                var err_buf: [128:0]u8 = undefined;
-                const err_msg = std.fmt.bufPrintZ(&err_buf, "Could not open {s}", .{arg_path}) catch "Could not open file";
-                status_message.set(err_msg, STATUS_MESSAGE_DURATION);
-            };
-        }
-    }
-
-    // Initialize audio device
-    Audio.initDevice();
-    defer Audio.closeDevice();
-
-    // Main game loop
-    var quit_requested = false;
-    while (!engine.shouldClose() and !quit_requested) {
-        // Reset frame arena for temporary allocations
-        _ = frame_arena.reset(.{ .retain_capacity = {} });
-
-        engine.pollEvents();
-        const window_size = engine.getWindowSize();
-        const screen_width = @as(f32, @floatFromInt(window_size.width));
-        const screen_height = @as(f32, @floatFromInt(window_size.height));
-
-        const ctrl_down = Input.Keyboard.isDown(KeyboardKey.left_control) or Input.Keyboard.isDown(KeyboardKey.right_control);
-
-        const ui_input = ui_mod.FrameInput{
-            .mouse_pos = Input.Mouse.getPosition(),
-            .mouse_pressed = Input.Mouse.isButtonPressed(MouseButton.left),
-            .mouse_down = Input.Mouse.isButtonDown(MouseButton.left),
-            .mouse_released = Input.Mouse.isButtonReleased(MouseButton.left),
-        };
-
-        engine.beginDrawing();
-
-        // Update game time
-        const delta_time = try engine.getFrameTime();
-        status_message.update(delta_time);
-
-        // Clear background
-        engine.clearBackground(COLOR_BACKGROUND);
-
-        switch (app_mode) {
-            .title => {
-                menu_state.ctx.beginFrame(ui_input, ui_state.style());
-                defer menu_state.ctx.endFrame();
-
-                const action = drawTitleMenu(&menu_state, ui_state.style(), &status_message, screen_width, screen_height);
-                drawStatusMessage(&status_message, screen_width);
-                if (action == .singleplayer) {
-                    app_mode = .worlds;
-                } else if (action == .multiplayer) {
-                    app_mode = .server_browser;
-                } else if (action == .quit) {
-                    quit_requested = true;
-                }
-            },
-            .worlds => {
-                if (Input.Keyboard.isPressed(KeyboardKey.escape)) {
-                    app_mode = .title;
-                }
-
-                menu_state.ctx.beginFrame(ui_input, ui_state.style());
-                defer menu_state.ctx.endFrame();
-
-                const action = drawWorldListMenu(&menu_state, ui_state.style(), &status_message, screen_width, screen_height);
-                drawStatusMessage(&status_message, screen_width);
-
-                if (action == .back) {
-                    app_mode = .title;
-                } else if (action == .create_world) {
-                    app_mode = .create_world;
-                } else if (action == .play_selected) {
-                    if (menu_state.selected_world) |idx| {
-                        const entry = menu_state.worlds[idx];
-                        setWorldSession(&world_session, WorldSession{
-                            .allocator = allocator,
-                            .folder = try allocator.dupe(u8, entry.folder),
-                            .name = try allocator.dupe(u8, entry.meta.name),
-                        });
-                        game_state.best_score = entry.meta.best_score;
-                        if (entry.meta.best_time_ms) |ms| {
-                            game_state.best_time = @as(f32, @floatFromInt(ms)) / 1000.0;
-                        } else {
-                            game_state.best_time = null;
-                        }
-                        resetGameState(&game_state);
-                        status_message.set("World loaded!", STATUS_MESSAGE_DURATION);
-                        app_mode = .playing;
-                    }
-                }
-            },
-            .create_world => {
-                if (Input.Keyboard.isPressed(KeyboardKey.escape)) {
-                    app_mode = .worlds;
-                }
-
-                menu_state.ctx.beginFrame(ui_input, ui_state.style());
-                defer menu_state.ctx.endFrame();
-
-                const result = drawCreateWorldMenu(&menu_state, ui_state.style(), &status_message, screen_width, screen_height);
-                drawStatusMessage(&status_message, screen_width);
-                switch (result) {
-                    .none => {},
-                    .back => app_mode = .worlds,
-                    .created => |session| {
-                        setWorldSession(&world_session, session);
-                        game_state.best_score = 0;
-                        game_state.best_time = null;
-                        resetGameState(&game_state);
-                        status_message.set("Entering new world...", STATUS_MESSAGE_DURATION);
-                        app_mode = .playing;
-                    },
-                }
-            },
-            .server_browser => {
-                if (Input.Keyboard.isPressed(KeyboardKey.escape)) {
-                    app_mode = .title;
-                }
-
-                menu_state.ctx.beginFrame(ui_input, ui_state.style());
-                defer menu_state.ctx.endFrame();
-
-                const action = drawServerBrowser(&menu_state, ui_state.style(), &status_message, screen_width, screen_height);
-                drawStatusMessage(&status_message, screen_width);
-
-                if (action == .back) {
-                    app_mode = .title;
-                } else if (action == .connect) {
-                    // TODO: Implement server connection
-                    status_message.set("Server connection not yet implemented", STATUS_MESSAGE_DURATION);
-                }
-            },
-            .playing, .paused => {
-                ui_state.ctx.beginFrame(ui_input, ui_state.style());
-                defer ui_state.ctx.endFrame();
-
-                var player_moved_draw = false;
-                var has_won_draw = isGameWon(&game_state);
-
-                if (app_mode == .playing) {
-                    if (Input.Keyboard.isPressed(KeyboardKey.escape)) {
-                        app_mode = .paused;
-                    }
-
-                    if (Input.Keyboard.isPressed(KeyboardKey.f1)) {
-                        ui_state.edit_mode = !ui_state.edit_mode;
-                        status_message.set(if (ui_state.edit_mode) "UI edit mode enabled" else "UI edit mode disabled", STATUS_MESSAGE_DURATION);
-                    }
-
-                    if (Input.Keyboard.isPressed(KeyboardKey.f2)) {
-                        ui_state.config.settings.visible = !ui_state.config.settings.visible;
-                        ui_state.dirty = true;
-                        status_message.set(if (ui_state.config.settings.visible) "Settings opened" else "Settings hidden", STATUS_MESSAGE_DURATION);
-                    }
-
-                    if (ctrl_down and Input.Keyboard.isPressed(KeyboardKey.s)) {
-                        ui_state.config.save(allocator, ui_mod.UiConfig.DEFAULT_PATH) catch {
-                            status_message.set("Failed to save UI layout", STATUS_MESSAGE_DURATION);
-                        };
-                        ui_state.dirty = false;
-                        status_message.set("Saved UI layout", STATUS_MESSAGE_DURATION);
-                    }
-
-                    if (ctrl_down and Input.Keyboard.isPressed(KeyboardKey.r)) {
-                        ui_state.config = ui_mod.UiConfig{};
-                        ui_state.dirty = true;
-                        status_message.set("Reset UI layout", STATUS_MESSAGE_DURATION);
-                    } else if (Input.Keyboard.isPressed(KeyboardKey.r)) {
-                        resetGameState(&game_state);
-                        status_message.set("Reset complete! Collect them again!", STATUS_MESSAGE_DURATION);
-                    }
-
-                    game_state.game_time += delta_time;
-                    handleDroppedFile(&game_state, &ui_state, &status_message, allocator, frame_allocator) catch {
-                        status_message.set("Failed to read dropped file", STATUS_MESSAGE_DURATION);
-                    };
-
-                    const player_moved = if (ui_state.edit_mode and (ui_input.mouse_down or ctrl_down))
-                        false
-                    else
-                        handleInput(&game_state, delta_time, screen_width, screen_height);
-                    player_moved_draw = player_moved;
-
-                    const collected = checkCollisions(&game_state);
-                    if (collected > 0 and game_state.remaining_items > 0) {
-                        var collect_buf: [80:0]u8 = undefined;
-                        const collect_str = try std.fmt.bufPrintZ(&collect_buf, "{d} item(s) left", .{game_state.remaining_items});
-                        status_message.set(collect_str, STATUS_MESSAGE_DURATION);
-                    }
-
-                    const has_won = isGameWon(&game_state);
-                    has_won_draw = has_won;
-                    if (has_won and !game_state.has_won) {
-                        game_state.has_won = true;
-                        const completion_time = game_state.game_time;
-                        var win_buf: [128:0]u8 = undefined;
-                        if (game_state.best_time) |prev_best| {
-                            if (completion_time < prev_best) {
-                                game_state.best_time = completion_time;
-                                const win_str = try std.fmt.bufPrintZ(&win_buf, "New personal best! {d:.2}s", .{completion_time});
-                                status_message.set(win_str, STATUS_MESSAGE_DURATION + 1.5);
-                            } else {
-                                const win_str = try std.fmt.bufPrintZ(&win_buf, "You win! {d:.2}s (best {d:.2}s)", .{ completion_time, prev_best });
-                                status_message.set(win_str, STATUS_MESSAGE_DURATION);
-                            }
-                        } else {
-                            game_state.best_time = completion_time;
-                            const win_str = try std.fmt.bufPrintZ(&win_buf, "First win in {d:.2}s!", .{completion_time});
-                            status_message.set(win_str, STATUS_MESSAGE_DURATION + 1.5);
-                        }
-                    } else if (!has_won) {
-                        game_state.has_won = false;
-                    }
-                } else {
-                    if (Input.Keyboard.isPressed(KeyboardKey.escape)) {
-                        app_mode = .playing;
-                    }
-                }
-
-                // Draw game elements
-                drawGrid(screen_width, screen_height);
-                drawItems(&game_state);
-                drawPlayer(&game_state, player_moved_draw);
-
-                // Draw UI
-                try drawUI(&game_state, &ui_state, &status_message, allocator, screen_width, screen_height);
-                drawStatusMessage(&status_message, screen_width);
-                drawInstructions(screen_width, screen_height);
-
-                if (has_won_draw) {
-                    drawWinMessage(screen_width, screen_height);
-                }
-
-                if (app_mode == .paused) {
-                    menu_state.ctx.beginFrame(ui_input, ui_state.style());
-                    defer menu_state.ctx.endFrame();
-
-                    const action = drawPauseMenu(&menu_state, ui_state.style(), &status_message, screen_width, screen_height);
-                    if (action == .unpause) {
-                        app_mode = .playing;
-                    } else if (action == .quit_to_title) {
-                        if (world_session) |session| {
-                            const best_time_ms: ?u32 = if (game_state.best_time) |t| @intFromFloat(t * 1000.0) else null;
-                            worlds_mod.touchWorld(allocator, session.folder, game_state.best_score, best_time_ms) catch {};
-                        }
-                        clearWorldSession(&world_session);
-                        app_mode = .title;
-                    }
-                }
-            },
-        }
-
-        engine.endDrawing();
-    }
-
-    if (ui_state.dirty) {
-        ui_state.config.save(allocator, ui_mod.UiConfig.DEFAULT_PATH) catch {};
-    }
-
-    if (world_session) |session| {
-        const best_time_ms: ?u32 = if (game_state.best_time) |t| @intFromFloat(t * 1000.0) else null;
-        worlds_mod.touchWorld(allocator, session.folder, game_state.best_score, best_time_ms) catch {};
-    }
+    try app.run();
 }

@@ -1,6 +1,7 @@
 const std = @import("std");
 const rl = @import("raylib");
-const nyon = @import("nyon_game");
+const geometry_nodes = @import("geometry_nodes.zig");
+const scene_mod = @import("scene.zig");
 
 /// Nyon Game Editor with Node-Based Geometry System
 ///
@@ -25,7 +26,7 @@ pub fn main() !void {
     // Use default font for now (font loading has API issues)
 
     // Initialize geometry node system
-    var geometry_system = try nyon.geometry_nodes.GeometryNodeSystem.init(std.heap.page_allocator);
+    var geometry_system = try geometry_nodes.GeometryNodeSystem.init(std.heap.page_allocator);
     defer geometry_system.deinit();
 
     // Enable 3D mode
@@ -34,11 +35,11 @@ pub fn main() !void {
         .target = rl.Vector3{ .x = 0, .y = 0, .z = 0 },
         .up = rl.Vector3{ .x = 0, .y = 1, .z = 0 },
         .fovy = 45.0,
-        .projection = .perspective,
+        .projection = @intFromEnum(rl.CameraProjection.perspective),
     };
 
     // Create 3D scene for preview
-    var scene = nyon.Scene.init(std.heap.page_allocator);
+    var scene = scene_mod.Scene.init(std.heap.page_allocator);
     defer scene.deinit();
 
     // UI state
@@ -117,11 +118,11 @@ pub fn main() !void {
         // --- UI Layout ---------------------------------------------------
         rl.beginDrawing();
         defer rl.endDrawing();
-        rl.clearBackground(rl.Color.ray_white);
+        rl.clearBackground(rl.ray_white);
 
         // Custom title bar
         rl.drawRectangle(0, 0, @intFromFloat(screen_width), @intFromFloat(title_bar_height), rl.Color{ .r = 45, .g = 45, .b = 55, .a = 255 });
-        rl.drawText("Nyon Game Editor", 10, 8, 18, rl.Color.white);
+        rl.drawText("Nyon Game Editor", 10, 8, 18, rl.WHITE);
 
         // Close button
         const close_button_rect = rl.Rectangle{
@@ -133,7 +134,7 @@ pub fn main() !void {
         const close_hover = rl.checkCollisionPointRec(mouse_pos, close_button_rect);
         const close_color = if (close_hover) rl.Color{ .r = 200, .g = 50, .b = 50, .a = 255 } else rl.Color{ .r = 150, .g = 50, .b = 50, .a = 255 };
         rl.drawRectangleRec(close_button_rect, close_color);
-        rl.drawText("×", @intFromFloat(close_button_rect.x + 10), @intFromFloat(close_button_rect.y + 2), 18, rl.Color.white);
+        rl.drawText("×", @intFromFloat(close_button_rect.x + 10), @intFromFloat(close_button_rect.y + 2), 18, rl.WHITE);
 
         if (close_hover and rl.isMouseButtonPressed(.left)) {
             break; // Exit the application
@@ -153,15 +154,15 @@ pub fn main() !void {
         if (geometry_system.getFinalGeometry()) |mesh| {
             const model = rl.loadModelFromMesh(mesh) catch continue;
             defer rl.unloadModel(model);
-            rl.drawModel(model, rl.Vector3{ .x = 0, .y = 0, .z = 0 }, 1.0, rl.Color.white);
-            rl.drawModelWires(model, rl.Vector3{ .x = 0, .y = 0, .z = 0 }, 1.0, rl.Color.gray);
+            rl.drawModel(model, rl.Vector3{ .x = 0, .y = 0, .z = 0 }, 1.0, rl.WHITE);
+            rl.drawModelWires(model, rl.Vector3{ .x = 0, .y = 0, .z = 0 }, 1.0, rl.GRAY);
         }
 
         // Draw coordinate axes
         const axis_length = 5.0;
-        rl.drawLine3D(rl.Vector3{ .x = 0, .y = 0, .z = 0 }, rl.Vector3{ .x = axis_length, .y = 0, .z = 0 }, rl.Color.red);
-        rl.drawLine3D(rl.Vector3{ .x = 0, .y = 0, .z = 0 }, rl.Vector3{ .x = 0, .y = axis_length, .z = 0 }, rl.Color.green);
-        rl.drawLine3D(rl.Vector3{ .x = 0, .y = 0, .z = 0 }, rl.Vector3{ .x = 0, .y = 0, .z = axis_length }, rl.Color.blue);
+        rl.drawLine3D(rl.Vector3{ .x = 0, .y = 0, .z = 0 }, rl.Vector3{ .x = axis_length, .y = 0, .z = 0 }, rl.RED);
+        rl.drawLine3D(rl.Vector3{ .x = 0, .y = 0, .z = 0 }, rl.Vector3{ .x = 0, .y = axis_length, .z = 0 }, rl.GREEN);
+        rl.drawLine3D(rl.Vector3{ .x = 0, .y = 0, .z = 0 }, rl.Vector3{ .x = 0, .y = 0, .z = axis_length }, rl.BLUE);
 
         rl.endMode3D();
         rl.endScissorMode();
@@ -177,16 +178,16 @@ pub fn main() !void {
         // Node count
         var node_count_buf: [32:0]u8 = undefined;
         const node_count_slice = std.fmt.bufPrintZ(&node_count_buf, "Nodes: {}", .{geometry_system.graph.nodes.items.len}) catch "Nodes: ?";
-        rl.drawText(node_count_slice, 10, ui_y, 16, rl.Color.white);
+        rl.drawText(node_count_slice, 10, ui_y, 16, rl.WHITE);
         ui_y += 25;
 
         // Selected node
         if (selected_node) |node_id| {
             var selected_buf: [32:0]u8 = undefined;
             const selected_slice = std.fmt.bufPrintZ(&selected_buf, "Selected: Node {}", .{node_id}) catch "Selected: Node ?";
-            rl.drawText(selected_slice, 10, ui_y, 16, rl.Color.yellow);
+            rl.drawText(selected_slice, 10, ui_y, 16, rl.YELLOW);
         } else {
-            rl.drawText("Selected: None", 10, ui_y, 16, rl.Color.gray);
+            rl.drawText("Selected: None", 10, ui_y, 16, rl.GRAY);
         }
         ui_y += 30;
 
@@ -203,7 +204,7 @@ pub fn main() !void {
         };
 
         for (instructions) |instruction| {
-            rl.drawText(instruction, 10, ui_y, 14, rl.Color.gray);
+            rl.drawText(instruction, 10, ui_y, 14, rl.GRAY);
             ui_y += 18;
         }
     }
@@ -226,7 +227,7 @@ fn handleCameraControls(camera_angle: *rl.Vector2, camera_distance: *f32) void {
 }
 
 /// Handle node interaction in the node editor
-fn handleNodeInteraction(geometry_system: *nyon.geometry_nodes.GeometryNodeSystem, selected_node: *?usize, is_dragging: *bool, drag_offset: *rl.Vector2, editor_offset_x: f32) void {
+fn handleNodeInteraction(geometry_system: *geometry_nodes.GeometryNodeSystem, selected_node: *?usize, is_dragging: *bool, drag_offset: *rl.Vector2, editor_offset_x: f32) void {
     const mouse_pos = rl.getMousePosition();
 
     // Convert screen coordinates to node editor coordinates

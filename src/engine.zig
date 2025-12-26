@@ -14,7 +14,6 @@ const WebGpuContext = struct {
 // ============================================================================
 
 const is_browser = builtin.target.os.tag == .freestanding or builtin.target.os.tag == .wasi;
-const glfw_available = !is_browser;
 
 // ============================================================================
 // Error Types
@@ -38,8 +37,9 @@ pub const EngineError = error{
 // Conditional Imports
 // ============================================================================
 
-// Conditionally import zglfw
-const zglfw = if (glfw_available) @import("zglfw") else struct {
+// Conditionally import zglfw (disabled for refactoring)
+const glfw_available = false; // Temporarily disabled
+const zglfw = struct {
     pub const Window = opaque {};
     pub const Monitor = opaque {};
     pub const Cursor = opaque {};
@@ -330,6 +330,7 @@ pub const Engine = struct {
     /// provides a complete, high-level API for graphics, audio, and input.
     fn initRaylibBackend(engine: *Engine, config: Config) EngineError!void {
         // Configure raylib flags
+<<<<<<< HEAD
         // We use the raw u32 value for flags as raylib-zig ConfigFlags is an enum(c_int)
         // and we need to combine them.
         var flags: u32 = 0;
@@ -339,6 +340,19 @@ pub const Engine = struct {
         if (config.resizable) flags |= @intCast(@intFromEnum(raylib.ConfigFlags.FLAG_WINDOW_RESIZABLE));
         if (config.vsync) flags |= @intCast(@intFromEnum(raylib.ConfigFlags.FLAG_VSYNC_HINT));
         if (config.samples > 0) flags |= @intCast(@intFromEnum(raylib.ConfigFlags.FLAG_MSAA_4X_HINT));
+=======
+        const flags = raylib.ConfigFlags{
+            .fullscreen_mode = config.fullscreen,
+            .window_resizable = config.resizable,
+            .window_undecorated = false,
+            .window_transparent = false,
+            .msaa_4x_hint = config.samples > 0,
+            .vsync_hint = config.vsync,
+            .window_hidden = false,
+            .window_always_run = false,
+            ._padding = 0,
+        };
+>>>>>>> 93747dd694336c93316141b641ada1860676511d
 
         raylib.setConfigFlags(flags);
         raylib.initWindow(@intCast(config.width), @intCast(config.height), config.title);

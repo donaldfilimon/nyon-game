@@ -1,6 +1,12 @@
 const std = @import("std");
 const raylib = @import("raylib");
 
+pub const GizmoMode = enum {
+    translate,
+    rotate,
+    scale,
+};
+
 pub const TabType = enum {
     scene_2d,
     scene_3d,

@@ -86,6 +86,17 @@ pub fn build(b: *std.Build) void {
     else
         zglfw_dep.artifact("glfw");
 
+    const nyon_game_mod = b.createModule(.{
+        .root_source_file = b.path(ROOT_MODULE_PATH),
+        .target = target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = RAYLIB_IMPORT_NAME, .module = raylib_mod },
+            .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw_mod },
+        },
+    });
+    nyon_game_mod.addImport(NYON_GAME_IMPORT_NAME, nyon_game_mod);
+
     // Build executable targets directly (simplified for refactoring)
     const exe = b.addExecutable(.{
         .name = EXECUTABLE_NAME,
@@ -96,6 +107,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{
                 .{ .name = "raylib", .module = raylib_mod },
                 .{ .name = "zglfw", .module = zglfw_mod },
+                .{ .name = NYON_GAME_IMPORT_NAME, .module = nyon_game_mod },
             },
         }),
     });
@@ -115,6 +127,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{
                 .{ .name = "raylib", .module = raylib_mod },
                 .{ .name = "zglfw", .module = zglfw_mod },
+                .{ .name = NYON_GAME_IMPORT_NAME, .module = nyon_game_mod },
             },
         }),
     });
@@ -258,21 +271,17 @@ pub fn setupBuildSteps(
     }
     const run_exe_tests = b.addRunArtifact(exe_tests);
 
+    // Test step
     const test_step = b.step("test", "Run all tests");
-    test_step.dependOn(&run_mod_tests.step);
-    test_step.dependOn(&run_exe_tests.step);
-}
+    const test_cmd = b.addSystemCommand(&[_][]const u8{ "zig", "test", "src/tests.zig" });
+    test_step.dependOn(&test_cmd.step);
 
-/// Configure example build targets.
-/// (Currently disabled; see original comment in template.)
-pub fn setupExampleTargets(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    deps: Dependencies,
-) void {
-    _ = b;
-    _ = target;
-    _ = optimize;
-    _ = deps;
+    // Run steps
+    const run_cmd = b.addRunArtifact(exe);
+    const run_step = b.step("run", "Run the game");
+    run_step.dependOn(&run_cmd.step);
+
+    const run_editor = b.step("run-editor", "Build and run the editor");
+    const run_editor_cmd = b.addRunArtifact(editor_exe);
+    run_editor.dependOn(&run_editor_cmd.step);
 }
