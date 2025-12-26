@@ -36,6 +36,7 @@ pub const Archetype = struct {
     component_types: std.ArrayList(ComponentType),
     entities: std.ArrayList(entity.EntityId),
     component_columns: std.ArrayList([]u8),
+    entity_to_index: std.AutoHashMap(entity.EntityId, usize),
     entity_capacity: usize,
     entity_count: usize,
 
@@ -48,6 +49,7 @@ pub const Archetype = struct {
             .component_types = std.ArrayList(ComponentType).initCapacity(allocator, component_types.len) catch return error.OutOfMemory,
             .entities = std.ArrayList(entity.EntityId).initCapacity(allocator, initial_capacity) catch return error.OutOfMemory,
             .component_columns = std.ArrayList([]u8).initCapacity(allocator, component_types.len) catch return error.OutOfMemory,
+            .entity_to_index = std.AutoHashMap(entity.EntityId, usize).init(allocator),
             .entity_capacity = initial_capacity,
             .entity_count = 0,
         };
@@ -85,6 +87,7 @@ pub const Archetype = struct {
         self.component_columns.deinit(self.allocator);
 
         self.entities.deinit(self.allocator);
+        self.entity_to_index.deinit();
         self.component_types.deinit(self.allocator);
     }
 
@@ -96,7 +99,8 @@ pub const Archetype = struct {
         }
 
         // Add entity
-        self.entities.appendAssumeCapacity(entity_id);
+        try self.entities.append(self.allocator, entity_id);
+        try self.entity_to_index.put(entity_id, self.entity_count);
         self.entity_count += 1;
 
         // Initialize components with default values
@@ -111,24 +115,25 @@ pub const Archetype = struct {
 
     /// Remove an entity from this archetype
     pub fn removeEntity(self: *Archetype, entity_id: entity.EntityId) ?usize {
-        // Find entity index
-        for (self.entities.items, 0..) |entity_in_archetype, i| {
-            if (entity_in_archetype.eql(entity_id)) {
-                return self.removeEntityAtIndex(i);
-            }
+        if (self.entity_to_index.get(entity_id)) |index| {
+            return self.removeEntityAtIndex(index);
         }
         return null;
     }
 
     /// Remove entity at the given index (used internally for efficiency)
-    pub fn removeEntityAtIndex(self: *Archetype, index: usize) usize {
-        std.debug.assert(index < self.entity_count);
-
+    fn removeEntityAtIndex(self: *Archetype, index: usize) usize {
         const last_index = self.entity_count - 1;
 
+        // Remove from index map
+        _ = self.entity_to_index.remove(self.entities.items[index]);
+
         if (index != last_index) {
+            const moved_entity = self.entities.items[last_index];
             // Move last entity to fill the gap
-            self.entities.items[index] = self.entities.items[last_index];
+            self.entities.items[index] = moved_entity;
+            // Update index for the moved entity
+            self.entity_to_index.put(moved_entity, index) catch {};
 
             // Move component data
             for (self.component_columns.items, 0..) |column, comp_i| {
@@ -149,11 +154,8 @@ pub const Archetype = struct {
 
     /// Get a pointer to a component for the given entity
     pub fn getComponent(self: *Archetype, entity_id: entity.EntityId, comptime T: type) ?*T {
-        // Find entity index
-        for (self.entities.items, 0..) |entity_in_archetype, i| {
-            if (entity_in_archetype.eql(entity_id)) {
-                return self.getComponentAtIndex(T, i);
-            }
+        if (self.entity_to_index.get(entity_id)) |index| {
+            return self.getComponentAtIndex(T, index);
         }
         return null;
     }
@@ -176,11 +178,8 @@ pub const Archetype = struct {
 
     /// Set a component value for the given entity
     pub fn setComponent(self: *Archetype, entity_id: entity.EntityId, value: anytype) bool {
-        // Find entity index
-        for (self.entities.items, 0..) |entity_in_archetype, i| {
-            if (entity_in_archetype.eql(entity_id)) {
-                return self.setComponentAtIndex(i, value);
-            }
+        if (self.entity_to_index.get(entity_id)) |index| {
+            return self.setComponentAtIndex(index, value);
         }
         return false;
     }

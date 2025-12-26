@@ -1236,29 +1236,97 @@ fn performUnion(mesh_a: raylib.Mesh, mesh_b: raylib.Mesh, allocator: std.mem.All
 
 /// Perform CSG Difference operation (mesh_a - mesh_b)
 fn performDifference(mesh_a: raylib.Mesh, mesh_b: raylib.Mesh, allocator: std.mem.Allocator) !raylib.Mesh {
-    // Simple difference: for now, just return mesh_a
-    // Full implementation would subtract overlapping regions from mesh_a
-    _ = mesh_b; // Not used in simple implementation
-    return copyMesh(mesh_a, allocator);
+    return performBooleanOp(mesh_a, mesh_b, allocator, .difference);
 }
 
 /// Perform CSG Intersection operation
 fn performIntersection(mesh_a: raylib.Mesh, mesh_b: raylib.Mesh, allocator: std.mem.Allocator) !raylib.Mesh {
-    // Simple intersection: for now, return empty mesh
-    // Full implementation would keep only overlapping regions
-    _ = mesh_a; // Not used in simple implementation
-    _ = mesh_b; // Not used in simple implementation
-    _ = allocator; // Not used in simple implementation
-    var empty_mesh = raylib.Mesh{
-        .vertexCount = 0,
-        .triangleCount = 0,
-        .vertices = null,
+    return performBooleanOp(mesh_a, mesh_b, allocator, .intersection);
+}
+
+const BooleanOp = enum { difference, intersection };
+
+/// Core logic for Difference and Intersection operations
+fn performBooleanOp(mesh_a: raylib.Mesh, mesh_b: raylib.Mesh, allocator: std.mem.Allocator, op: BooleanOp) !raylib.Mesh {
+    const aabb_b = calculateAABB(mesh_b);
+    const vertex_count: usize = @intCast(mesh_a.vertexCount);
+
+    // Identify vertices of A to keep
+    var vertices_to_keep = try allocator.alloc(bool, vertex_count);
+    defer allocator.free(vertices_to_keep);
+
+    var new_vertex_count: usize = 0;
+    var index_map = try allocator.alloc(i32, vertex_count);
+    defer allocator.free(index_map);
+
+    for (0..vertex_count) |i| {
+        const base = i * 3;
+        const pos = [3]f32{ mesh_a.vertices[base], mesh_a.vertices[base + 1], mesh_a.vertices[base + 2] };
+        const inside = pos[0] >= aabb_b.min[0] and pos[0] <= aabb_b.max[0] and
+            pos[1] >= aabb_b.min[1] and pos[1] <= aabb_b.max[1] and
+            pos[2] >= aabb_b.min[2] and pos[2] <= aabb_b.max[2];
+
+        const keep = switch (op) {
+            .difference => !inside,
+            .intersection => inside,
+        };
+
+        vertices_to_keep[i] = keep;
+        if (keep) {
+            index_map[i] = @intCast(new_vertex_count);
+            new_vertex_count += 1;
+        } else {
+            index_map[i] = -1;
+        }
+    }
+
+    if (new_vertex_count == 0) {
+        var empty_mesh = raylib.Mesh{ .vertexCount = 0, .triangleCount = 0, .vertices = null, .indices = null, .texcoords = null, .texcoords2 = null, .normals = null, .tangents = null, .colors = null, .animVertices = null, .animNormals = null, .boneIds = null, .boneWeights = null, .vaoId = 0, .boneCount = 0, .boneMatrices = null, .vboId = null };
+        raylib.uploadMesh(&empty_mesh, false);
+        return empty_mesh;
+    }
+
+    // Reconstruct vertices
+    var new_vertices = try allocator.alloc(f32, new_vertex_count * 3);
+    var v_idx: usize = 0;
+    for (0..vertex_count) |i| {
+        if (vertices_to_keep[i]) {
+            new_vertices[v_idx * 3] = mesh_a.vertices[i * 3];
+            new_vertices[v_idx * 3 + 1] = mesh_a.vertices[i * 3 + 1];
+            new_vertices[v_idx * 3 + 2] = mesh_a.vertices[i * 3 + 2];
+            v_idx += 1;
+        }
+    }
+
+    // Reconstruct indices
+    const old_tri_count = @as(usize, @intCast(mesh_a.triangleCount));
+    var kept_indices = std.ArrayList(u16).init(allocator);
+    defer kept_indices.deinit();
+
+    if (mesh_a.indices) |idx_ptr| {
+        for (0..old_tri_count) |t| {
+            const i0 = idx_ptr[t * 3];
+            const i1 = idx_ptr[t * 3 + 1];
+            const i2 = idx_ptr[t * 3 + 2];
+
+            if (index_map[i0] != -1 and index_map[i1] != -1 and index_map[i2] != -1) {
+                try kept_indices.append(@intCast(index_map[i0]));
+                try kept_indices.append(@intCast(index_map[i1]));
+                try kept_indices.append(@intCast(index_map[i2]));
+            }
+        }
+    }
+
+    var result_mesh = raylib.Mesh{
+        .vertexCount = @intCast(new_vertex_count),
+        .triangleCount = @intCast(kept_indices.items.len / 3),
+        .vertices = new_vertices.ptr,
+        .indices = if (kept_indices.items.len > 0) (try allocator.dupe(u16, kept_indices.items)).ptr else null,
         .texcoords = null,
         .texcoords2 = null,
         .normals = null,
         .tangents = null,
         .colors = null,
-        .indices = null,
         .animVertices = null,
         .animNormals = null,
         .boneIds = null,
@@ -1269,8 +1337,8 @@ fn performIntersection(mesh_a: raylib.Mesh, mesh_b: raylib.Mesh, allocator: std.
         .vboId = null,
     };
 
-    raylib.uploadMesh(&empty_mesh, false);
-    return empty_mesh;
+    raylib.uploadMesh(&result_mesh, false);
+    return result_mesh;
 }
 
 /// Get node under mouse for property inspection

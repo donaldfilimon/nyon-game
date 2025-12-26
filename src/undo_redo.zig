@@ -5,6 +5,13 @@ const nyon = @import("nyon_game");
 ///
 /// Provides comprehensive undo/redo functionality for the Nyon Game Engine editor.
 /// Supports scene operations, material changes, animation modifications, and custom commands.
+pub const EditorContext = struct {
+    scene: *nyon.Scene,
+    asset_mgr: *nyon.AssetManager,
+    ecs_world: *nyon.ecs.World,
+    physics_system: *nyon.ecs.PhysicsSystem,
+};
+
 pub const UndoRedoSystem = struct {
     allocator: std.mem.Allocator,
 
@@ -220,17 +227,61 @@ pub const UndoRedoSystem = struct {
 
             var cmds_array = std.json.Array.init(allocator);
             for (compound.commands.items) |child_cmd| {
-                // Here we need the serializeFn from the registry.
-                // We'll use a manual check for now or assume a way to get it.
-                if (std.mem.eql(u8, child_cmd.getTypeName(), "SceneTransformCommand")) {
-                    try cmds_array.append(try SceneTransformCommand.getCommandType().serializeFn(child_cmd, allocator));
-                } else if (std.mem.eql(u8, child_cmd.getTypeName(), "CompoundCommand")) {
-                    try cmds_array.append(try CompoundCommand.getCommandType().serializeFn(child_cmd, allocator));
+                if (child_cmd.getTypeName().len > 0) {
+                    // Note: Ideally we'd look this up in the system's registry,
+                    // but we'll use a simplified approach for now.
+                    if (std.mem.eql(u8, child_cmd.getTypeName(), "SceneTransformCommand")) {
+                        try cmds_array.append(try SceneTransformCommand.getCommandType().serializeFn(child_cmd, allocator));
+                    } else if (std.mem.eql(u8, child_cmd.getTypeName(), "CompoundCommand")) {
+                        try cmds_array.append(try CompoundCommand.getCommandType().serializeFn(child_cmd, allocator));
+                    }
                 }
             }
             try root.put("commands", std.json.Value{ .array = cmds_array });
 
             return std.json.Value{ .object = root };
+        }
+
+        pub fn jsonStringify(cmd: *Command, options: std.json.StringifyOptions, out: anytype) !void {
+            const self: *CompoundCommand = @ptrCast(@alignCast(cmd));
+            _ = options;
+
+            try out.beginObject();
+            try out.objectField("type");
+            try out.write("CompoundCommand");
+            try out.objectField("description");
+            try out.write(self.base.description);
+
+            try out.objectField("commands");
+            try out.beginArray();
+            for (self.commands.items) |child_cmd| {
+                try StreamingCommand.stringify(child_cmd, out);
+            }
+            try out.endArray();
+
+            try out.endObject();
+        }
+    };
+
+    /// Wrapper to handle heterogeneous command streaming
+    pub const StreamingCommand = struct {
+        pub fn stringify(cmd: *Command, out: anytype) !void {
+            const type_name = cmd.getTypeName();
+            if (std.mem.eql(u8, type_name, "SceneTransformCommand")) {
+                try SceneTransformCommand.jsonStringify(cmd, .{}, out);
+            } else if (std.mem.eql(u8, type_name, "CompoundCommand")) {
+                try CompoundCommand.jsonStringify(cmd, .{}, out);
+            } else if (std.mem.eql(u8, type_name, "AddObjectCommand")) {
+                try AddObjectCommand.jsonStringify(cmd, .{}, out);
+            } else if (std.mem.eql(u8, type_name, "RemoveObjectCommand")) {
+                try RemoveObjectCommand.jsonStringify(cmd, .{}, out);
+            } else {
+                // Fallback for unregistered or legacy commands
+                const allocator = std.heap.page_allocator; // Only for fallback
+                const val = try cmd.vtable.serializeFn(cmd, allocator);
+                defer val.deinit(allocator);
+                try out.write(val);
+            }
         }
     };
 
@@ -239,6 +290,8 @@ pub const UndoRedoSystem = struct {
         name: []const u8,
         createFn: *const fn (std.mem.Allocator, std.json.Value, ?*anyopaque) anyerror!*Command,
         serializeFn: *const fn (*Command, std.mem.Allocator) anyerror!std.json.Value,
+        /// Streaming serialization function pointer wrapper (uses internal dispatch)
+        stringifyFn: ?*const fn (*Command, std.json.StringifyOptions, anytype) anyerror!void = null,
     };
 
     /// Initialize the undo/redo system
@@ -429,7 +482,32 @@ pub const UndoRedoSystem = struct {
         try self.command_types.put(name, command_type);
     }
 
-    /// Serialize command history to JSON
+    /// Serialize command history to JSON using streaming (more efficient)
+    pub fn jsonStringify(self: UndoRedoSystem, options: std.json.StringifyOptions, out: anytype) !void {
+        _ = options;
+        try out.beginObject();
+        
+        try out.objectField("max_history_size");
+        try out.write(self.max_history_size);
+
+        try out.objectField("undo_stack");
+        try out.beginArray();
+        for (self.undo_stack.items) |cmd| {
+            try StreamingCommand.stringify(cmd, out);
+        }
+        try out.endArray();
+
+        try out.objectField("redo_stack");
+        try out.beginArray();
+        for (self.redo_stack.items) |cmd| {
+            try StreamingCommand.stringify(cmd, out);
+        }
+        try out.endArray();
+
+        try out.endObject();
+    }
+
+    /// Serialize command history to JSON (DOM-based fallback)
     pub fn serializeHistory(self: *const UndoRedoSystem, allocator: std.mem.Allocator) !std.json.Value {
         var arena = std.heap.ArenaAllocator.init(allocator);
         defer arena.deinit();
@@ -564,10 +642,10 @@ pub const SceneTransformCommand = struct {
         const description = if (root.get("description")) |d| d.string else "Scene Transform";
         const entity_id = if (root.get("entity_id")) |id| @as(usize, @intCast(id.integer)) else 0;
 
-        if (context == null) return error.SceneReferenceMissing;
-        const scene_ptr: *nyon.Scene = @ptrCast(@alignCast(context.?));
+        const ctx = context orelse return error.MissingContext;
+        const editor_ctx: *const EditorContext = @ptrCast(@alignCast(ctx));
 
-        const command = try SceneTransformCommand.create(allocator, scene_ptr, entity_id, description);
+        const command = try SceneTransformCommand.create(allocator, editor_ctx.scene, entity_id, description);
         errdefer command.deinitImpl(@ptrCast(command), allocator);
 
         // helper to parse Vector3
@@ -596,7 +674,7 @@ pub const SceneTransformCommand = struct {
     }
 
     fn serializeToJson(cmd: *UndoRedoSystem.Command, allocator: std.mem.Allocator) anyerror!std.json.Value {
-        const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd.impl_ptr));
+        const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd));
         var root = std.json.ObjectMap.init(allocator);
 
         try root.put("type", std.json.Value{ .string = "SceneTransformCommand" });
@@ -614,14 +692,43 @@ pub const SceneTransformCommand = struct {
             }
         }.serialize;
 
-        try root.put("old_position", try serializeVec3(allocator, self.old_position));
-        try root.put("old_rotation", try serializeVec3(allocator, self.old_rotation));
-        try root.put("old_scale", try serializeVec3(allocator, self.old_scale));
-        try root.put("new_position", try serializeVec3(allocator, self.new_position));
-        try root.put("new_rotation", try serializeVec3(allocator, self.new_rotation));
-        try root.put("new_scale", try serializeVec3(allocator, self.new_scale));
-
         return std.json.Value{ .object = root };
+    }
+
+    pub fn jsonStringify(cmd: *UndoRedoSystem.Command, options: std.json.StringifyOptions, out: anytype) !void {
+        const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd));
+        _ = options;
+
+        try out.beginObject();
+        try out.objectField("type");
+        try out.write("SceneTransformCommand");
+        try out.objectField("description");
+        try out.write(self.base.description);
+        try out.objectField("entity_id");
+        try out.write(self.entity_id);
+
+        const writeVec3 = struct {
+            fn write(jws: anytype, name: []const u8, v: nyon.Vector3) !void {
+                try jws.objectField(name);
+                try jws.beginObject();
+                try jws.objectField("x");
+                try jws.write(v.x);
+                try jws.objectField("y");
+                try jws.write(v.y);
+                try jws.objectField("z");
+                try jws.write(v.z);
+                try jws.endObject();
+            }
+        }.write;
+
+        try writeVec3(out, "old_position", self.old_position);
+        try writeVec3(out, "old_rotation", self.old_rotation);
+        try writeVec3(out, "old_scale", self.old_scale);
+        try writeVec3(out, "new_position", self.new_position);
+        try writeVec3(out, "new_rotation", self.new_rotation);
+        try writeVec3(out, "new_scale", self.new_scale);
+
+        try out.endObject();
     }
 
     fn executeImpl(cmd: *anyopaque) !void {
@@ -703,13 +810,6 @@ pub const AddObjectCommand = struct {
 
     pub fn createFromJson(allocator: std.mem.Allocator, json_value: std.json.Value, context: ?*anyopaque) !*UndoRedoSystem.Command {
         const ctx = context orelse return error.MissingContext;
-        // In this implementation, context should be a pointer to a struct containing scene and asset_mgr
-        const EditorContext = struct {
-            scene: *nyon.Scene,
-            asset_mgr: *nyon.AssetManager,
-            ecs_world: *nyon.ecs.World,
-            physics_system: *nyon.ecs.PhysicsSystem,
-        };
         const editor_ctx: *const EditorContext = @ptrCast(@alignCast(ctx));
 
         const obj = json_value.object;
@@ -727,20 +827,32 @@ pub const AddObjectCommand = struct {
         return &cmd.base;
     }
 
-    pub fn serialize(cmd: *UndoRedoSystem.Command, allocator: std.mem.Allocator) !std.json.Value {
-        const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
-        var root = std.json.ObjectMap.init(allocator);
-        try root.put("type", std.json.Value{ .string = "AddObjectCommand" });
-        try root.put("description", std.json.Value{ .string = self.base.description });
-        try root.put("model_path", std.json.Value{ .string = self.model_path });
-
-        var pos_obj = std.json.ObjectMap.init(allocator);
-        try pos_obj.put("x", std.json.Value{ .float = self.position.x });
-        try pos_obj.put("y", std.json.Value{ .float = self.position.y });
-        try pos_obj.put("z", std.json.Value{ .float = self.position.z });
-        try root.put("position", std.json.Value{ .object = pos_obj });
-
         return std.json.Value{ .object = root };
+    }
+
+    pub fn jsonStringify(cmd: *UndoRedoSystem.Command, options: std.json.StringifyOptions, out: anytype) !void {
+        const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
+        _ = options;
+
+        try out.beginObject();
+        try out.objectField("type");
+        try out.write("AddObjectCommand");
+        try out.objectField("description");
+        try out.write(self.base.description);
+        try out.objectField("model_path");
+        try out.write(self.model_path);
+
+        try out.objectField("position");
+        try out.beginObject();
+        try out.objectField("x");
+        try out.write(self.position.x);
+        try out.objectField("y");
+        try out.write(self.position.y);
+        try out.objectField("z");
+        try out.write(self.position.z);
+        try out.endObject();
+
+        try out.endObject();
     }
 
     fn executeImpl(cmd: *anyopaque) !void {
@@ -885,12 +997,6 @@ pub const RemoveObjectCommand = struct {
 
     pub fn createFromJson(allocator: std.mem.Allocator, json_value: std.json.Value, context: ?*anyopaque) !*UndoRedoSystem.Command {
         const ctx = context orelse return error.MissingContext;
-        const EditorContext = struct {
-            scene: *nyon.Scene,
-            asset_mgr: *nyon.AssetManager,
-            ecs_world: *nyon.ecs.World,
-            physics_system: *nyon.ecs.PhysicsSystem,
-        };
         const editor_ctx: *const EditorContext = @ptrCast(@alignCast(ctx));
 
         const obj = json_value.object;
@@ -931,21 +1037,34 @@ pub const RemoveObjectCommand = struct {
         return &cmd.base;
     }
 
-    pub fn serialize(cmd: *UndoRedoSystem.Command, allocator: std.mem.Allocator) !std.json.Value {
-        const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
-        var root = std.json.ObjectMap.init(allocator);
-        try root.put("type", std.json.Value{ .string = "RemoveObjectCommand" });
-        try root.put("description", std.json.Value{ .string = self.base.description });
-        try root.put("model_path", std.json.Value{ .string = self.model_path });
-        try root.put("index", std.json.Value{ .integer = @intCast(self.index) });
-
-        var pos_obj = std.json.ObjectMap.init(allocator);
-        try pos_obj.put("x", std.json.Value{ .float = self.position.x });
-        try pos_obj.put("y", std.json.Value{ .float = self.position.y });
-        try pos_obj.put("z", std.json.Value{ .float = self.position.z });
-        try root.put("position", std.json.Value{ .object = pos_obj });
-
         return std.json.Value{ .object = root };
+    }
+
+    pub fn jsonStringify(cmd: *UndoRedoSystem.Command, options: std.json.StringifyOptions, out: anytype) !void {
+        const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
+        _ = options;
+
+        try out.beginObject();
+        try out.objectField("type");
+        try out.write("RemoveObjectCommand");
+        try out.objectField("description");
+        try out.write(self.base.description);
+        try out.objectField("model_path");
+        try out.write(self.model_path);
+        try out.objectField("index");
+        try out.write(self.index);
+
+        try out.objectField("position");
+        try out.beginObject();
+        try out.objectField("x");
+        try out.write(self.position.x);
+        try out.objectField("y");
+        try out.write(self.position.y);
+        try out.objectField("z");
+        try out.write(self.position.z);
+        try out.endObject();
+
+        try out.endObject();
     }
 
     fn executeImpl(cmd: *anyopaque) !void {

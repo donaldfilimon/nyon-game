@@ -9,12 +9,14 @@ pub const PropertyInspector = struct {
     allocator: std.mem.Allocator,
     scroll_offset: f32,
     selected_object: ?ObjectReference,
+    post_processing_system: ?*@import("post_processing.zig").PostProcessingSystem = null,
 
     pub const ObjectReference = union(enum) {
         scene_node: usize, // Index in scene
         geometry_node: usize, // Node ID in geometry system
         material: usize, // Material ID
         light: usize, // Light ID
+        global_settings, // Global editor/engine settings
     };
 
     pub const PropertyValue = union(enum) {
@@ -47,7 +49,8 @@ pub const PropertyInspector = struct {
     }
 
     /// Render the property inspector UI
-    pub fn render(self: *PropertyInspector, rect: raylib.Rectangle) void {
+    pub fn render(self: *PropertyInspector, rect: raylib.Rectangle, post_sys: *@import("post_processing.zig").PostProcessingSystem) void {
+        self.post_processing_system = post_sys;
         // Background
         raylib.drawRectangleRec(rect, raylib.Color{ .r = 35, .g = 35, .b = 45, .a = 255 });
         raylib.drawRectangleLinesEx(rect, 1, raylib.Color{ .r = 80, .g = 80, .b = 100, .a = 255 });
@@ -86,6 +89,9 @@ pub const PropertyInspector = struct {
                 },
                 .light => |light_id| {
                     y_offset = self.renderLightProperties(light_id, content_rect.x, y_offset, content_rect.width);
+                },
+                .global_settings => {
+                    y_offset = self.renderGlobalSettings(content_rect.x, y_offset, content_rect.width);
                 },
             }
         } else {
@@ -174,6 +180,55 @@ pub const PropertyInspector = struct {
         current_y = self.drawVector3Property("Direction", raylib.Vector3{ .x = 0, .y = -1, .z = 0 }, x, current_y, width);
 
         return current_y;
+    }
+
+    fn renderGlobalSettings(self: *PropertyInspector, x: f32, y: f32, width: f32) f32 {
+        var current_y = y;
+
+        // Header
+        current_y = self.drawPropertyHeader("Global Settings", x, current_y, width);
+
+        // Post-Processing
+        current_y = self.drawPropertyHeader("Post-Processing", x, current_y, width);
+
+        if (self.post_processing_system) |ps| {
+            const active_effect = ps.active_effect;
+            const effect_name = @tagName(active_effect);
+
+            if (self.drawEnumProperty("Active Effect", effect_name, x, current_y, width)) {
+                // Cycle effect
+                const current_val = @intFromEnum(active_effect);
+                const next_val = (current_val + 1) % (@typeInfo(@import("post_processing.zig").PostProcessingSystem.EffectType).Enum.fields.len);
+                ps.active_effect = @enumFromInt(@as(u3, @intCast(next_val)));
+            }
+        }
+        current_y += 25;
+
+        return current_y;
+    }
+
+    fn drawEnumProperty(_: *PropertyInspector, name: []const u8, value: []const u8, x: f32, y: f32, width: f32) bool {
+        // Label
+        raylib.drawText(name, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);
+
+        // Value background
+        const value_rect = raylib.Rectangle{
+            .x = x + width - 100,
+            .y = y + 2,
+            .width = 95,
+            .height = 18,
+        };
+
+        const is_hovered = raylib.checkCollisionPointRec(raylib.getMousePosition(), value_rect);
+        const bg_color = if (is_hovered) raylib.Color{ .r = 80, .g = 80, .b = 100, .a = 255 } else raylib.Color{ .r = 60, .g = 60, .b = 80, .a = 255 };
+
+        raylib.drawRectangleRec(value_rect, bg_color);
+        raylib.drawRectangleLinesEx(value_rect, 1, raylib.Color{ .r = 100, .g = 100, .b = 120, .a = 255 });
+
+        // Value text
+        raylib.drawText(value.ptr, @intFromFloat(value_rect.x + 5), @intFromFloat(value_rect.y + 2), 12, raylib.Color.white);
+
+        return is_hovered and raylib.isMouseButtonPressed(.left);
     }
 
     fn drawPropertyHeader(self: *PropertyInspector, title: []const u8, x: f32, y: f32, width: f32) f32 {

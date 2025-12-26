@@ -13,6 +13,9 @@ pub const PostProcessingSystem = struct {
         grayscale,
         inversion,
         sepia,
+        bloom,
+        vignette,
+        chromatic_aberration,
     };
 
     pub fn init(allocator: std.mem.Allocator) !PostProcessingSystem {

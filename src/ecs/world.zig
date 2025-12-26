@@ -15,6 +15,7 @@ pub const World = struct {
     entity_manager: entity.EntityManager,
     archetypes: std.ArrayList(*archetype.Archetype),
     archetype_lookup: std.AutoHashMap(u64, *archetype.Archetype), // layout_hash -> archetype
+    entity_to_archetype: std.AutoHashMap(entity.EntityId, *archetype.Archetype), // entity -> archetype
     next_archetype_id: archetype.ArchetypeId,
 
     /// Initialize a new ECS World
@@ -24,6 +25,7 @@ pub const World = struct {
             .entity_manager = entity.EntityManager.init(allocator),
             .archetypes = try std.ArrayList(*archetype.Archetype).initCapacity(allocator, 0),
             .archetype_lookup = std.AutoHashMap(u64, *archetype.Archetype).init(allocator),
+            .entity_to_archetype = std.AutoHashMap(entity.EntityId, *archetype.Archetype).init(allocator),
             .next_archetype_id = 1,
         };
     }
@@ -38,6 +40,7 @@ pub const World = struct {
         self.archetypes.deinit(self.allocator);
 
         self.archetype_lookup.deinit();
+        self.entity_to_archetype.deinit();
         self.entity_manager.deinit();
     }
 
@@ -53,8 +56,9 @@ pub const World = struct {
         }
 
         // Remove from all archetypes
-        for (self.archetypes.items) |arch| {
+        if (self.entity_to_archetype.get(entity_id)) |arch| {
             _ = arch.removeEntity(entity_id);
+            _ = self.entity_to_archetype.remove(entity_id);
         }
 
         // Mark entity as destroyed
@@ -71,23 +75,27 @@ pub const World = struct {
         const comp_type = archetype.ComponentType.init(T);
 
         // Find current archetype for this entity
-        const current_archetype = self.findArchetypeForEntity(entity_id) orelse {
+        const current_archetype = self.entity_to_archetype.get(entity_id);
+        if (current_archetype == null) {
             // Entity has no components, create new archetype
             const new_archetype = try self.createArchetype(&[_]archetype.ComponentType{comp_type});
             try new_archetype.addEntity(entity_id);
             _ = new_archetype.setComponent(entity_id, value);
+            try self.entity_to_archetype.put(entity_id, new_archetype);
             return;
-        };
+        }
+
+        const current_arch = current_archetype.?;
 
         // Check if archetype already has this component type
-        if (current_archetype.hasComponent(T)) {
+        if (current_arch.hasComponent(T)) {
             // Just set the component value
-            _ = current_archetype.setComponent(entity_id, value);
+            _ = current_arch.setComponent(entity_id, value);
             return;
         }
 
         // Need to move entity to new archetype
-        try self.moveEntityToNewArchetype(entity_id, current_archetype, comp_type, value);
+        try self.moveEntityToNewArchetype(entity_id, current_arch, comp_type, value);
     }
 
     /// Remove a component from an entity
@@ -96,7 +104,7 @@ pub const World = struct {
             return error.EntityNotAlive;
         }
 
-        const current_archetype = self.findArchetypeForEntity(entity_id) orelse {
+        const current_archetype = self.entity_to_archetype.get(entity_id) orelse {
             return error.EntityHasNoComponents;
         };
 
@@ -128,7 +136,7 @@ pub const World = struct {
             return null;
         }
 
-        const arch = self.findArchetypeForEntity(entity_id) orelse return null;
+        const arch = self.entity_to_archetype.get(entity_id) orelse return null;
         return arch.getComponent(entity_id, T);
     }
 
@@ -137,7 +145,7 @@ pub const World = struct {
             return false;
         }
 
-        const arch = self.findArchetypeForEntity(entity_id) orelse return false;
+        const arch = self.entity_to_archetype.get(entity_id) orelse return false;
         return arch.hasComponent(T);
     }
 
@@ -166,15 +174,7 @@ pub const World = struct {
 
     /// Internal: Find the archetype that contains a specific entity
     fn findArchetypeForEntity(self: *World, entity_id: entity.EntityId) ?*archetype.Archetype {
-        for (self.archetypes.items) |arch| {
-            // Check if entity exists in this archetype's entity list
-            for (arch.entities.items) |archetype_entity| {
-                if (archetype_entity.eql(entity_id)) {
-                    return arch;
-                }
-            }
-        }
-        return null;
+        return self.entity_to_archetype.get(entity_id);
     }
 
     /// Internal: Create a new archetype with the given component types
@@ -210,18 +210,8 @@ pub const World = struct {
         src_arch: *archetype.Archetype,
         dst_arch: *archetype.Archetype,
     ) !void {
-        _ = self;
-        // Find index in source
-        var src_index: usize = 0;
-        var found = false;
-        for (src_arch.entities.items, 0..) |e, i| {
-            if (e.eql(entity_id)) {
-                src_index = i;
-                found = true;
-                break;
-            }
-        }
-        if (!found) return error.EntityNotFound;
+        // Find index in source using O(1) lookup
+        const src_index = src_arch.entity_to_index.get(entity_id) orelse return error.EntityNotFound;
 
         // Add to dest
         try dst_arch.addEntity(entity_id);
@@ -245,6 +235,9 @@ pub const World = struct {
 
         // Remove from source
         _ = src_arch.removeEntity(entity_id);
+
+        // Update mapping
+        try self.entity_to_archetype.put(entity_id, dst_arch);
     }
 
     /// Internal: Move entity to a new archetype when component composition changes

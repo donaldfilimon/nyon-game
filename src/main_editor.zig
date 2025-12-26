@@ -11,20 +11,16 @@ const raylib = @import("raylib");
 const animation = @import("animation.zig");
 const asset = @import("asset.zig");
 const docking = @import("docking.zig");
-const editor_tabs = @import("editor_tabs.zig");
 const engine = @import("engine.zig");
 const geometry_nodes = @import("geometry_nodes.zig");
-const gizmo_system = @import("gizmo_system.zig");
 const keyframe = @import("keyframe.zig");
 const material = @import("material.zig");
-const nodes = @import("nodes/node_graph.zig");
 const performance = @import("performance.zig");
 const post_processing = @import("post_processing.zig");
 const property_inspector = @import("property_inspector.zig");
 const rendering = @import("rendering.zig");
 const scene = @import("scene.zig");
 const tool_system = @import("tool_system.zig");
-const ui_context = @import("ui_context.zig");
 const undo_redo = @import("undo_redo.zig");
 const material_nodes = @import("material_nodes.zig");
 const audio = @import("game/audio_system.zig");
@@ -134,6 +130,9 @@ pub const MainEditor = struct {
         post_sys.loadEffect(.grayscale, "src/shaders/grayscale.glsl") catch {};
         post_sys.loadEffect(.inversion, "src/shaders/inversion.glsl") catch {};
         post_sys.loadEffect(.sepia, "src/shaders/sepia.glsl") catch {};
+        post_sys.loadEffect(.bloom, "src/shaders/bloom.glsl") catch {};
+        post_sys.loadEffect(.vignette, "src/shaders/vignette.glsl") catch {};
+        post_sys.loadEffect(.chromatic_aberration, "src/shaders/chromatic_aberration.glsl") catch {};
 
         // Create viewport render texture
         const viewport_tex = try raylib.loadRenderTexture(@intCast(@as(i32, @intFromFloat(screen_width))), @intCast(@as(i32, @intFromFloat(screen_height))));
@@ -249,33 +248,7 @@ pub const MainEditor = struct {
     pub fn update(self: *MainEditor, dt: f32) !void {
         try self.physics_system.update(&self.world, dt);
 
-        // Sync ECS transforms back to legacy scene system
-        {
-            var query = self.world.createQuery();
-            defer query.deinit();
-            var sync_q = query.with(ecs.Transform).build() catch null;
-            if (sync_q) |*q| {
-                defer q.deinit();
-                q.updateMatches(self.world.archetypes.items);
-                var iter = q.iter();
-                while (iter.next()) |data| {
-                    const transform = data.get(ecs.Transform).?;
-                    // Find matching object in scene (very simplified search)
-                    for (0..self.scene_system.modelCount()) |i| {
-                        if (self.scene_system.getModelInfo(i)) |info| {
-                            // If they are at the same spot, we assume they are the same object
-                            if (std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.05) and
-                                std.math.approxEqAbs(f32, info.position.y, transform.position.y, 0.05) and
-                                std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.05))
-                            {
-                                self.scene_system.setPosition(i, raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z });
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        self.syncECSToScene();
 
         self.audio_system.update(&self.world, dt);
         self.performance_system.updateCameras(dt);
@@ -321,9 +294,9 @@ pub const MainEditor = struct {
         self.docking_system.render();
 
         // Render property inspector only if an object is selected and the inspect panel exists.
-        if (self.property_inspector.selected_object) |_| {
+        if (self.property_inspector.selected_object != null) {
             if (self.docking_system.getPanel(0)) |p| {
-                self.property_inspector.render(p.rect);
+                self.property_inspector.render(p.rect, &self.post_processing_system);
             }
         }
 
@@ -768,7 +741,7 @@ pub const MainEditor = struct {
                     self.property_inspector.setSelectedObject(.{ .scene_node = hit.model_index });
                 } else {
                     self.selected_scene_object = null;
-                    self.property_inspector.setSelectedObject(null);
+                    self.property_inspector.setSelectedObject(.global_settings);
                 }
             }
         }
@@ -789,33 +762,7 @@ pub const MainEditor = struct {
             }
         }
 
-        // --- Physics Debug Drawing ---
-        var query = self.world.createQuery();
-        defer query.deinit();
-        var collider_query = query.with(ecs.Transform).with(ecs.Collider).build() catch null;
-        if (collider_query) |*q| {
-            defer q.deinit();
-            q.updateMatches(self.world.archetypes.items);
-            var iter = q.iter();
-            while (iter.next()) |data| {
-                const transform = data.get(ecs.Transform).?;
-                const collider = data.get(ecs.Collider).?;
-                const pos = raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z };
-
-                switch (collider.*) {
-                    .box_collider => |box| {
-                        raylib.drawCubeWires(pos, box.half_extents[0] * 2, box.half_extents[1] * 2, box.half_extents[2] * 2, raylib.Color.green);
-                    },
-                    .sphere_collider => |sphere| {
-                        raylib.drawSphereWires(pos, sphere.radius, 16, 16, raylib.Color.green);
-                    },
-                    .capsule_collider => |capsule| {
-                        raylib.drawCapsuleWires(pos, .{ .x = pos.x, .y = pos.y + capsule.height, .z = pos.z }, capsule.radius, 16, 16, raylib.Color.green);
-                    },
-                    else => {},
-                }
-            }
-        }
+        self.renderDebugColliders();
         // -----------------------------
         self.rendering_system.endRendering();
         raylib.endTextureMode();
@@ -1363,5 +1310,55 @@ pub const MaterialNodeEditor = struct {
         }
 
         raylib.drawText("Material Node Editor", 20, 20, 20, raylib.Color.gray);
+    }
+
+    fn syncECSToScene(self: *MainEditor) void {
+        var query = self.world.createQuery();
+        defer query.deinit();
+        var sync_q = query.with(ecs.Transform).build() catch return;
+        defer sync_q.deinit();
+        sync_q.updateMatches(self.world.archetypes.items);
+        var iter = sync_q.iter();
+        while (iter.next()) |data| {
+            const transform = data.get(ecs.Transform).?;
+            for (0..self.scene_system.modelCount()) |i| {
+                if (self.scene_system.getModelInfo(i)) |info| {
+                    if (std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.05) and
+                        std.math.approxEqAbs(f32, info.position.y, transform.position.y, 0.05) and
+                        std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.05))
+                    {
+                        self.scene_system.setPosition(i, raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z });
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    fn renderDebugColliders(self: *MainEditor) void {
+        var query = self.world.createQuery();
+        defer query.deinit();
+        var collider_query = query.with(ecs.Transform).with(ecs.Collider).build() catch return;
+        defer collider_query.deinit();
+        collider_query.updateMatches(self.world.archetypes.items);
+        var iter = collider_query.iter();
+        while (iter.next()) |data| {
+            const transform = data.get(ecs.Transform).?;
+            const collider = data.get(ecs.Collider).?;
+            const pos = raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z };
+
+            switch (collider.*) {
+                .box_collider => |box| {
+                    raylib.drawCubeWires(pos, box.half_extents[0] * 2, box.half_extents[1] * 2, box.half_extents[2] * 2, raylib.Color.green);
+                },
+                .sphere_collider => |sphere| {
+                    raylib.drawSphereWires(pos, sphere.radius, 16, 16, raylib.Color.green);
+                },
+                .capsule_collider => |capsule| {
+                    raylib.drawCapsuleWires(pos, .{ .x = pos.x, .y = pos.y + capsule.height, .z = pos.z }, capsule.radius, 16, 16, raylib.Color.green);
+                },
+                else => {},
+            }
+        }
     }
 };
