@@ -39,26 +39,34 @@ pub fn loadProject(path: []const u8, a: std.mem.Allocator) !Project {
     defer file.close();
     const buf = try file.reader().readAllAlloc(a, 1 << 20);
     defer a.free(buf);
-    // Very simple zon parser – we expect the exact format produced by save.
-    // For a robust implementation, consider using std.json or a proper zon
-    // parser. Here we perform basic string manipulation.
-    const name = std.mem.trimLeft(u8, std.mem.trimRight(u8, std.mem.sliceTo(buf, '\n'), "{}"), "{} ") catch return error.InvalidFormat;
-    // Very naive parsing; for demo purposes.
-    var proj: Project = .{ .name = "unknown", .root = "", .version = "0.1.0" };
-    // Attempt to parse by scanning for key = value pairs.
-    const kvs = std.mem.tokenize(u8, buf, ",");
+    // The earlier `name` variable declaration was removed; no further
+    // processing is needed for that placeholder.
+
+    var proj: Project = .{
+        .name = "unknown",
+        .root = "",
+        .version = "0.1.0",
+    };
+
+    const kvs = std.mem.tokenize(u8, buf, ',');
     var it = kvs.first();
     while (it) |kv| {
-        const parts = std.mem.split(u8, kv, "=");
+        const parts = std.mem.split(u8, kv, '=');
         const key = std.mem.trim(u8, parts.first(), " ");
         const valraw = parts.rest() orelse "";
         const val = std.mem.trim(u8, valraw, " \n{}\'\"");
-        if (std.mem.eql(u8, key, "name")) {
-            proj.name = try a.dupe(u8, val);
-        } else if (std.mem.eql(u8, key, "root")) {
-            proj.root = try a.dupe(u8, val);
-        } else if (std.mem.eql(u8, key, "version")) {
-            proj.version = try a.dupe(u8, val);
+        try {
+            if (std.mem.eql(u8, key, "name")) {
+                proj.name = try a.dupe(u8, val);
+            } else if (std.mem.eql(u8, key, "root")) {
+                proj.root = try a.dupe(u8, val);
+            } else if (std.mem.eql(u8, key, "version")) {
+                proj.version = try a.dupe(u8, val);
+            }
+        } catch {
+            // If any duplication or other operation fails, treat it as a
+            // parsing error.
+            return error.InvalidFormat;
         }
         it = kvs.next();
     }

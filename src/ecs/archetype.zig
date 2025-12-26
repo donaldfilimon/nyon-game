@@ -105,11 +105,7 @@ pub const Archetype = struct {
             const component_offset = comp_type.size * (self.entity_count - 1);
 
             // Zero initialize (most components have reasonable zero defaults)
-            // Use a loop since @memset requires comptime size
-            var j: usize = 0;
-            while (j < comp_type.size) : (j += 1) {
-                column[component_offset + j] = 0;
-            }
+            @memset(column[component_offset .. component_offset + comp_type.size], 0);
         }
     }
 

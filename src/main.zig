@@ -26,82 +26,41 @@ const worlds_mod = @import("game/worlds.zig");
 const FontManager = @import("font_manager.zig").FontManager;
 
 // Import game state module
-const game_state = @import("game/state.zig");
+const game_state_mod = @import("game/state.zig");
 
 // ============================================================================
-// Game Constants (keeping local copies for now during refactoring)
+// Game Constants
 // ============================================================================
 
-const WINDOW_WIDTH: u32 = 800;
-const WINDOW_HEIGHT: u32 = 600;
-const WINDOW_TITLE = "Nyon Game - Collect Items!";
-const TARGET_FPS: u32 = 60;
+const WINDOW_WIDTH = game_state_mod.WINDOW_WIDTH;
+const WINDOW_HEIGHT = game_state_mod.WINDOW_HEIGHT;
+const WINDOW_TITLE = game_state_mod.WINDOW_TITLE;
+const TARGET_FPS = game_state_mod.TARGET_FPS;
 
 // Game constants
-const PLAYER_START_X: f32 = 400.0;
-const PLAYER_START_Y: f32 = 300.0;
-const PLAYER_SPEED: f32 = 200.0;
-const PLAYER_SIZE: f32 = 30.0;
-const ITEM_SIZE: f32 = 15.0;
-const ITEM_COLLECTION_RADIUS: f32 = PLAYER_SIZE + ITEM_SIZE;
-const ITEM_SCORE_VALUE: u32 = 10;
-const DEFAULT_ITEM_COUNT: usize = 5;
-const INITIAL_ITEM_POSITIONS: [DEFAULT_ITEM_COUNT][2]f32 = .{
-    .{ 100, 100 },
-    .{ 200, 150 },
-    .{ 300, 200 },
-    .{ 500, 250 },
-    .{ 700, 400 },
-};
+const PLAYER_START_X = game_state_mod.PLAYER_START_X;
+const PLAYER_START_Y = game_state_mod.PLAYER_START_Y;
+const PLAYER_SPEED = game_state_mod.PLAYER_SPEED;
+const PLAYER_SIZE = game_state_mod.PLAYER_SIZE;
+const ITEM_SIZE = game_state_mod.ITEM_SIZE;
+const ITEM_COLLECTION_RADIUS = game_state_mod.ITEM_COLLECTION_RADIUS;
+const ITEM_SCORE_VALUE = game_state_mod.ITEM_SCORE_VALUE;
+const DEFAULT_ITEM_COUNT = game_state_mod.DEFAULT_ITEM_COUNT;
+const INITIAL_ITEM_POSITIONS = game_state_mod.INITIAL_ITEM_POSITIONS;
 
 // Animation constants
-const ITEM_PULSE_SPEED: f32 = 3.0;
-const ITEM_PULSE_AMPLITUDE: f32 = 0.2;
+const ITEM_PULSE_SPEED = game_state_mod.ITEM_PULSE_SPEED;
+const ITEM_PULSE_AMPLITUDE = game_state_mod.ITEM_PULSE_AMPLITUDE;
 
 // ============================================================================
 // Game State Structures (keeping local copies for now during refactoring)
 // ============================================================================
 
-const CollectibleItem = struct {
-    x: f32,
-    y: f32,
-    collected: bool,
-};
-
-const GameState = struct {
-    player_x: f32 = PLAYER_START_X,
-    player_y: f32 = PLAYER_START_Y,
-    player_speed: f32 = PLAYER_SPEED,
-    player_size: f32 = PLAYER_SIZE,
-
-    items: [5]CollectibleItem = .{
-        .{ .x = 100, .y = 100, .collected = false },
-        .{ .x = 200, .y = 150, .collected = false },
-        .{ .x = 300, .y = 200, .collected = false },
-        .{ .x = 500, .y = 250, .collected = false },
-        .{ .x = 700, .y = 400, .collected = false },
-    },
-
-    score: u32 = 0,
-    remaining_items: usize = DEFAULT_ITEM_COUNT,
-    best_score: u32 = 0,
-    best_time: ?f32 = null,
-    has_won: bool = false,
-    game_time: f32 = 0.0,
-    file_info: FileDetail = FileDetail{},
-};
-
-const WorldSession = struct {
-    allocator: std.mem.Allocator,
-    folder: []u8,
-    name: []u8,
-
-    pub fn deinit(self: *WorldSession) void {
-        self.allocator.free(self.folder);
-        self.allocator.free(self.name);
-        self.* = undefined;
-    }
-};
+const CollectibleItem = game_state_mod.CollectibleItem;
+const GameState = game_state_mod.GameState;
+const WorldSession = game_state_mod.WorldSession;
+const clearWorldSession = game_state_mod.clearWorldSession;
+const setWorldSession = game_state_mod.setWorldSession;
 
 // Grid constants
 const GRID_SIZE: f32 = 50.0;
@@ -268,26 +227,8 @@ fn defaultUiScaleFromDpi() f32 {
     return avg;
 }
 
-fn resetGameState(game_state: *GameState) void {
-    var idx: usize = 0;
-    for (game_state.items[0..]) |*item| {
-        const pos = game_state.INITIAL_ITEM_POSITIONS[idx];
-        item.* = CollectibleItem{ .x = pos[0], .y = pos[1], .collected = false };
-        idx += 1;
-    }
-    game_state.remaining_items = game_state.DEFAULT_ITEM_COUNT;
-    game_state.score = 0;
-    game_state.game_time = 0.0;
-    game_state.player_x = game_state.PLAYER_START_X;
-    game_state.player_y = game_state.PLAYER_START_Y;
-    game_state.has_won = false;
-    game_state.file_info.clear();
-}
-
-fn updateFileInfo(game_state: *GameState, path: []const u8) !void {
-    const meta = try file_metadata.get(path);
-    game_state.file_info.set(path, meta.size, meta.modified_ns);
-}
+const resetGameState = game_state_mod.resetGameState;
+const updateFileInfo = game_state_mod.updateFileInfo;
 
 fn loadFileMetadata(game_state: *GameState, status_message: *StatusMessage, path: []const u8) !void {
     try updateFileInfo(game_state, path);
@@ -1032,7 +973,11 @@ fn drawServerBrowser(menu: *MenuState, ui_style: ui_mod.UiStyle, status_message:
     var selected: ?usize = null;
     for (servers, 0..) |server, i| {
         const y = list_y + @as(f32, @floatFromInt(i)) * (row_h + 10.0);
-        const id = std.hash.Wyhash.hash(0, std.fmt.allocPrint(menu.allocator, "server_{d}", .{i}) catch "server");
+
+        var id_buf: [32]u8 = undefined;
+        const id_str = std.fmt.bufPrint(&id_buf, "server_{d}", .{i}) catch "server";
+        const id = std.hash.Wyhash.hash(0, id_str);
+
         // Convert server name to null-terminated string for button label
         var server_buf: [128:0]u8 = undefined;
         const server_label = std.fmt.bufPrintZ(&server_buf, "{s}", .{server}) catch "Server";

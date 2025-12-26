@@ -115,51 +115,11 @@ pub const World = struct {
             }
         }
 
-        // Find entity index before removing
-        var entity_index: usize = 0;
-        var found = false;
-        for (current_archetype.entities.items, 0..) |arch_entity, i| {
-            if (arch_entity.eql(entity_id)) {
-                entity_index = i;
-                found = true;
-                break;
-            }
-        }
-        if (!found) return error.EntityNotFound;
-
-        // Copy component data before removing entity (excluding the component being removed)
-        var rot_data: ?component.Rotation = null;
-        var scale_data: ?component.Scale = null;
-        var renderable_data: ?component.Renderable = null;
-
-        for (current_archetype.component_types.items) |comp_type| {
-            if (std.mem.eql(u8, comp_type.name, @typeName(component.Rotation))) {
-                if (current_archetype.getComponentAtIndex(component.Rotation, entity_index)) |comp| {
-                    rot_data = comp.*;
-                }
-            } else if (std.mem.eql(u8, comp_type.name, @typeName(component.Scale))) {
-                if (current_archetype.getComponentAtIndex(component.Scale, entity_index)) |comp| {
-                    scale_data = comp.*;
-                }
-            } else if (std.mem.eql(u8, comp_type.name, @typeName(component.Renderable))) {
-                if (current_archetype.getComponentAtIndex(component.Renderable, entity_index)) |comp| {
-                    renderable_data = comp.*;
-                }
-            }
-            // Position component is being removed, so don't copy it
-        }
-
-        // Remove entity from old archetype
-        _ = current_archetype.removeEntity(entity_id);
-
-        // Create new archetype and add entity
+        // Create new archetype
         const new_archetype = try self.createArchetype(new_comp_types.items);
-        try new_archetype.addEntity(entity_id);
 
-        // Set copied component data (excluding the removed component)
-        if (rot_data) |data| _ = new_archetype.setComponent(entity_id, data);
-        if (scale_data) |data| _ = new_archetype.setComponent(entity_id, data);
-        if (renderable_data) |data| _ = new_archetype.setComponent(entity_id, data);
+        // Move entity and data
+        try self.moveEntityData(entity_id, current_archetype, new_archetype);
     }
 
     /// Get a component from an entity
@@ -243,6 +203,50 @@ pub const World = struct {
         return arch;
     }
 
+    /// Internal: Move entity data between archetypes (generic)
+    fn moveEntityData(
+        self: *World,
+        entity_id: entity.EntityId,
+        src_arch: *archetype.Archetype,
+        dst_arch: *archetype.Archetype,
+    ) !void {
+        _ = self;
+        // Find index in source
+        var src_index: usize = 0;
+        var found = false;
+        for (src_arch.entities.items, 0..) |e, i| {
+            if (e.eql(entity_id)) {
+                src_index = i;
+                found = true;
+                break;
+            }
+        }
+        if (!found) return error.EntityNotFound;
+
+        // Add to dest
+        try dst_arch.addEntity(entity_id);
+        const dst_index = dst_arch.entity_count - 1;
+
+        // Copy shared components
+        for (src_arch.component_types.items, 0..) |src_type, src_col_idx| {
+            for (dst_arch.component_types.items, 0..) |dst_type, dst_col_idx| {
+                if (src_type.type_id == dst_type.type_id) {
+                    const src_col = src_arch.component_columns.items[src_col_idx];
+                    const dst_col = dst_arch.component_columns.items[dst_col_idx];
+
+                    const src_offset = src_type.size * src_index;
+                    const dst_offset = dst_type.size * dst_index;
+
+                    @memcpy(dst_col[dst_offset .. dst_offset + src_type.size], src_col[src_offset .. src_offset + src_type.size]);
+                    break;
+                }
+            }
+        }
+
+        // Remove from source
+        _ = src_arch.removeEntity(entity_id);
+    }
+
     /// Internal: Move entity to a new archetype when component composition changes
     fn moveEntityToNewArchetype(
         self: *World,
@@ -265,94 +269,17 @@ pub const World = struct {
         // Add new component type
         new_comp_types.append(self.allocator, new_comp_type) catch return error.OutOfMemory;
 
-        // Find entity index before removing
-        var entity_index: usize = 0;
-        var found = false;
-        for (current_archetype.entities.items, 0..) |arch_entity, i| {
-            if (arch_entity.eql(entity_id)) {
-                entity_index = i;
-                found = true;
-                break;
-            }
-        }
-        if (!found) return error.EntityNotFound;
-
-        // Copy component data before removing entity
-        var pos_data: ?component.Position = null;
-        var rot_data: ?component.Rotation = null;
-        var scale_data: ?component.Scale = null;
-        var renderable_data: ?component.Renderable = null;
-
-        for (current_archetype.component_types.items) |comp_type| {
-            if (std.mem.eql(u8, comp_type.name, @typeName(component.Position))) {
-                if (current_archetype.getComponentAtIndex(component.Position, entity_index)) |comp| {
-                    pos_data = comp.*;
-                }
-            } else if (std.mem.eql(u8, comp_type.name, @typeName(component.Rotation))) {
-                if (current_archetype.getComponentAtIndex(component.Rotation, entity_index)) |comp| {
-                    rot_data = comp.*;
-                }
-            } else if (std.mem.eql(u8, comp_type.name, @typeName(component.Scale))) {
-                if (current_archetype.getComponentAtIndex(component.Scale, entity_index)) |comp| {
-                    scale_data = comp.*;
-                }
-            } else if (std.mem.eql(u8, comp_type.name, @typeName(component.Renderable))) {
-                if (current_archetype.getComponentAtIndex(component.Renderable, entity_index)) |comp| {
-                    renderable_data = comp.*;
-                }
-            }
-        }
-
-        // Remove entity from old archetype
-        _ = current_archetype.removeEntity(entity_id);
-
-        // Create new archetype and add entity
+        // Create new archetype
         const new_archetype = try self.createArchetype(new_comp_types.items);
-        try new_archetype.addEntity(entity_id);
 
-        // Set copied component data
-        if (pos_data) |data| _ = new_archetype.setComponent(entity_id, data);
-        if (rot_data) |data| _ = new_archetype.setComponent(entity_id, data);
-        if (scale_data) |data| _ = new_archetype.setComponent(entity_id, data);
-        if (renderable_data) |data| _ = new_archetype.setComponent(entity_id, data);
+        // Move entity and data
+        try self.moveEntityData(entity_id, current_archetype, new_archetype);
 
         // Set new component value
         _ = new_archetype.setComponent(entity_id, new_comp_value);
     }
 
-    /// Internal: Move entity to new archetype without adding a new component
-    fn moveEntityToNewArchetypeNoValue(
-        self: *World,
-        entity_id: entity.EntityId,
-        current_archetype: *archetype.Archetype,
-        new_comp_types: []const archetype.ComponentType,
-    ) !void {
-        const new_archetype = try self.createArchetype(new_comp_types);
-
-        // Copy existing component data
-        const entity_index = current_archetype.removeEntity(entity_id) orelse return error.EntityNotFound;
-
-        try new_archetype.addEntity(entity_id);
-
-        // Copy matching component values
-        inline for (new_comp_types) |comp_type| {
-            // Use comptime to check component types
-            if (comptime std.mem.eql(u8, comp_type.name, @typeName(component.Position))) {
-                if (current_archetype.getComponentAtIndex(component.Position, entity_index)) |comp| {
-                    _ = new_archetype.setComponent(entity_id, comp.*);
-                }
-            } else if (comptime std.mem.eql(u8, comp_type.name, @typeName(component.Rotation))) {
-                if (current_archetype.getComponentAtIndex(component.Rotation, entity_index)) |comp| {
-                    _ = new_archetype.setComponent(entity_id, comp.*);
-                }
-            } else if (comptime std.mem.eql(u8, comp_type.name, @typeName(component.Scale))) {
-                if (current_archetype.getComponentAtIndex(component.Scale, entity_index)) |comp| {
-                    _ = new_archetype.setComponent(entity_id, comp.*);
-                }
-            }
-            // Add cases for other component types as needed
-        }
-    }
+    // (End of struct World)
 };
 
 // ============================================================================

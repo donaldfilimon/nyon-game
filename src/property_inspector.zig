@@ -101,22 +101,20 @@ pub const PropertyInspector = struct {
         }
     }
 
-    fn renderSceneNodeProperties(self: *PropertyInspector, node_id: usize, x: f32, y: f32, width: f32) f32 {
-        _ = self; // unused
-        _ = node_id; // unused for now
+    pub fn renderSceneNodeProperties(self: *PropertyInspector, node_id: usize, x: f32, y: f32, width: f32) f32 {
         var current_y = y;
 
         // Header
         current_y = self.drawPropertyHeader("Scene Node", x, current_y, width);
 
         // Position
-        current_y = self.drawVector3Property("Position", raylib.Vector3{ .x = 0, .y = 0, .z = 0 }, x, current_y, width);
+        current_y = self.drawVector3Property("Position", .{ .x = 0, .y = 0, .z = 0 }, x, current_y, width);
 
         // Rotation
-        current_y = self.drawVector3Property("Rotation", raylib.Vector3{ .x = 0, .y = 0, .z = 0 }, x, current_y, width);
+        current_y = self.drawVector3Property("Rotation", .{ .x = 0, .y = 0, .z = 0 }, x, current_y, width);
 
         // Scale
-        current_y = self.drawVector3Property("Scale", raylib.Vector3{ .x = 1, .y = 1, .z = 1 }, x, current_y, width);
+        current_y = self.drawVector3Property("Scale", .{ .x = 1, .y = 1, .z = 1 }, x, current_y, width);
 
         // Material
         current_y = self.drawPropertyHeader("Material", x, current_y, width);
@@ -194,7 +192,7 @@ pub const PropertyInspector = struct {
         return y + 30;
     }
 
-    fn drawFloatProperty(_: *PropertyInspector, name: []const u8, value: f32, x: f32, y: f32, width: f32) f32 {
+    fn drawFloatProperty(_: *PropertyInspector, name: []const u8, x: f32, y: f32, width: f32) f32 {
 
         // Label
         raylib.drawText(name, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);

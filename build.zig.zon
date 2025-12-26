@@ -1,16 +1,16 @@
 .{
     .name = .nyon_game,
-    .version = "0.0.0",
+    .version = "0.1.0",
     .fingerprint = 0x369b208f67ab89e1,
     .paths = .{""},
     .dependencies = .{
         .raylib_zig = .{
-            .url = "https://github.com/raylib-zig/raylib-zig/archive/a4d18b2d1cf8fdddec68b5b084535fca0475f466.zip",
-            .hash = "12201fde9e3deede765f0f4fee88e77489153963d79cb88b2f0d8f3518bf801c23dc",
+            .url = "https://github.com/raylib-zig/raylib-zig/archive/master.tar.gz",
+            .hash = "raylib_zig-5.6.0-dev-KE8REL5MBQAf3p497t52Xw9P7ojndIkVOWPXnLiLLw2P",
         },
         .zglfw = .{
-            .url = "https://github.com/zig-gamedev/zglfw/archive/15bf6ec59a4e1399d0c753455f69b28f09e41791.zip",
-            .hash = "1220f2fdf49dc18e54e33e36ac752e2a0b7b4fd7feaa6437167b8b263ea1a49a71a1",
+            .url = "https://github.com/zig-gamedev/zglfw/archive/main.tar.gz",
+            .hash = "zglfw-0.10.0-dev-zgVDNHO2IQDy_fSdwY5U4z42rHUuKgt7T9f-qmQ3FnuL",
         },
     },
 }

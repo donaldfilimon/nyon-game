@@ -25,7 +25,7 @@ pub fn main() !void {
     defer ecs_world.deinit();
 
     // Initialize Physics System
-    var physics_config = nyon.ecs.PhysicsSystem.Config{
+    const physics_config = nyon.ecs.PhysicsSystem.Config{
         .gravity = .{ .x = 0, .y = -9.81, .z = 0 },
         .max_substeps = 10,
         .fixed_timestep = 1.0 / 120.0, // Higher precision for physics
@@ -120,7 +120,6 @@ pub fn main() !void {
 
 /// Render all entities in the scene
 fn renderScene(ecs_world: *const nyon.ecs.World) void {
-    // Create query for renderable entities
     var query = ecs_world.createQuery();
     defer query.deinit();
 
@@ -146,7 +145,7 @@ fn renderScene(ecs_world: *const nyon.ecs.World) void {
         const size = 20;
 
         // Color based on entity type (simplified detection)
-        var color = nyon.Color.blue; // Default
+        var color: nyon.Color = nyon.Color.blue; // Default
         if (position.y < -3) {
             color = nyon.Color.green; // Ground
         } else if (position.y > 5) {

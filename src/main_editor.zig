@@ -5,30 +5,31 @@
 //!
 
 const std = @import("std");
+
 const raylib = @import("raylib");
+
+const animation = @import("animation.zig");
+const asset = @import("asset.zig");
+const docking = @import("docking.zig");
+const editor_tabs = @import("editor_tabs.zig");
+const engine = @import("engine.zig");
+const geometry_nodes = @import("geometry_nodes.zig");
+const gizmo_system = @import("gizmo_system.zig");
+const keyframe = @import("keyframe.zig");
+const material = @import("material.zig");
+const nodes = @import("nodes/node_graph.zig");
+const performance = @import("performance.zig");
+const post_processing = @import("post_processing.zig");
+const property_inspector = @import("property_inspector.zig");
+const rendering = @import("rendering.zig");
+const scene = @import("scene.zig");
+const tool_system = @import("tool_system.zig");
+const ui_context = @import("ui_context.zig");
+const undo_redo = @import("undo_redo.zig");
 
 // ============================================================================
 // Imports and Dependencies
 // ============================================================================
-
-const engine = @import("engine.zig");
-const scene = @import("scene.zig");
-const material = @import("material.zig");
-const rendering = @import("rendering.zig");
-const animation = @import("animation.zig");
-const keyframe = @import("keyframe.zig");
-const asset = @import("asset.zig");
-const undo_redo = @import("undo_redo.zig");
-const performance = @import("performance.zig");
-const nodes = @import("nodes/node_graph.zig");
-const geometry_nodes = @import("geometry_nodes.zig");
-const docking = @import("docking.zig");
-const property_inspector = @import("property_inspector.zig");
-const post_processing = @import("post_processing.zig");
-const editor_tabs = @import("editor_tabs.zig");
-const ui_context = @import("ui_context.zig");
-const gizmo_system = @import("gizmo_system.zig");
-const tool_system = @import("tool_system.zig");
 
 // ============================================================================
 // Main Editor System
@@ -325,7 +326,6 @@ pub const MainEditor = struct {
 
     /// Utility for contextual toolbar button drawing and click detection.
     fn renderToolbarButton(
-        self: *MainEditor,
         text: []const u8,
         x: f32,
         y: f32,
@@ -662,7 +662,7 @@ pub const MainEditor = struct {
             if (self.scene_system.getModelInfo(obj_id)) |info| {
                 var transform_changed = false;
                 var new_pos = info.position;
-                var new_rot = info.rotation;
+                const new_rot = info.rotation;
                 const new_scale = info.scale;
                 if (raylib.isKeyDown(.w)) {
                     new_pos.z -= 0.1;
@@ -943,6 +943,7 @@ pub const MainEditor = struct {
 
     /// Quick grid lines for 3D views.
     fn drawGrid(self: *MainEditor) void {
+        _ = self; // autofix
         const half_size = 10;
         var i: i32 = -half_size;
         while (i <= half_size) : (i += 1) {
@@ -991,7 +992,7 @@ pub const MaterialNodeEditor = struct {
         _ = self;
     }
 
-    pub fn render(self: *MaterialNodeEditor, width: f32, height: f32) void {
+    pub fn render(width: f32, height: f32) void {
         raylib.drawRectangle(0, 0, @intFromFloat(width), @intFromFloat(height), raylib.Color{ .r = 30, .g = 30, .b = 40, .a = 255 });
         raylib.drawText("Material Node Editor", @intFromFloat(width / 2 - 100), @intFromFloat(height / 2 - 10), 20, raylib.Color.gray);
         raylib.drawText("(Under Development)", @intFromFloat(width / 2 - 80), @intFromFloat(height / 2 + 15), 16, raylib.Color.gray);

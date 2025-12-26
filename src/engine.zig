@@ -330,12 +330,15 @@ pub const Engine = struct {
     /// provides a complete, high-level API for graphics, audio, and input.
     fn initRaylibBackend(engine: *Engine, config: Config) EngineError!void {
         // Configure raylib flags
-        const flags = raylib.ConfigFlags{
-            .fullscreen_mode = config.fullscreen,
-            .window_resizable = config.resizable,
-            .vsync_hint = config.vsync,
-            .msaa_4x_hint = config.samples > 0,
-        };
+        // We use the raw u32 value for flags as raylib-zig ConfigFlags is an enum(c_int)
+        // and we need to combine them.
+        var flags: u32 = 0;
+
+        // Note: Using intFromEnum to get values from standard raylib-zig enum
+        if (config.fullscreen) flags |= @intCast(@intFromEnum(raylib.ConfigFlags.FLAG_FULLSCREEN_MODE));
+        if (config.resizable) flags |= @intCast(@intFromEnum(raylib.ConfigFlags.FLAG_WINDOW_RESIZABLE));
+        if (config.vsync) flags |= @intCast(@intFromEnum(raylib.ConfigFlags.FLAG_VSYNC_HINT));
+        if (config.samples > 0) flags |= @intCast(@intFromEnum(raylib.ConfigFlags.FLAG_MSAA_4X_HINT));
 
         raylib.setConfigFlags(flags);
         raylib.initWindow(@intCast(config.width), @intCast(config.height), config.title);
