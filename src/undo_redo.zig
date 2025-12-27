@@ -195,15 +195,6 @@ pub const UndoRedoSystem = struct {
                 for (cmds_val.array.items) |cmd_val| {
                     if (cmd_val.object.get("type")) |type_val| {
                         const type_name = type_val.string;
-                        // This requires access to the system's registry, but we only have context.
-                        // Assuming the context also provides a way to find command types or the system itself.
-                        // For generic recursion, we might need to pass the UndoRedoSystem in the context or
-                        // have a global/shared registry.
-                        // Given the current structure, let's assume the context *is* a scene,
-                        // but maybe we should pass a struct containing both scene and system.
-                        // Actually, if we use a helper on the system, it's easier.
-                        // But createFn is static. Let's assume for now it can find SceneTransformCommand at least.
-
                         if (std.mem.eql(u8, type_name, "SceneTransformCommand")) {
                             const cmd = try SceneTransformCommand.getCommandType().createFn(allocator, cmd_val, context);
                             try compound.addCommand(cmd);
@@ -227,14 +218,10 @@ pub const UndoRedoSystem = struct {
 
             var cmds_array = std.json.Array.init(allocator);
             for (compound.commands.items) |child_cmd| {
-                if (child_cmd.getTypeName().len > 0) {
-                    // Note: Ideally we'd look this up in the system's registry,
-                    // but we'll use a simplified approach for now.
-                    if (std.mem.eql(u8, child_cmd.getTypeName(), "SceneTransformCommand")) {
-                        try cmds_array.append(try SceneTransformCommand.getCommandType().serializeFn(child_cmd, allocator));
-                    } else if (std.mem.eql(u8, child_cmd.getTypeName(), "CompoundCommand")) {
-                        try cmds_array.append(try CompoundCommand.getCommandType().serializeFn(child_cmd, allocator));
-                    }
+                if (std.mem.eql(u8, child_cmd.getTypeName(), "SceneTransformCommand")) {
+                    try cmds_array.append(try SceneTransformCommand.getCommandType().serializeFn(child_cmd, allocator));
+                } else if (std.mem.eql(u8, child_cmd.getTypeName(), "CompoundCommand")) {
+                    try cmds_array.append(try CompoundCommand.getCommandType().serializeFn(child_cmd, allocator));
                 }
             }
             try root.put("commands", std.json.Value{ .array = cmds_array });
@@ -277,7 +264,7 @@ pub const UndoRedoSystem = struct {
                 try RemoveObjectCommand.jsonStringify(cmd, .{}, out);
             } else {
                 // Fallback for unregistered or legacy commands
-                const allocator = std.heap.page_allocator; // Only for fallback
+                const allocator = std.heap.page_allocator;
                 const val = try cmd.vtable.serializeFn(cmd, allocator);
                 defer val.deinit(allocator);
                 try out.write(val);
@@ -290,7 +277,6 @@ pub const UndoRedoSystem = struct {
         name: []const u8,
         createFn: *const fn (std.mem.Allocator, std.json.Value, ?*anyopaque) anyerror!*Command,
         serializeFn: *const fn (*Command, std.mem.Allocator) anyerror!std.json.Value,
-        /// Streaming serialization function pointer wrapper (uses internal dispatch)
         stringifyFn: ?*const fn (*Command, std.json.StringifyOptions, anytype) anyerror!void = null,
     };
 
@@ -486,7 +472,7 @@ pub const UndoRedoSystem = struct {
     pub fn jsonStringify(self: UndoRedoSystem, options: std.json.StringifyOptions, out: anytype) !void {
         _ = options;
         try out.beginObject();
-        
+
         try out.objectField("max_history_size");
         try out.write(self.max_history_size);
 
@@ -648,7 +634,6 @@ pub const SceneTransformCommand = struct {
         const command = try SceneTransformCommand.create(allocator, editor_ctx.scene, entity_id, description);
         errdefer command.deinitImpl(@ptrCast(command), allocator);
 
-        // helper to parse Vector3
         const parseVec3 = struct {
             fn parse(val: ?std.json.Value) nyon.Vector3 {
                 if (val) |v| {
@@ -681,9 +666,8 @@ pub const SceneTransformCommand = struct {
         try root.put("description", std.json.Value{ .string = self.base.description });
         try root.put("entity_id", std.json.Value{ .integer = @intCast(self.entity_id) });
 
-        // helper to serialize Vector3
         const serializeVec3 = struct {
-            fn serialize(a: std.mem.Allocator, vec: nyon.Vector3) !std.json.Value {
+            fn serialize(a: std.mem.Allocator, vec: nyon.Vector3) anyerror!std.json.Value {
                 var obj = std.json.ObjectMap.init(a);
                 try obj.put("x", std.json.Value{ .float = vec.x });
                 try obj.put("y", std.json.Value{ .float = vec.y });
@@ -691,6 +675,13 @@ pub const SceneTransformCommand = struct {
                 return std.json.Value{ .object = obj };
             }
         }.serialize;
+
+        try root.put("old_position", try serializeVec3(allocator, self.old_position));
+        try root.put("old_rotation", try serializeVec3(allocator, self.old_rotation));
+        try root.put("old_scale", try serializeVec3(allocator, self.old_scale));
+        try root.put("new_position", try serializeVec3(allocator, self.new_position));
+        try root.put("new_rotation", try serializeVec3(allocator, self.new_rotation));
+        try root.put("new_scale", try serializeVec3(allocator, self.new_scale));
 
         return std.json.Value{ .object = root };
     }
@@ -825,12 +816,7 @@ pub const AddObjectCommand = struct {
 
         const cmd = try create(allocator, editor_ctx.scene, editor_ctx.asset_mgr, editor_ctx.ecs_world, editor_ctx.physics_system, model_path, position, description);
         return &cmd.base;
-    }
-
-        return std.json.Value{ .object = root };
-    }
-
-    pub fn jsonStringify(cmd: *UndoRedoSystem.Command, options: std.json.StringifyOptions, out: anytype) !void {
+(cmd: *UndoRedoSystem.Command, options: std.json.StringifyOptions, out: anytype) !void {
         const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
         _ = options;
 
@@ -855,15 +841,29 @@ pub const AddObjectCommand = struct {
         try out.endObject();
     }
 
+    fn serializeToJson(cmd: *UndoRedoSystem.Command, allocator: std.mem.Allocator) anyerror!std.json.Value {
+        const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
+        var root = std.json.ObjectMap.init(allocator);
+
+        try root.put("type", std.json.Value{ .string = "AddObjectCommand" });
+        try root.put("description", std.json.Value{ .string = self.base.description });
+        try root.put("model_path", std.json.Value{ .string = self.model_path });
+
+        var pos_obj = std.json.ObjectMap.init(allocator);
+        try pos_obj.put("x", std.json.Value{ .float = self.position.x });
+        try pos_obj.put("y", std.json.Value{ .float = self.position.y });
+        try pos_obj.put("z", std.json.Value{ .float = self.position.z });
+        try root.put("position", std.json.Value{ .object = pos_obj });
+
+        return std.json.Value{ .object = root };
+    }
+
     fn executeImpl(cmd: *anyopaque) !void {
         const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
-        // Use a default LoadOptions
         const model = try self.asset_mgr.loadModel(self.model_path, .{});
-        // We need to convert nyon.Vector3 to raylib.Vector3
         const rl_pos = nyon.raylib.Vector3{ .x = self.position.x, .y = self.position.y, .z = self.position.z };
         self.added_index = try self.scene.addModel(model, rl_pos);
 
-        // ECS and Physics integration
         const entity = try self.ecs_world.createEntity();
         self.entity = entity;
         try self.ecs_world.addComponent(entity, nyon.ecs.Transform{
@@ -872,8 +872,6 @@ pub const AddObjectCommand = struct {
             .scale = .{ .x = 1, .y = 1, .z = 1 },
         });
 
-        // Add default physics components
-        // Simplified dynamic body for visual objects
         const rigid_body = nyon.ecs.RigidBody{
             .mass = 1.0,
             .inverse_mass = 1.0,
@@ -889,19 +887,15 @@ pub const AddObjectCommand = struct {
         };
         try self.ecs_world.addComponent(entity, rigid_body);
 
-        // Add a default sphere collider (approximate)
         const collider = nyon.ecs.Collider{
             .shape = .sphere,
             .offset = .{ .x = 0, .y = 0, .z = 0 },
-            .sphere_radius = 1.0, // Default radius
+            .sphere_radius = 1.0,
             .is_trigger = false,
         };
         try self.ecs_world.addComponent(entity, collider);
 
-        // Register with physics system
-        // Note: We need some way to convert nyon.ecs.RigidBody/Collider to physics equivalents if names don't match
-        // Assuming they match for now or PhysicsSystem handles them
-        _ = self.physics_system; // Will implement properly in PhysicsSystem.addEntityPhysics
+        _ = self.physics_system;
     }
 
     fn undoImpl(cmd: *anyopaque) !void {
@@ -943,7 +937,7 @@ pub const AddObjectCommand = struct {
         return .{
             .name = "AddObjectCommand",
             .createFn = createFromJson,
-            .serializeFn = serialize,
+            .serializeFn = serializeToJson,
         };
     }
 };
@@ -964,10 +958,7 @@ pub const RemoveObjectCommand = struct {
     pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, ecs_world: *nyon.ecs.World, physics_system: *nyon.ecs.PhysicsSystem, index: usize, description: []const u8) !*RemoveObjectCommand {
         const info = scene.getModelInfo(index) orelse return error.IndexOutOfBounds;
 
-        // We need to know where this model came from to restore it.
-        // For now, we'll assume it's stored in metadata if not provided?
-        // Actually, let's just use a placeholder path if unknown.
-        const model_path = "assets/models/unknown.obj"; // Simplified
+        const model_path = "assets/models/unknown.obj";
 
         const self = try allocator.create(RemoveObjectCommand);
         self.* = .{
@@ -1034,10 +1025,8 @@ pub const RemoveObjectCommand = struct {
             .removed_model = null,
             .entity = null,
         };
-        return &cmd.base;
-    }
 
-        return std.json.Value{ .object = root };
+        return &cmd.base;
     }
 
     pub fn jsonStringify(cmd: *UndoRedoSystem.Command, options: std.json.StringifyOptions, out: anytype) !void {
@@ -1067,11 +1056,28 @@ pub const RemoveObjectCommand = struct {
         try out.endObject();
     }
 
+    fn serializeToJson(cmd: *UndoRedoSystem.Command, allocator: std.mem.Allocator) anyerror!std.json.Value {
+        const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
+        var root = std.json.ObjectMap.init(allocator);
+
+        try root.put("type", std.json.Value{ .string = "RemoveObjectCommand" });
+        try root.put("description", std.json.Value{ .string = self.base.description });
+        try root.put("model_path", std.json.Value{ .string = self.model_path });
+        try root.put("index", std.json.Value{ .integer = @intCast(self.index) });
+
+        var pos_obj = std.json.ObjectMap.init(allocator);
+        try pos_obj.put("x", std.json.Value{ .float = self.position.x });
+        try pos_obj.put("y", std.json.Value{ .float = self.position.y });
+        try pos_obj.put("z", std.json.Value{ .float = self.position.z });
+        try root.put("position", std.json.Value{ .object = pos_obj });
+
+        return std.json.Value{ .object = root };
+    }
+
     fn executeImpl(cmd: *anyopaque) !void {
         const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
         self.scene.removeModel(self.index);
 
-        // ECS and Physics integration
         var query = self.ecs_world.createQuery();
         defer query.deinit();
         var transform_query = try query.with(nyon.ecs.Transform).build();
@@ -1099,7 +1105,6 @@ pub const RemoveObjectCommand = struct {
         const rl_pos = nyon.raylib.Vector3{ .x = self.position.x, .y = self.position.y, .z = self.position.z };
         _ = try self.scene.addModel(model, rl_pos);
 
-        // Restore ECS/Physics
         const entity = try self.ecs_world.createEntity();
         self.entity = entity;
         try self.ecs_world.addComponent(entity, nyon.ecs.Transform{
@@ -1137,7 +1142,7 @@ pub const RemoveObjectCommand = struct {
         return .{
             .name = "RemoveObjectCommand",
             .createFn = createFromJson,
-            .serializeFn = serialize,
+            .serializeFn = serializeToJson,
         };
     }
 };

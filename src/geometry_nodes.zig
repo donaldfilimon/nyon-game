@@ -1261,7 +1261,11 @@ fn performBooleanOp(mesh_a: raylib.Mesh, mesh_b: raylib.Mesh, allocator: std.mem
 
     for (0..vertex_count) |i| {
         const base = i * 3;
-        const pos = [3]f32{ mesh_a.vertices[base], mesh_a.vertices[base + 1], mesh_a.vertices[base + 2] };
+        const pos = [3]f32{
+            mesh_a.vertices[base],
+            mesh_a.vertices[base + 1],
+            mesh_a.vertices[base + 2],
+        };
         const inside = pos[0] >= aabb_b.min[0] and pos[0] <= aabb_b.max[0] and
             pos[1] >= aabb_b.min[1] and pos[1] <= aabb_b.max[1] and
             pos[2] >= aabb_b.min[2] and pos[2] <= aabb_b.max[2];
@@ -1281,7 +1285,25 @@ fn performBooleanOp(mesh_a: raylib.Mesh, mesh_b: raylib.Mesh, allocator: std.mem
     }
 
     if (new_vertex_count == 0) {
-        var empty_mesh = raylib.Mesh{ .vertexCount = 0, .triangleCount = 0, .vertices = null, .indices = null, .texcoords = null, .texcoords2 = null, .normals = null, .tangents = null, .colors = null, .animVertices = null, .animNormals = null, .boneIds = null, .boneWeights = null, .vaoId = 0, .boneCount = 0, .boneMatrices = null, .vboId = null };
+        var empty_mesh = raylib.Mesh{
+            .vertexCount = 0,
+            .triangleCount = 0,
+            .vertices = null,
+            .indices = null,
+            .texcoords = null,
+            .texcoords2 = null,
+            .normals = null,
+            .tangents = null,
+            .colors = null,
+            .animVertices = null,
+            .animNormals = null,
+            .boneIds = null,
+            .boneWeights = null,
+            .vaoId = 0,
+            .boneCount = 0,
+            .boneMatrices = null,
+            .vboId = null,
+        };
         raylib.uploadMesh(&empty_mesh, false);
         return empty_mesh;
     }
@@ -1305,14 +1327,14 @@ fn performBooleanOp(mesh_a: raylib.Mesh, mesh_b: raylib.Mesh, allocator: std.mem
 
     if (mesh_a.indices) |idx_ptr| {
         for (0..old_tri_count) |t| {
-            const i0 = idx_ptr[t * 3];
-            const i1 = idx_ptr[t * 3 + 1];
-            const i2 = idx_ptr[t * 3 + 2];
+            const idx0 = idx_ptr[t * 3];
+            const idx1 = idx_ptr[t * 3 + 1];
+            const idx2 = idx_ptr[t * 3 + 2];
 
-            if (index_map[i0] != -1 and index_map[i1] != -1 and index_map[i2] != -1) {
-                try kept_indices.append(@intCast(index_map[i0]));
-                try kept_indices.append(@intCast(index_map[i1]));
-                try kept_indices.append(@intCast(index_map[i2]));
+            if (index_map[idx0] != -1 and index_map[idx1] != -1 and index_map[idx2] != -1) {
+                try kept_indices.append(@intCast(index_map[idx0]));
+                try kept_indices.append(@intCast(index_map[idx1]));
+                try kept_indices.append(@intCast(index_map[idx2]));
             }
         }
     }
