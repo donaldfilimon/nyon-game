@@ -816,7 +816,9 @@ pub const AddObjectCommand = struct {
 
         const cmd = try create(allocator, editor_ctx.scene, editor_ctx.asset_mgr, editor_ctx.ecs_world, editor_ctx.physics_system, model_path, position, description);
         return &cmd.base;
-(cmd: *UndoRedoSystem.Command, options: std.json.StringifyOptions, out: anytype) !void {
+    }
+
+    pub fn toJson(cmd: *UndoRedoSystem.Command, options: std.json.StringifyOptions, out: anytype) !void {
         const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
         _ = options;
 

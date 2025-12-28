@@ -140,6 +140,12 @@ pub const AssetManager = struct {
 
     /// Load a model asset
     pub fn loadModel(self: *AssetManager, file_path: []const u8, _: LoadOptions) (AssetError || error{OutOfMemory})!raylib.Model {
+        // Check cache first
+        if (self.models.get(file_path)) |*entry| {
+            entry.ref_count += 1;
+            return entry.asset;
+        }
+
         // Check if file exists before loading
         const file = std.fs.cwd().openFile(file_path, .{}) catch {
             return AssetError{ .file_not_found = .{
@@ -149,8 +155,7 @@ pub const AssetManager = struct {
         };
         file.close();
 
-        // Options not yet implemented for models
-        // For now, just load directly without caching
+        // Load new model
         const path_z = try self.allocator.dupeZ(u8, file_path);
         defer self.allocator.free(path_z);
 
@@ -170,6 +175,22 @@ pub const AssetManager = struct {
                 .actual_format = "Empty or corrupted model file",
             } };
         }
+
+        // Create asset entry with caching
+        const path_copy = try self.allocator.dupe(u8, file_path);
+        errdefer self.allocator.free(path_copy);
+
+        const metadata = std.StringHashMap([]const u8).init(self.allocator);
+
+        const entry = AssetEntry(raylib.Model){
+            .asset = model,
+            .ref_count = 1,
+            .file_path = path_copy,
+            .asset_type = .model,
+            .metadata = metadata,
+        };
+
+        try self.models.put(path_copy, entry);
 
         return model;
     }

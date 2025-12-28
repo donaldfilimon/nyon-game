@@ -358,3 +358,35 @@ pub const RenderingSystem = struct {
         return null;
     }
 };
+
+/// Temporary frame data buffer using FixedBufferAllocator for shader uniforms
+/// Optimized for performance-critical rendering operations
+pub const FrameDataBuffer = struct {
+    const UNIFORM_BUFFER_SIZE = 4096;
+
+    buffer: [UNIFORM_BUFFER_SIZE]u8,
+    fba: std.heap.FixedBufferAllocator,
+
+    pub fn init() FrameDataBuffer {
+        var buf: [UNIFORM_BUFFER_SIZE]u8 = undefined;
+        return .{
+            .buffer = buf,
+            .fba = std.heap.FixedBufferAllocator.init(&buf),
+        };
+    }
+
+    pub fn allocator(self: *FrameDataBuffer) std.mem.Allocator {
+        return self.fba.allocator();
+    }
+
+    pub fn reset(self: *FrameDataBuffer) void {
+        self.fba.reset();
+    }
+
+    /// Helper to create temporary uniform data
+    pub fn allocUniform(self: *FrameDataBuffer, comptime T: type, value: T) !*const T {
+        const ptr = try self.allocator().create(T);
+        ptr.* = value;
+        return ptr;
+    }
+};

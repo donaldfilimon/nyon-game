@@ -39,9 +39,13 @@ pub const Archetype = struct {
     entity_to_index: std.AutoHashMap(entity.EntityId, usize),
     entity_capacity: usize,
     entity_count: usize,
+    storage_arena: std.heap.ArenaAllocator,
 
     /// Initialize a new archetype with the given component types
     pub fn init(allocator: std.mem.Allocator, component_types: []const ComponentType, initial_capacity: usize) !Archetype {
+        var storage_arena = std.heap.ArenaAllocator.init(allocator);
+        errdefer storage_arena.deinit();
+
         var archetype = Archetype{
             .allocator = allocator,
             .id = 0, // Assigned by World
@@ -52,6 +56,7 @@ pub const Archetype = struct {
             .entity_to_index = std.AutoHashMap(entity.EntityId, usize).init(allocator),
             .entity_capacity = initial_capacity,
             .entity_count = 0,
+            .storage_arena = storage_arena,
         };
 
         // Copy component types and calculate layout hash
@@ -67,12 +72,21 @@ pub const Archetype = struct {
             }
         }.lessThan);
 
-        // Allocate component columns
+        // Calculate total storage needed and allocate in one block
+        var total_storage_size: usize = 0;
+        for (component_types) |comp_type| {
+            total_storage_size += comp_type.size * initial_capacity;
+        }
+
+        // Allocate single contiguous block for all component columns
+        const storage_block = try archetype.storage_arena.allocator().alloc(u8, total_storage_size);
+        var offset: usize = 0;
+
+        // Set up component column pointers into the storage block
         for (component_types) |comp_type| {
             const column_size = comp_type.size * initial_capacity;
-            // Use maximum alignment for simplicity (could be optimized per component)
-            const column = try allocator.alignedAlloc(u8, null, column_size);
-            archetype.component_columns.appendAssumeCapacity(column);
+            archetype.component_columns.appendAssumeCapacity(storage_block[offset .. offset + column_size]);
+            offset += column_size;
         }
 
         return archetype;
@@ -80,15 +94,13 @@ pub const Archetype = struct {
 
     /// Deinitialize the archetype and free all memory
     pub fn deinit(self: *Archetype) void {
-        // Free component columns
-        for (self.component_columns.items) |column| {
-            self.allocator.free(column);
-        }
+        // Component columns are freed by the arena
         self.component_columns.deinit(self.allocator);
 
         self.entities.deinit(self.allocator);
         self.entity_to_index.deinit();
         self.component_types.deinit(self.allocator);
+        self.storage_arena.deinit();
     }
 
     /// Add an entity to this archetype with default component values
@@ -241,22 +253,33 @@ pub const Archetype = struct {
     /// Grow the capacity of this archetype
     fn growCapacity(self: *Archetype) !void {
         const new_capacity = self.entity_capacity * 2;
+        const arena_allocator = self.storage_arena.allocator();
 
         // Grow entities array
         try self.entities.resize(self.allocator, new_capacity);
 
-        // Grow component columns
-        for (self.component_columns.items, 0..) |*column, i| {
+        // Calculate total storage needed for new capacity
+        var total_storage_size: usize = 0;
+        for (self.component_types.items) |comp_type| {
+            total_storage_size += comp_type.size * new_capacity;
+        }
+
+        // Allocate new single contiguous block
+        const new_storage_block = try arena_allocator.alloc(u8, total_storage_size);
+        var offset: usize = 0;
+
+        // Copy existing data into new storage and set up new column pointers
+        for (self.component_columns.items, 0..) |old_column, i| {
             const comp_type = self.component_types.items[i];
-            const new_column_size = comp_type.size * new_capacity;
-            const new_column = try self.allocator.alignedAlloc(u8, null, new_column_size);
+            const old_column_size = comp_type.size * self.entity_capacity;
+            const new_column = new_storage_block[offset .. offset + comp_type.size * new_capacity];
 
             // Copy existing data
-            @memcpy(new_column[0..column.len], column.*);
+            @memcpy(new_column[0..old_column_size], old_column);
 
-            // Free old column and update
-            self.allocator.free(column.*);
-            column.* = new_column;
+            // Update column pointer
+            self.component_columns.items[i] = new_column;
+            offset += comp_type.size * new_capacity;
         }
 
         self.entity_capacity = new_capacity;

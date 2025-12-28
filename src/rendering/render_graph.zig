@@ -232,6 +232,7 @@ pub const RenderGraph = struct {
     resources: ResourceRegistry,
     pass_dependencies: std.ArrayList(Dependency),
     execution_order: std.ArrayList(PassId),
+    frame_arena: std.heap.ArenaAllocator,
 
     pub const Dependency = struct {
         from_pass: PassId,
@@ -246,6 +247,7 @@ pub const RenderGraph = struct {
             .resources = ResourceRegistry.init(allocator),
             .pass_dependencies = std.ArrayList(Dependency).initCapacity(allocator, 0) catch unreachable,
             .execution_order = std.ArrayList(PassId).initCapacity(allocator, 0) catch unreachable,
+            .frame_arena = std.heap.ArenaAllocator.init(allocator),
         };
     }
 
@@ -260,6 +262,7 @@ pub const RenderGraph = struct {
         self.resources.deinit();
         self.pass_dependencies.deinit(self.allocator);
         self.execution_order.deinit(self.allocator);
+        self.frame_arena.deinit();
     }
 
     /// Add a render pass to the graph
@@ -331,6 +334,16 @@ pub const RenderGraph = struct {
         return try self.resources.createResource(desc);
     }
 
+    /// Begin a new frame and reset temporary allocations
+    pub fn beginFrame(self: *RenderGraph) void {
+        _ = self.frame_arena.reset(.retain_capacity);
+    }
+
+    /// Get the arena allocator for temporary frame allocations
+    pub fn frameAllocator(self: *RenderGraph) std.mem.Allocator {
+        return self.frame_arena.allocator();
+    }
+
     /// Compile the render graph into an execution order
     pub fn compile(self: *RenderGraph) !void {
         // Simple topological sort for now
@@ -347,6 +360,9 @@ pub const RenderGraph = struct {
 
     /// Execute the compiled render graph
     pub fn execute(self: *RenderGraph) !void {
+        // Reset frame arena for temporary allocations
+        self.beginFrame();
+
         // Ensure graph is compiled
         if (self.execution_order.items.len == 0) {
             try self.compile();
