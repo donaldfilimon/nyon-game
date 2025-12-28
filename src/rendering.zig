@@ -192,17 +192,17 @@ pub const PBRMaterialSystem = struct {
     pub fn init(allocator: std.mem.Allocator) PBRMaterialSystem {
         return PBRMaterialSystem{
             .allocator = allocator,
-            .materials = std.ArrayList(PBRMaterial).init(allocator),
+            .materials = std.ArrayList(PBRMaterial).initCapacity(allocator, 0) catch unreachable,
         };
     }
 
     pub fn deinit(self: *PBRMaterialSystem) void {
         for (self.materials.items) |mat| mat.unload();
-        self.materials.deinit();
+        self.materials.deinit(self.allocator);
     }
 
     pub fn addMaterial(self: *PBRMaterialSystem, material: PBRMaterial) !usize {
-        try self.materials.append(material);
+        try self.materials.append(self.allocator, material);
         return self.materials.items.len - 1;
     }
 };
@@ -279,18 +279,18 @@ pub const RenderingSystem = struct {
     pub fn init(allocator: std.mem.Allocator) RenderingSystem {
         return .{
             .allocator = allocator,
-            .lights = std.ArrayList(Light).init(allocator),
-            .cameras = std.ArrayList(Camera).init(allocator),
+            .lights = std.ArrayList(Light).initCapacity(allocator, 0) catch unreachable,
+            .cameras = std.ArrayList(Camera).initCapacity(allocator, 0) catch unreachable,
             .active_camera = null,
             .shaders = std.StringHashMap(raylib.Shader).init(allocator),
-            .custom_materials = std.ArrayList(CustomMaterial).init(allocator),
+            .custom_materials = std.ArrayList(CustomMaterial).initCapacity(allocator, 0) catch unreachable,
         };
     }
 
     pub fn deinit(self: *RenderingSystem) void {
-        self.lights.deinit();
+        self.lights.deinit(self.allocator);
         for (self.cameras.items) |*cam| self.allocator.free(cam.name);
-        self.cameras.deinit();
+        self.cameras.deinit(self.allocator);
         var it = self.shaders.iterator();
         while (it.next()) |entry| {
             raylib.unloadShader(entry.value_ptr.*);
@@ -298,22 +298,28 @@ pub const RenderingSystem = struct {
         }
         self.shaders.deinit();
         for (self.custom_materials.items) |*mat| mat.deinit();
-        self.custom_materials.deinit();
+        self.custom_materials.deinit(self.allocator);
     }
 
     pub fn addLight(self: *RenderingSystem, light: Light) !usize {
         var l = light;
         l.id = self.lights.items.len;
-        try self.lights.append(l);
+        try self.lights.append(self.allocator, l);
         return l.id;
     }
 
     pub fn addCamera(self: *RenderingSystem, camera: Camera) !usize {
         const id = self.cameras.items.len;
-        try self.cameras.append(camera);
+        try self.cameras.append(self.allocator, camera);
         self.cameras.items[id].id = id;
         if (self.active_camera == null) self.active_camera = id;
         return id;
+    }
+
+    pub fn setActiveCamera(self: *RenderingSystem, id: usize) void {
+        if (id < self.cameras.items.len) {
+            self.active_camera = id;
+        }
     }
 
     pub fn getActiveCamera(self: *RenderingSystem) ?*Camera {
@@ -349,7 +355,7 @@ pub const RenderingSystem = struct {
         const shader = self.getShader(shader_name) orelse return error.ShaderNotFound;
         const material = try CustomMaterial.init(self.allocator, shader);
         const index = self.custom_materials.items.len;
-        try self.custom_materials.append(material);
+        try self.custom_materials.append(self.allocator, material);
         return index;
     }
 

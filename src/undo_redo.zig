@@ -98,6 +98,7 @@ pub const UndoRedoSystem = struct {
                 .base = .{
                     .id = 0, // Set by system
                     .description = desc_copy,
+                    .impl_ptr = @ptrCast(compound),
                     .vtable = &vtable,
                 },
                 .commands = std.ArrayList(*Command).initCapacity(allocator, 0) catch unreachable,
@@ -128,15 +129,15 @@ pub const UndoRedoSystem = struct {
             .getTypeName = getTypeNameImpl,
         };
 
-        fn executeImpl(cmd: *Command) !void {
-            const compound: *CompoundCommand = @ptrCast(cmd);
+        fn executeImpl(ctx: *anyopaque) !void {
+            const compound: *CompoundCommand = @ptrCast(@alignCast(ctx));
             for (compound.commands.items) |command| {
                 try command.execute();
             }
         }
 
-        fn undoImpl(cmd: *Command) !void {
-            const compound: *CompoundCommand = @ptrCast(cmd);
+        fn undoImpl(ctx: *anyopaque) !void {
+            const compound: *CompoundCommand = @ptrCast(@alignCast(ctx));
             // Undo in reverse order
             var i = compound.commands.items.len;
             while (i > 0) {
@@ -145,14 +146,14 @@ pub const UndoRedoSystem = struct {
             }
         }
 
-        fn deinitImpl(cmd: *Command, allocator: std.mem.Allocator) void {
-            const compound: *CompoundCommand = @ptrCast(cmd);
+        fn deinitImpl(ctx: *anyopaque, allocator: std.mem.Allocator) void {
+            const compound: *CompoundCommand = @ptrCast(@alignCast(ctx));
             compound.deinit(allocator);
             allocator.destroy(compound);
         }
 
-        fn cloneImpl(cmd: *Command, allocator: std.mem.Allocator) !*Command {
-            const compound: *CompoundCommand = @ptrCast(cmd);
+        fn cloneImpl(ctx: *anyopaque, allocator: std.mem.Allocator) !*Command {
+            const compound: *CompoundCommand = @ptrCast(@alignCast(ctx));
             const new_compound = try CompoundCommand.init(allocator, compound.base.description);
             errdefer new_compound.deinit(allocator);
 
@@ -189,7 +190,7 @@ pub const UndoRedoSystem = struct {
             const root = json_value.object;
             const description = if (root.get("description")) |d| d.string else "Compound Command";
             const compound = try CompoundCommand.init(allocator, description);
-            errdefer compound.deinitImpl(@ptrCast(compound), allocator);
+            errdefer CompoundCommand.deinitImpl(@ptrCast(compound), allocator);
 
             if (root.get("commands")) |cmds_val| {
                 for (cmds_val.array.items) |cmd_val| {
@@ -229,7 +230,7 @@ pub const UndoRedoSystem = struct {
             return std.json.Value{ .object = root };
         }
 
-        pub fn jsonStringify(cmd: *Command, options: std.json.StringifyOptions, out: anytype) !void {
+        pub fn jsonStringify(cmd: *Command, options: std.json.Stringify.Options, out: anytype) !void {
             const self: *CompoundCommand = @ptrCast(@alignCast(cmd));
             _ = options;
 
@@ -277,7 +278,7 @@ pub const UndoRedoSystem = struct {
         name: []const u8,
         createFn: *const fn (std.mem.Allocator, std.json.Value, ?*anyopaque) anyerror!*Command,
         serializeFn: *const fn (*Command, std.mem.Allocator) anyerror!std.json.Value,
-        stringifyFn: ?*const fn (*Command, std.json.StringifyOptions, anytype) anyerror!void = null,
+        // stringifyFn removed to avoid comptime issues with generic 'anytype'
     };
 
     /// Initialize the undo/redo system
@@ -469,7 +470,7 @@ pub const UndoRedoSystem = struct {
     }
 
     /// Serialize command history to JSON using streaming (more efficient)
-    pub fn jsonStringify(self: UndoRedoSystem, options: std.json.StringifyOptions, out: anytype) !void {
+    pub fn jsonStringify(self: UndoRedoSystem, options: std.json.Stringify.Options, out: anytype) !void {
         _ = options;
         try out.beginObject();
 
@@ -584,6 +585,7 @@ pub const SceneTransformCommand = struct {
         command.* = .{
             .base = .{
                 .id = 0,
+                .impl_ptr = command,
                 .description = desc_copy,
                 .vtable = &vtable,
             },
@@ -686,7 +688,7 @@ pub const SceneTransformCommand = struct {
         return std.json.Value{ .object = root };
     }
 
-    pub fn jsonStringify(cmd: *UndoRedoSystem.Command, options: std.json.StringifyOptions, out: anytype) !void {
+    pub fn jsonStringify(cmd: *UndoRedoSystem.Command, options: std.json.Stringify.Options, out: anytype) !void {
         const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd));
         _ = options;
 
@@ -777,6 +779,8 @@ pub const AddObjectCommand = struct {
         const self = try allocator.create(AddObjectCommand);
         self.* = .{
             .base = .{
+                .id = 0,
+                .impl_ptr = self,
                 .vtable = &UndoRedoSystem.Command.VTable{
                     .execute = executeImpl,
                     .undo = undoImpl,
@@ -818,7 +822,7 @@ pub const AddObjectCommand = struct {
         return &cmd.base;
     }
 
-    pub fn toJson(cmd: *UndoRedoSystem.Command, options: std.json.StringifyOptions, out: anytype) !void {
+    pub fn jsonStringify(cmd: *UndoRedoSystem.Command, options: std.json.Stringify.Options, out: anytype) !void {
         const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
         _ = options;
 
@@ -869,31 +873,26 @@ pub const AddObjectCommand = struct {
         const entity = try self.ecs_world.createEntity();
         self.entity = entity;
         try self.ecs_world.addComponent(entity, nyon.ecs.Transform{
-            .position = self.position,
+            .position = .{ .x = self.position.x, .y = self.position.y, .z = self.position.z },
             .rotation = .{ .x = 0, .y = 0, .z = 0, .w = 1 },
             .scale = .{ .x = 1, .y = 1, .z = 1 },
         });
 
         const rigid_body = nyon.ecs.RigidBody{
             .mass = 1.0,
-            .inverse_mass = 1.0,
-            .is_static = false,
-            .is_kinematic = false,
-            .linear_velocity = .{ .x = 0, .y = 0, .z = 0 },
-            .angular_velocity = .{ .x = 0, .y = 0, .z = 0 },
+            .linear_velocity = .{ 0, 0, 0 },
+            .angular_velocity = .{ 0, 0, 0 },
             .linear_damping = 0.1,
             .angular_damping = 0.1,
+            .is_kinematic = false,
             .gravity_scale = 1.0,
-            .restitution = 0.5,
-            .friction = 0.5,
         };
         try self.ecs_world.addComponent(entity, rigid_body);
 
         const collider = nyon.ecs.Collider{
-            .shape = .sphere,
-            .offset = .{ .x = 0, .y = 0, .z = 0 },
-            .sphere_radius = 1.0,
-            .is_trigger = false,
+            .sphere_collider = .{
+                .radius = 1.0,
+            },
         };
         try self.ecs_world.addComponent(entity, collider);
 
@@ -959,12 +958,13 @@ pub const RemoveObjectCommand = struct {
 
     pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, ecs_world: *nyon.ecs.World, physics_system: *nyon.ecs.PhysicsSystem, index: usize, description: []const u8) !*RemoveObjectCommand {
         const info = scene.getModelInfo(index) orelse return error.IndexOutOfBounds;
-
         const model_path = "assets/models/unknown.obj";
 
         const self = try allocator.create(RemoveObjectCommand);
         self.* = .{
             .base = .{
+                .id = 0,
+                .impl_ptr = self,
                 .vtable = &UndoRedoSystem.Command.VTable{
                     .execute = executeImpl,
                     .undo = undoImpl,
@@ -980,7 +980,7 @@ pub const RemoveObjectCommand = struct {
             .ecs_world = ecs_world,
             .physics_system = physics_system,
             .model_path = try allocator.dupe(u8, model_path),
-            .position = nyon.Vector3{ .x = info.position.x, .y = info.position.y, .z = info.position.z },
+            .position = .{ .x = info.position.x, .y = info.position.y, .z = info.position.z },
             .index = index,
             .removed_model = null,
             .entity = null,
@@ -1007,6 +1007,8 @@ pub const RemoveObjectCommand = struct {
         const cmd = try allocator.create(RemoveObjectCommand);
         cmd.* = .{
             .base = .{
+                .id = 0,
+                .impl_ptr = cmd,
                 .vtable = &UndoRedoSystem.Command.VTable{
                     .execute = executeImpl,
                     .undo = undoImpl,
@@ -1031,7 +1033,7 @@ pub const RemoveObjectCommand = struct {
         return &cmd.base;
     }
 
-    pub fn jsonStringify(cmd: *UndoRedoSystem.Command, options: std.json.StringifyOptions, out: anytype) !void {
+    pub fn jsonStringify(cmd: *UndoRedoSystem.Command, options: std.json.Stringify.Options, out: anytype) !void {
         const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
         _ = options;
 
@@ -1088,13 +1090,16 @@ pub const RemoveObjectCommand = struct {
         var iter = transform_query.iter();
         while (iter.next()) |data| {
             if (data.get(nyon.ecs.Transform)) |transform| {
-                if (std.meta.eql(transform.position, self.position)) {
+                // Compare position components
+                if (transform.position.x == self.position.x and
+                    transform.position.y == self.position.y and
+                    transform.position.z == self.position.z)
+                {
                     self.entity = data.entity;
                     break;
                 }
             }
         }
-
         if (self.entity) |entity| {
             self.physics_system.removeRigidBody(entity);
             self.ecs_world.destroyEntity(entity);
@@ -1110,12 +1115,12 @@ pub const RemoveObjectCommand = struct {
         const entity = try self.ecs_world.createEntity();
         self.entity = entity;
         try self.ecs_world.addComponent(entity, nyon.ecs.Transform{
-            .position = self.position,
+            .position = .{ .x = self.position.x, .y = self.position.y, .z = self.position.z },
             .rotation = .{ .x = 0, .y = 0, .z = 0, .w = 1 },
             .scale = .{ .x = 1, .y = 1, .z = 1 },
         });
         try self.ecs_world.addComponent(entity, nyon.ecs.RigidBody{ .mass = 1.0 });
-        try self.ecs_world.addComponent(entity, nyon.ecs.Collider{ .shape = .sphere, .sphere_radius = 1.0 });
+        try self.ecs_world.addComponent(entity, nyon.ecs.Collider{ .sphere_collider = .{ .radius = 1.0 } });
     }
 
     fn deinitImpl(cmd: *anyopaque, allocator: std.mem.Allocator) void {

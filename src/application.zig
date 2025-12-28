@@ -58,9 +58,6 @@ pub const Application = struct {
         const ui_state = sandbox_ui_mod.SandboxUiState.initWithDefaultScale(allocator, sandbox_ui_mod.defaultUiScaleFromDpi());
         const menu_state = MenuState.init(allocator);
 
-        // Initialize audio device
-        Audio.initDevice();
-
         return .{
             .allocator = allocator,
             .engine = engine,
@@ -91,7 +88,6 @@ pub const Application = struct {
         self.ui_state.deinit();
         self.sandbox_state.deinit();
         self.engine.deinit();
-        Audio.closeDevice();
     }
 
     pub fn run(self: *Application) !void {

@@ -2,33 +2,15 @@ const std = @import("std");
 const raylib = @import("raylib");
 const nyon = @import("nyon_game");
 
-/// Asset-specific error types with detailed context (modern error handling)
-pub const AssetError = union(enum) {
-    unsupported_texture_format: struct {
-        path: []const u8,
-        extension: []const u8,
-    },
-    texture_load_failed: struct {
-        path: []const u8,
-        reason: []const u8,
-    },
-    file_not_found: struct {
-        path: []const u8,
-        attempted_location: []const u8,
-    },
-    out_of_memory: struct {
-        requested_size: usize,
-        available_size: usize,
-    },
-    invalid_asset_data: struct {
-        path: []const u8,
-        expected_format: []const u8,
-        actual_format: []const u8,
-    },
-    metadata_error: struct {
-        key: []const u8,
-        reason: []const u8,
-    },
+/// Asset-specific error types
+pub const AssetError = error{
+    UnsupportedTextureFormat,
+    TextureLoadFailed,
+    FileNotFound,
+    OutOfMemory,
+    InvalidAssetData,
+    MetadataError,
+    FileTooLarge, // Added as it might be useful
 };
 
 /// Asset Management System
@@ -42,7 +24,7 @@ pub const AssetManager = struct {
     /// Asset caches
     models: std.StringHashMap(AssetEntry(raylib.Model)),
     textures: std.StringHashMap(AssetEntry(raylib.Texture)),
-    materials: std.StringHashMap(AssetEntry(nyon.MaterialSystem.Material)),
+    materials: std.StringHashMap(AssetEntry(nyon.Material)),
     animations: std.StringHashMap(AssetEntry(nyon.AnimationSystem.AnimationClip)),
     audio: std.StringHashMap(AssetEntry(raylib.Sound)),
     sounds_by_handle: std.AutoHashMap(u64, raylib.Sound),
@@ -83,7 +65,7 @@ pub const AssetManager = struct {
             .allocator = allocator,
             .models = std.StringHashMap(AssetEntry(raylib.Model)).init(allocator),
             .textures = std.StringHashMap(AssetEntry(raylib.Texture)).init(allocator),
-            .materials = std.StringHashMap(AssetEntry(nyon.MaterialSystem.Material)).init(allocator),
+            .materials = std.StringHashMap(AssetEntry(nyon.Material)).init(allocator),
             .animations = std.StringHashMap(AssetEntry(nyon.AnimationSystem.AnimationClip)).init(allocator),
             .audio = std.StringHashMap(AssetEntry(raylib.Sound)).init(allocator),
             .sounds_by_handle = std.AutoHashMap(u64, raylib.Sound).init(allocator),
@@ -141,17 +123,14 @@ pub const AssetManager = struct {
     /// Load a model asset
     pub fn loadModel(self: *AssetManager, file_path: []const u8, _: LoadOptions) (AssetError || error{OutOfMemory})!raylib.Model {
         // Check cache first
-        if (self.models.get(file_path)) |*entry| {
+        if (self.models.getPtr(file_path)) |entry| {
             entry.ref_count += 1;
             return entry.asset;
         }
 
         // Check if file exists before loading
         const file = std.fs.cwd().openFile(file_path, .{}) catch {
-            return AssetError{ .file_not_found = .{
-                .path = file_path,
-                .attempted_location = "current working directory",
-            } };
+            return error.FileNotFound;
         };
         file.close();
 
@@ -160,20 +139,12 @@ pub const AssetManager = struct {
         defer self.allocator.free(path_z);
 
         const model = raylib.loadModel(path_z) catch {
-            return AssetError{ .invalid_asset_data = .{
-                .path = file_path,
-                .expected_format = "Valid 3D model file (.obj, .gltf, etc.)",
-                .actual_format = "Raylib failed to load model",
-            } };
+            return error.InvalidAssetData;
         };
 
         // Check if model loaded successfully
         if (model.meshCount == 0) {
-            return AssetError{ .invalid_asset_data = .{
-                .path = file_path,
-                .expected_format = "Valid 3D model file (.obj, .gltf, etc.)",
-                .actual_format = "Empty or corrupted model file",
-            } };
+            return error.InvalidAssetData;
         }
 
         // Create asset entry with caching
@@ -198,17 +169,14 @@ pub const AssetManager = struct {
     /// Load an audio asset
     pub fn loadAudio(self: *AssetManager, file_path: []const u8, _: LoadOptions) (AssetError || error{OutOfMemory})!raylib.Sound {
         // Check cache first
-        if (self.audio.get(file_path)) |*entry| {
+        if (self.audio.getPtr(file_path)) |entry| {
             entry.ref_count += 1;
             return entry.asset;
         }
 
         // Check if file exists
         const file = std.fs.cwd().openFile(file_path, .{}) catch {
-            return AssetError{ .file_not_found = .{
-                .path = file_path,
-                .attempted_location = "current working directory",
-            } };
+            return error.FileNotFound;
         };
         file.close();
 
@@ -217,19 +185,11 @@ pub const AssetManager = struct {
         defer self.allocator.free(path_z);
 
         const sound = raylib.loadSound(path_z) catch {
-            return AssetError{ .invalid_asset_data = .{
-                .path = file_path,
-                .expected_format = "Valid audio file (.wav, .mp3, .ogg)",
-                .actual_format = "Raylib failed to load sound",
-            } };
+            return error.InvalidAssetData;
         };
 
         if (sound.frameCount == 0) {
-            return AssetError{ .invalid_asset_data = .{
-                .path = file_path,
-                .expected_format = "Valid audio file",
-                .actual_format = "Empty or corrupted audio file",
-            } };
+            return error.InvalidAssetData;
         }
 
         // Create asset entry
@@ -275,17 +235,14 @@ pub const AssetManager = struct {
     /// Load a texture asset
     pub fn loadTexture(self: *AssetManager, file_path: []const u8, options: LoadOptions) (AssetError || error{OutOfMemory})!raylib.Texture {
         // Check cache first
-        if (self.textures.get(file_path)) |*entry| {
+        if (self.textures.getPtr(file_path)) |entry| {
             entry.ref_count += 1;
             return entry.asset;
         }
 
         // Check if file exists before loading
         const file = std.fs.cwd().openFile(file_path, .{}) catch {
-            return AssetError{ .file_not_found = .{
-                .path = file_path,
-                .attempted_location = "current working directory",
-            } };
+            return error.FileNotFound;
         };
         file.close();
 
@@ -302,39 +259,24 @@ pub const AssetManager = struct {
         {
             if (options.flip_textures) {
                 var image = raylib.loadImage(path_z) catch {
-                    return AssetError{ .texture_load_failed = .{
-                        .path = file_path,
-                        .reason = "Raylib failed to load image for flipping",
-                    } };
+                    return error.TextureLoadFailed;
                 };
                 defer raylib.unloadImage(image);
                 raylib.imageFlipVertical(&image);
                 texture = raylib.loadTextureFromImage(image) catch {
-                    return AssetError{ .texture_load_failed = .{
-                        .path = file_path,
-                        .reason = "Raylib failed to load texture from image",
-                    } };
+                    return error.TextureLoadFailed;
                 };
             } else {
                 texture = raylib.loadTexture(path_z) catch {
-                    return AssetError{ .texture_load_failed = .{
-                        .path = file_path,
-                        .reason = "Raylib failed to load texture",
-                    } };
+                    return error.TextureLoadFailed;
                 };
             }
         } else {
-            return AssetError{ .unsupported_texture_format = .{
-                .path = file_path,
-                .extension = ext,
-            } };
+            return error.UnsupportedTextureFormat;
         }
 
         if (texture.id == 0) {
-            return AssetError{ .texture_load_failed = .{
-                .path = file_path,
-                .reason = "Raylib failed to load texture (invalid file or unsupported format)",
-            } };
+            return error.TextureLoadFailed;
         }
 
         // Generate mipmaps if requested
@@ -433,11 +375,7 @@ pub const AssetManager = struct {
             try entry.metadata.put(key, value_copy);
         } else {
             self.allocator.free(value_copy);
-            return AssetError{ .invalid_asset_data = .{
-                .path = file_path,
-                .expected_format = "Loaded asset",
-                .actual_format = "Asset not found in cache",
-            } };
+            return error.InvalidAssetData;
         }
     }
 

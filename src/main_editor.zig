@@ -27,6 +27,7 @@ const audio = @import("game/audio_system.zig");
 const ecs = @import("ecs/ecs.zig");
 const physics = @import("physics/ecs_integration.zig");
 const physics_core = @import("physics/physics.zig");
+const nodes = @import("nodes/node_graph.zig");
 
 // ============================================================================
 // Imports and Dependencies
@@ -114,8 +115,8 @@ pub const MainEditor = struct {
         var undo_redo_sys = undo_redo.UndoRedoSystem.init(allocator);
         errdefer undo_redo_sys.deinit();
 
-        undo_redo_sys.registerCommandType(undo_redo.AddObjectCommand.getCommandType()) catch {};
-        undo_redo_sys.registerCommandType(undo_redo.RemoveObjectCommand.getCommandType()) catch {};
+        undo_redo_sys.registerCommandType("AddObjectCommand", undo_redo.AddObjectCommand.getCommandType()) catch {};
+        undo_redo_sys.registerCommandType("RemoveObjectCommand", undo_redo.RemoveObjectCommand.getCommandType()) catch {};
         var perf_sys = performance.PerformanceSystem.init(allocator);
         errdefer perf_sys.deinit();
         var keyframe_sys = keyframe.KeyframeSystem.init(allocator);
@@ -149,14 +150,14 @@ pub const MainEditor = struct {
         var mat_node_editor = try MaterialNodeEditor.init(allocator);
         errdefer mat_node_editor.deinit();
 
-        var world = ecs.World.init(allocator);
+        var world = try ecs.World.init(allocator);
         errdefer world.deinit();
 
         var physics_sys = physics.PhysicsSystem.init(allocator, .{});
         errdefer physics_sys.deinit();
 
         // Default camera and light setup.
-        const default_camera_id = try render_sys.addCamera(rendering.RenderingSystem.Camera.create(
+        const default_camera_id = try render_sys.addCamera(rendering.Camera.create(
             allocator,
             "Main Camera",
             raylib.Vector3{ .x = 0, .y = 5, .z = 10 },
@@ -164,7 +165,7 @@ pub const MainEditor = struct {
             45.0,
         ) catch unreachable);
         render_sys.setActiveCamera(default_camera_id);
-        _ = try render_sys.addLight(rendering.RenderingSystem.Light.createDirectional(
+        _ = try render_sys.addLight(rendering.Light.createDirectional(
             raylib.Vector3{ .x = 0, .y = 10, .z = 0 },
             raylib.Vector3{ .x = 0, .y = -1, .z = 0 },
             raylib.Color.white,
@@ -202,7 +203,7 @@ pub const MainEditor = struct {
             .material_node_editor = mat_node_editor,
             .post_processing_system = post_sys,
             .viewport_texture = viewport_tex,
-            .audio_system = audio.AudioSystem.init(asset_mgr),
+            .audio_system = audio.AudioSystem.init(&asset_mgr),
             .world = world,
             .physics_system = physics_sys,
             .current_mode = .scene_editor,

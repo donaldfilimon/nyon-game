@@ -2,21 +2,21 @@ const std = @import("std");
 
 const raylib = @import("raylib");
 
-const GraphError = error{
-    NodeNotFound,
-    MissingInputValue,
-    InputNotFound,
-    InvalidOutputIndex,
-    NoConnectionFound,
-    InvalidInputCount,
-    CycleDetected,
-} || std.mem.Allocator.Error;
-
 /// Core node graph system with topological sorting and evaluation
 ///
 /// This provides the foundation for any node-based system (geometry, materials, etc.)
 /// with proper dependency resolution and execution ordering.
 pub const NodeGraph = struct {
+    pub const GraphError = error{
+        NodeNotFound,
+        MissingInputValue,
+        InputNotFound,
+        InvalidOutputIndex,
+        NoConnectionFound,
+        InvalidInputCount,
+        CycleDetected,
+    } || std.mem.Allocator.Error;
+
     allocator: std.mem.Allocator,
 
     /// All nodes in the graph

@@ -94,6 +94,7 @@ pub const PerformanceSystem = performance.PerformanceSystem;
 // Node graph system
 pub const nodes = @import("nodes/node_graph.zig");
 pub const geometry_nodes = @import("geometry_nodes.zig");
+pub const main_editor = @import("main_editor.zig");
 
 // World/save management
 pub const worlds = @import("game/worlds.zig");

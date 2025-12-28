@@ -16,10 +16,12 @@ A minimal Zig-based game engine with raylib integration, featuring a 3D sandbox 
 ## Getting Started
 
 ### Prerequisites
+
 - Zig 0.16.x or later
 - For WebAssembly builds: Emscripten toolchain
 
 ### Quick Start
+
 ```bash
 # Clone and build
 git clone <repository>
@@ -37,6 +39,7 @@ zig build test
 ```
 
 ### Build Targets
+
 - `zig build`: Build the main game executable
 - `zig build run`: Build and run the game
 - `zig build run-editor`: Build and run the editor
@@ -81,6 +84,7 @@ nyon-game/
 ## Architecture
 
 ### Core Systems
+
 - **Engine**: Backend abstraction (Raylib/GLFW/WebGPU)
 - **Scene**: Entity-component system with hierarchical transforms
 - **Rendering**: Material-based rendering with post-processing
@@ -89,6 +93,7 @@ nyon-game/
 - **Undo/Redo**: Command pattern with history management
 
 ### Editor Features
+
 - **Property Inspector**: Component editing interface
 - **Geometry Nodes**: Procedural geometry creation
 - **Material Editor**: Texture and shader management
@@ -97,7 +102,9 @@ nyon-game/
 ## Development
 
 ### Coding Conventions
+
 Follow the guidelines in `AGENTS.md`:
+
 - **Imports**: std → external → local with descriptive aliases
 - **Naming**: PascalCase types, camelCase functions, ALL_CAPS constants
 - **Error handling**: Custom error sets with `try`/`catch`
@@ -105,6 +112,7 @@ Follow the guidelines in `AGENTS.md`:
 - **Testing**: Embedded tests with `std.testing.allocator`
 
 ### UI Customization
+
 - Press `F1` to enter UI edit mode
 - Drag panel title bars to reposition
 - Use resize handles for sizing
@@ -112,6 +120,7 @@ Follow the guidelines in `AGENTS.md`:
 - Drop JSON files to load custom layouts
 
 ### Key Bindings (Game)
+
 - `WASD`: Move
 - `Q` / `E`: Move down/up
 - `Right Mouse`: Look around
@@ -124,6 +133,7 @@ Follow the guidelines in `AGENTS.md`:
 - `F2`: Settings panel
 
 ### Key Bindings (Editor)
+
 - `Ctrl+S`: Save project
 - `Ctrl+D`: Debug print node graph
 - Mouse: Select and manipulate nodes
@@ -131,15 +141,19 @@ Follow the guidelines in `AGENTS.md`:
 ## Examples
 
 ### File Browser
+
 ```bash
 zig build example-file-browser
 ```
+
 Lists directory contents with metadata display.
 
 ### Drop Viewer
+
 ```bash
 zig build example-drop-viewer
 ```
+
 Demonstrates drag-and-drop file handling with size display.
 
 ## Contributing
@@ -151,7 +165,7 @@ Demonstrates drag-and-drop file handling with size display.
 
 ## Roadmap
 
-- [ ] Complete undo/redo serialization
+- [x] Complete undo/redo serialization
 - [ ] Expand geometry node library
 - [ ] WebGPU backend implementation
 - [ ] CI/CD pipeline with headless testing

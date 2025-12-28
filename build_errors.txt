@@ -1,0 +1,76 @@
+install
++- install nyon_game
+   +- compile exe nyon_game Debug native 1 errors
+src\undo_redo.zig:988:25: error: use of undeclared identifier 'position'
+            .position = position,
+                        ^~~~~~~~
+error: 1 compilation errors
+failed command: "C:\\Users\\donald\\scoop\\persist\\zvm\\data\\master\\zig.exe" build-exe ".zig-cache\\o\\bef9cd2713567a561aecbc654f5ba056\\raylib.lib" ".zig-cache\\o\\0e7c2f127e549b59bb98dcfdf8e3793c\\glfw.lib" ".zig-cache\\o\\bef9cd2713567a561aecbc654f5ba056\\raylib.lib" ".zig-cache\\o\\0e7c2f127e549b59bb98dcfdf8e3793c\\glfw.lib" -ODebug -I ".zig-cache\\o\\0d22c593831c6ee0b3841a8e37487498" -I ".zig-cache\\o\\703585cd732f4d6189e8641ca771d85a" -I ".zig-cache\\o\\0d22c593831c6ee0b3841a8e37487498" -I ".zig-cache\\o\\703585cd732f4d6189e8641ca771d85a" --dep raylib --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\main.zig" ".zig-cache\\o\\bef9cd2713567a561aecbc654f5ba056\\raylib.lib" -ODebug -I ".zig-cache\\o\\0d22c593831c6ee0b3841a8e37487498" "-Mraylib=C:\\Users\\donald\\AppData\\Local\\zig\\p\\raylib_zig-5.6.0-dev-KE8REL5MBQAf3p497t52Xw9P7ojndIkVOWPXnLiLLw2P\\lib\\raylib.zig" -I "C:\\Users\\donald\\AppData\\Local\\zig\\p\\zglfw-0.10.0-dev-zgVDNHO2IQDy_fSdwY5U4z42rHUuKgt7T9f-qmQ3FnuL\\libs\\glfw\\include" --dep zglfw_options "-Mzglfw=C:\\Users\\donald\\AppData\\Local\\zig\\p\\zglfw-0.10.0-dev-zgVDNHO2IQDy_fSdwY5U4z42rHUuKgt7T9f-qmQ3FnuL\\src\\zglfw.zig" ".zig-cache\\o\\bef9cd2713567a561aecbc654f5ba056\\raylib.lib" ".zig-cache\\o\\0e7c2f127e549b59bb98dcfdf8e3793c\\glfw.lib" -ODebug -I ".zig-cache\\o\\0d22c593831c6ee0b3841a8e37487498" -I ".zig-cache\\o\\703585cd732f4d6189e8641ca771d85a" --dep raylib --dep zglfw --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" "-Mzglfw_options=.zig-cache\\c\\9873cc93e86e13699c9933d569c37336\\options.zig" -lwinmm -lgdi32 -lopengl32 -luser32 -lshell32 -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_game --zig-lib-dir "C:\\Users\\donald\\scoop\\persist\\zvm\\data\\master\\lib\\" --listen=-
+
+install
++- install nyon_editor
+   +- compile exe nyon_editor Debug native 9 errors
+src\undo_redo.zig:988:25: error: use of undeclared identifier 'position'
+            .position = position,
+                        ^~~~~~~~
+src\asset.zig:126:18: error: cannot assign to constant
+            entry.ref_count += 1;
+            ~~~~~^~~~~~~~~~
+referenced by:
+    undoImpl: src\undo_redo.zig:1116:51
+    createFromJson: src\undo_redo.zig:1019:22
+    7 reference(s) hidden; use '-freference-trace=9' to see all references
+src\main_editor.zig:160:86: error: struct 'rendering.RenderingSystem' has no member named 'Camera'
+        const default_camera_id = try render_sys.addCamera(rendering.RenderingSystem.Camera.create(
+                                                                                     ^~~~~~
+src\rendering.zig:271:29: note: struct declared here
+pub const RenderingSystem = struct {
+                            ^~~~~~
+src\material_nodes.zig:23:121: error: struct 'nodes.node_graph.NodeGraph' has no member named 'GraphError'
+    fn execute(node: *nodes.NodeGraph.Node, inputs: []const nodes.NodeGraph.Value, _: std.mem.Allocator) nodes.NodeGraph.GraphError![]nodes.NodeGraph.Value {
+                                                                                                         ~~~~~~~~~~~~~~~^~~~~~~~~~~
+src\nodes\node_graph.zig:19:23: note: struct declared here
+pub const NodeGraph = struct {
+                      ^~~~~~
+src\rendering.zig:282:43: error: struct 'array_list.Aligned(rendering.Light,null)' has no member named 'init'
+            .lights = std.ArrayList(Light).init(allocator),
+                      ~~~~~~~~~~~~~~~~~~~~^~~~~
+C:\Users\donald\scoop\persist\zvm\data\master\lib\std\array_list.zig:576:12: note: struct declared here
+    return struct {
+           ^~~~~~
+src\rendering.zig:291:20: error: member function expected 1 argument(s), found 0
+        self.lights.deinit();
+        ~~~~~~~~~~~^~~~~~~
+C:\Users\donald\scoop\persist\zvm\data\master\lib\std\array_list.zig:624:13: note: function declared here
+        pub fn deinit(self: *Self, gpa: Allocator) void {
+        ~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\undo_redo.zig:98:26: error: missing struct field: impl_ptr
+                .base = .{
+                        ~^
+src\undo_redo.zig:34:25: note: struct declared here
+    pub const Command = struct {
+                        ^~~~~~
+src\undo_redo.zig:882:14: error: no field named 'inverse_mass' in struct 'ecs.component.RigidBody'
+            .inverse_mass = 1.0,
+             ^~~~~~~~~~~~
+src\ecs\component.zig:205:23: note: struct declared here
+pub const RigidBody = struct {
+                      ^~~~~~
+src\undo_redo.zig:1128:69: error: no field named 'shape' in union 'ecs.component.Collider'
+        try self.ecs_world.addComponent(entity, nyon.ecs.Collider{ .shape = .sphere, .sphere_radius = 1.0 });
+                                                                    ^~~~~
+src\ecs\component.zig:238:22: note: union declared here
+pub const Collider = union(enum) {
+                     ^~~~~
+error: 9 compilation errors
+failed command: "C:\\Users\\donald\\scoop\\persist\\zvm\\data\\master\\zig.exe" build-exe ".zig-cache\\o\\bef9cd2713567a561aecbc654f5ba056\\raylib.lib" ".zig-cache\\o\\0e7c2f127e549b59bb98dcfdf8e3793c\\glfw.lib" -ODebug -I ".zig-cache\\o\\0d22c593831c6ee0b3841a8e37487498" -I ".zig-cache\\o\\703585cd732f4d6189e8641ca771d85a" --dep raylib --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\editor.zig" ".zig-cache\\o\\bef9cd2713567a561aecbc654f5ba056\\raylib.lib" -ODebug -I ".zig-cache\\o\\0d22c593831c6ee0b3841a8e37487498" "-Mraylib=C:\\Users\\donald\\AppData\\Local\\zig\\p\\raylib_zig-5.6.0-dev-KE8REL5MBQAf3p497t52Xw9P7ojndIkVOWPXnLiLLw2P\\lib\\raylib.zig" -I "C:\\Users\\donald\\AppData\\Local\\zig\\p\\zglfw-0.10.0-dev-zgVDNHO2IQDy_fSdwY5U4z42rHUuKgt7T9f-qmQ3FnuL\\libs\\glfw\\include" --dep zglfw_options "-Mzglfw=C:\\Users\\donald\\AppData\\Local\\zig\\p\\zglfw-0.10.0-dev-zgVDNHO2IQDy_fSdwY5U4z42rHUuKgt7T9f-qmQ3FnuL\\src\\zglfw.zig" ".zig-cache\\o\\bef9cd2713567a561aecbc654f5ba056\\raylib.lib" ".zig-cache\\o\\0e7c2f127e549b59bb98dcfdf8e3793c\\glfw.lib" -ODebug -I ".zig-cache\\o\\0d22c593831c6ee0b3841a8e37487498" -I ".zig-cache\\o\\703585cd732f4d6189e8641ca771d85a" --dep raylib --dep zglfw --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" "-Mzglfw_options=.zig-cache\\c\\9873cc93e86e13699c9933d569c37336\\options.zig" -lwinmm -lgdi32 -lopengl32 -luser32 -lshell32 -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_editor --zig-lib-dir "C:\\Users\\donald\\scoop\\persist\\zvm\\data\\master\\lib\\" --listen=-
+
+Build Summary: 6/11 steps succeeded (2 failed)
+install transitive failure
++- install nyon_game transitive failure
+|  +- compile exe nyon_game Debug native 1 errors
++- install nyon_editor transitive failure
+   +- compile exe nyon_editor Debug native 9 errors
+
+error: the following build command failed with exit code 1:
+.zig-cache\o\6f5f38c43c49b04d48e9dc7c1bc958d4\build.exe C:\Users\donald\scoop\persist\zvm\data\master\zig.exe C:\Users\donald\scoop\persist\zvm\data\master\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0x57b3d4d4 -Zc9065a4270d15f29
