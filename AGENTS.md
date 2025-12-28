@@ -41,6 +41,7 @@
 - Test common error paths and edge cases.
 - Add coverage for new behaviors; iterate with targeted runs (e.g., `zig build test -- src/rendering/render_graph.zig`) and list commands in PRs.
 - Example test structure:
+
   ```zig
   test "entity creation and destruction" {
       var em = EntityManager.init(std.testing.allocator);
