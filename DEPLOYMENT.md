@@ -181,7 +181,7 @@ zig fmt src/
 
 - [ ] MemoryPool for entity IDs (high-churn allocation)
 - [ ] ArrayHashMap for archetype queries (stable iteration)
-- ] Profiling integration (measure actual gains)
+- [ ] Profiling integration (measure actual gains)
 
 ### Phase 2 - Medium Term
 
