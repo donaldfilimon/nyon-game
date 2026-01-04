@@ -10,6 +10,7 @@ pub const EditorContext = struct {
     asset_mgr: *nyon.AssetManager,
     ecs_world: *nyon.ecs.World,
     physics_system: *nyon.ecs.PhysicsSystem,
+    scene_index_to_entity: *std.AutoHashMap(usize, nyon.ecs.EntityId),
 };
 
 pub const UndoRedoSystem = struct {
@@ -556,6 +557,8 @@ pub const UndoRedoSystem = struct {
 pub const SceneTransformCommand = struct {
     base: UndoRedoSystem.Command,
     scene: *nyon.Scene,
+    ecs_world: *nyon.ecs.World,
+    scene_index_to_entity: *std.AutoHashMap(usize, nyon.ecs.EntityId),
     entity_id: usize,
     old_position: nyon.Vector3,
     old_rotation: nyon.Vector3,
@@ -564,11 +567,11 @@ pub const SceneTransformCommand = struct {
     new_rotation: nyon.Vector3,
     new_scale: nyon.Vector3,
 
-    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, entity_id: usize, description: []const u8) !*SceneTransformCommand {
+    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, ecs_world: *nyon.ecs.World, scene_index_to_entity: *std.AutoHashMap(usize, nyon.ecs.EntityId), entity_id: usize, description: []const u8) !*SceneTransformCommand {
         const desc_copy = try allocator.dupe(u8, description);
         errdefer allocator.free(desc_copy);
 
-        // Get current transform
+        // Get current transform from scene
         var old_pos = nyon.Vector3{ .x = 0, .y = 0, .z = 0 };
         var old_rot = nyon.Vector3{ .x = 0, .y = 0, .z = 0 };
         var old_scl = nyon.Vector3{ .x = 1, .y = 1, .z = 1 };
@@ -590,6 +593,8 @@ pub const SceneTransformCommand = struct {
                 .vtable = &vtable,
             },
             .scene = scene,
+            .ecs_world = ecs_world,
+            .scene_index_to_entity = scene_index_to_entity,
             .entity_id = entity_id,
             .old_position = old_pos,
             .old_rotation = old_rot,
@@ -633,7 +638,7 @@ pub const SceneTransformCommand = struct {
         const ctx = context orelse return error.MissingContext;
         const editor_ctx: *const EditorContext = @ptrCast(@alignCast(ctx));
 
-        const command = try SceneTransformCommand.create(allocator, editor_ctx.scene, entity_id, description);
+        const command = try SceneTransformCommand.create(allocator, editor_ctx.scene, editor_ctx.ecs_world, editor_ctx.scene_index_to_entity, entity_id, description);
         errdefer command.deinitImpl(@ptrCast(command), allocator);
 
         const parseVec3 = struct {
@@ -729,6 +734,18 @@ pub const SceneTransformCommand = struct {
         self.scene.setPosition(self.entity_id, self.new_position);
         self.scene.setRotation(self.entity_id, self.new_rotation);
         self.scene.setScale(self.entity_id, self.new_scale);
+
+        // Also sync to ECS
+        if (self.scene_index_to_entity.get(self.entity_id)) |entity_id| {
+            if (self.ecs_world.getComponent(@as(u32, @intCast(entity_id)), nyon.ecs.Transform)) |transform| {
+                transform.position.x = self.new_position.x;
+                transform.position.y = self.new_position.y;
+                transform.position.z = self.new_position.z;
+                transform.scale.x = self.new_scale.x;
+                transform.scale.y = self.new_scale.y;
+                transform.scale.z = self.new_scale.z;
+            }
+        }
     }
 
     fn undoImpl(cmd: *anyopaque) !void {
@@ -736,6 +753,18 @@ pub const SceneTransformCommand = struct {
         self.scene.setPosition(self.entity_id, self.old_position);
         self.scene.setRotation(self.entity_id, self.old_rotation);
         self.scene.setScale(self.entity_id, self.old_scale);
+
+        // Also sync to ECS
+        if (self.scene_index_to_entity.get(self.entity_id)) |entity_id| {
+            if (self.ecs_world.getComponent(@as(u32, @intCast(entity_id)), nyon.ecs.Transform)) |transform| {
+                transform.position.x = self.old_position.x;
+                transform.position.y = self.old_position.y;
+                transform.position.z = self.old_position.z;
+                transform.scale.x = self.old_scale.x;
+                transform.scale.y = self.old_scale.y;
+                transform.scale.z = self.old_scale.z;
+            }
+        }
     }
 
     fn deinitImpl(cmd: *anyopaque, allocator: std.mem.Allocator) void {
@@ -746,7 +775,7 @@ pub const SceneTransformCommand = struct {
 
     fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) !*UndoRedoSystem.Command {
         const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd));
-        const cloned = try SceneTransformCommand.create(allocator, self.scene, self.entity_id, self.base.description);
+        const cloned = try SceneTransformCommand.create(allocator, self.scene, self.ecs_world, self.scene_index_to_entity, self.entity_id, self.base.description);
         cloned.new_position = self.new_position;
         cloned.new_rotation = self.new_rotation;
         cloned.new_scale = self.new_scale;
@@ -895,6 +924,15 @@ pub const AddObjectCommand = struct {
             },
         };
         try self.ecs_world.addComponent(entity, collider);
+
+        const renderable = nyon.ecs.Renderable{
+            .mesh_handle = 0,
+            .material_handle = 0,
+            .visible = true,
+            .cast_shadows = true,
+            .receive_shadows = true,
+        };
+        try self.ecs_world.addComponent(entity, renderable);
 
         _ = self.physics_system;
     }

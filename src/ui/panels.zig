@@ -1,5 +1,10 @@
-//! Shared panel utilities for docking, clamping, and layout management.
+//! Panel Utilities - Helper functions for panel layout and docking.
 //!
+//! This module provides utilities for managing panel positioning, sizing,
+//! and docking behavior. These functions help implement flexible
+//! UI layouts with draggable, resizable panels.
+//!
+//! Shared panel utilities for docking, clamping, and layout management.
 //! Common logic extracted from both sandbox and game UI modules
 //! to eliminate code duplication while maintaining identical behavior.
 
@@ -93,24 +98,29 @@ pub fn splitDockPanels(
     }
 }
 
+/// Detect which dock position a mouse is hovering over relative to a panel.
+/// Returns null if the mouse is not close enough to the panel edge.
+/// The drag_offset parameter is the offset from the panel's center to the mouse position.
 pub fn detectDockPosition(
     mouse_x: f32,
     mouse_y: f32,
     target_rect: Rectangle,
-    threshold: DockThreshold,
+    _: struct { x: f32, y: f32 },
 ) ?DockPosition {
-    if (mouse_x < target_rect.x or mouse_y < target_rect.y) return null;
-    if (mouse_x > target_rect.x + target_rect.width or mouse_y > target_rect.y + target_rect.height) return null;
+    const tx = target_rect.x + target_rect.width / 2.0;
+    const ty = target_rect.y + target_rect.height / 2.0;
+    const dx = mouse_x - tx;
+    const dy = mouse_y - ty;
+    const adx = @abs(dx);
+    const ady = @abs(dy);
 
-    const rel_x = (mouse_x - target_rect.x) / std.math.max(1.0, target_rect.width);
-    const rel_y = (mouse_y - target_rect.y) / std.math.max(1.0, target_rect.height);
-
-    if (rel_x < threshold.edge_ratio) return .left;
-    if (rel_x > 1.0 - threshold.edge_ratio) return .right;
-    if (rel_y < threshold.edge_ratio) return .top;
-    if (rel_y > 1.0 - threshold.edge_ratio) return .bottom;
-
-    return null;
+    if (adx > ady) {
+        if (adx > target_rect.width * 0.3) return null;
+        if (dx > 0) return .left else return .right;
+    } else {
+        if (ady > target_rect.height * 0.3) return null;
+        if (dy > 0) return .top else return .bottom;
+    }
 }
 
 pub fn getActivePanelId(panel_id: ui_mod.PanelId) u64 {

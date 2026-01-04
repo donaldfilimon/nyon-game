@@ -20,10 +20,11 @@ pub const World = struct {
 
     /// Initialize a new ECS World
     pub fn init(allocator: std.mem.Allocator) !World {
+        const config_mod = @import("../config/constants.zig");
         return .{
             .allocator = allocator,
             .entity_manager = entity.EntityManager.init(allocator),
-            .archetypes = try std.ArrayList(*archetype.Archetype).initCapacity(allocator, 0),
+            .archetypes = try std.ArrayList(*archetype.Archetype).initCapacity(allocator, config_mod.Memory.ECS_ARCHETYPE_INITIAL),
             .archetype_lookup = std.AutoHashMap(u64, *archetype.Archetype).init(allocator),
             .entity_to_archetype = std.AutoHashMap(entity.EntityId, *archetype.Archetype).init(allocator),
             .next_archetype_id = 1,
@@ -113,7 +114,8 @@ pub const World = struct {
         }
 
         // Create new component type list without T
-        var new_comp_types = std.ArrayList(archetype.ComponentType).initCapacity(self.allocator, 0) catch unreachable;
+        const config_mod = @import("../config/constants.zig");
+        var new_comp_types = std.ArrayList(archetype.ComponentType).initCapacity(self.allocator, config_mod.Memory.ECS_COMPONENT_TYPES_INITIAL) catch unreachable;
         defer new_comp_types.deinit(self.allocator);
 
         const remove_type = archetype.ComponentType.init(T);

@@ -43,14 +43,14 @@ pub const EntityManager = struct {
             .allocator = allocator,
             .next_id = 0,
             .generations = std.AutoHashMap(Entity, EntityGeneration).init(allocator),
-            .free_ids = std.ArrayList(Entity).init(allocator),
+            .free_ids = std.ArrayList(Entity).initCapacity(allocator, 64) catch unreachable,
         };
     }
 
     /// Deinitialize the entity manager
     pub fn deinit(self: *EntityManager) void {
         self.generations.deinit();
-        self.free_ids.deinit();
+        self.free_ids.deinit(self.allocator);
     }
 
     /// Create a new entity and return its ID
@@ -78,7 +78,7 @@ pub const EntityManager = struct {
             if (gen_ptr.* == entity.generation) {
                 // Mark as destroyed by incrementing generation
                 gen_ptr.* += 1;
-                self.free_ids.append(entity.id) catch {};
+                self.free_ids.append(self.allocator, entity.id) catch {};
             }
         }
     }
@@ -168,13 +168,13 @@ test "high churn entity creation" {
     defer em.deinit();
 
     const iterations = 1000;
-    var entities = std.ArrayList(EntityId).init(std.testing.allocator);
-    defer entities.deinit();
+    var entities = std.ArrayList(EntityId).initCapacity(std.testing.allocator, 1000) catch unreachable;
+    defer entities.deinit(std.testing.allocator);
 
     // Create many entities
     for (0..iterations) |_| {
         const entity = try em.create();
-        entities.append(entity) catch unreachable;
+        entities.append(std.testing.allocator, entity) catch unreachable;
     }
 
     try std.testing.expect(em.aliveCount() == iterations);

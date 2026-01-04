@@ -12,7 +12,7 @@ pub const EXECUTABLE_NAME = "nyon_game";
 pub const MODULE_NAME = "nyon_game";
 
 /// The root source file for the main library module.
-pub const ROOT_MODULE_PATH = "src/root.zig";
+pub const ROOT_MODULE_PATH = "src/main.zig";
 
 /// The main entry source file for the application.
 pub const MAIN_SOURCE_PATH = "src/main.zig";
@@ -68,7 +68,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Create raylib dependency
+    // Create raylib dependency (using stub for Zig 0.16.x compatibility)
     const raylib_dep = b.dependency("raylib_zig", .{
         .target = target,
         .optimize = optimize,

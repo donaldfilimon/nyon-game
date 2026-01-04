@@ -79,6 +79,9 @@ pub const MainEditor = struct {
     /// Selected object in the 3D scene.
     selected_scene_object: ?usize,
 
+    /// Mapping from Scene index to ECS EntityId for bidirectional sync
+    scene_index_to_entity: std.AutoHashMap(usize, ecs.EntityId),
+
     /// Animation editor state.
     animation_timeline_visible: bool = false,
     animation_playback: bool = false,
@@ -217,6 +220,7 @@ pub const MainEditor = struct {
             .tui_output_lines = output_lines,
             .tui_cursor_pos = 0,
             .tui_history_index = -1,
+            .scene_index_to_entity = std.AutoHashMap(usize, ecs.EntityId).init(allocator),
         };
     }
 
@@ -243,6 +247,7 @@ pub const MainEditor = struct {
         self.tui_command_history.deinit(self.allocator);
         for (self.tui_output_lines.items) |line| self.allocator.free(line);
         self.tui_output_lines.deinit(self.allocator);
+        self.scene_index_to_entity.deinit();
     }
 
     /// Main update loop: calls the active mode's update, handles mode switches, etc.
@@ -250,6 +255,7 @@ pub const MainEditor = struct {
         try self.physics_system.update(&self.world, dt);
 
         self.syncECSToScene();
+        self.syncSceneToECS();
 
         self.audio_system.update(&self.world, dt);
         self.performance_system.updateCameras(dt);
@@ -297,6 +303,7 @@ pub const MainEditor = struct {
         // Render property inspector only if an object is selected and the inspect panel exists.
         if (self.property_inspector.selected_object != null) {
             if (self.docking_system.getPanel(0)) |p| {
+                self.property_inspector.setECSWorld(&self.world);
                 self.property_inspector.render(p.rect, &self.post_processing_system);
             }
         }
@@ -561,6 +568,7 @@ pub const MainEditor = struct {
                 return;
             };
             self.addTUIOutput("Object added");
+            self.rebuildSceneEntityMapping();
         } else if (std.mem.startsWith(u8, command, "remove ")) {
             const index_str = command[7..];
             const index = std.fmt.parseInt(usize, index_str, 10) catch {
@@ -586,6 +594,7 @@ pub const MainEditor = struct {
                 return;
             };
             self.addTUIOutput("Object removed");
+            self.rebuildSceneEntityMapping();
         } else if (std.mem.startsWith(u8, command, "mode ")) {
             const mode_arg = command[5..];
             if (std.mem.eql(u8, mode_arg, "scene")) {
@@ -755,6 +764,7 @@ pub const MainEditor = struct {
 
         self.rendering_system.beginRendering();
         self.scene_system.render();
+        self.renderECSEntities();
         self.rendering_system.renderLights();
         self.drawGrid();
         if (self.selected_scene_object) |obj_id| {
@@ -809,11 +819,42 @@ pub const MainEditor = struct {
 
     fn handleSceneEditorInput(self: *MainEditor) !void {
         if (self.selected_scene_object) |obj_id| {
-            if (self.scene_system.getModelInfo(obj_id)) |info| {
+            if (self.scene_index_to_entity.get(obj_id)) |entity_id| {
+                var transform_changed = false;
+                if (self.world.getComponent(@as(u32, @intCast(entity_id)), ecs.Transform)) |transform| {
+                    var new_pos = transform.position;
+                    if (raylib.isKeyDown(.w)) {
+                        new_pos.z -= 0.1;
+                        transform_changed = true;
+                    }
+                    if (raylib.isKeyDown(.s)) {
+                        new_pos.z += 0.1;
+                        transform_changed = true;
+                    }
+                    if (raylib.isKeyDown(.a)) {
+                        new_pos.x -= 0.1;
+                        transform_changed = true;
+                    }
+                    if (raylib.isKeyDown(.d)) {
+                        new_pos.x += 0.1;
+                        transform_changed = true;
+                    }
+                    if (raylib.isKeyDown(.q)) {
+                        new_pos.y += 0.1;
+                        transform_changed = true;
+                    }
+                    if (raylib.isKeyDown(.e)) {
+                        new_pos.y -= 0.1;
+                        transform_changed = true;
+                    }
+                    if (transform_changed) {
+                        transform.position = new_pos;
+                        self.scene_system.setPosition(obj_id, raylib.Vector3{ .x = new_pos.x, .y = new_pos.y, .z = new_pos.z });
+                    }
+                }
+            } else if (self.scene_system.getModelInfo(obj_id)) |info| {
                 var transform_changed = false;
                 var new_pos = info.position;
-                const new_rot = info.rotation;
-                const new_scale = info.scale;
                 if (raylib.isKeyDown(.w)) {
                     new_pos.z -= 0.1;
                     transform_changed = true;
@@ -840,8 +881,8 @@ pub const MainEditor = struct {
                 }
                 if (transform_changed) {
                     self.scene_system.setPosition(obj_id, new_pos);
-                    self.scene_system.setRotation(obj_id, new_rot);
-                    self.scene_system.setScale(obj_id, new_scale);
+                    self.scene_system.setRotation(obj_id, info.rotation);
+                    self.scene_system.setScale(obj_id, info.scale);
                 }
             }
         }
@@ -996,7 +1037,7 @@ pub const MainEditor = struct {
         self.keyframe_system.update(dt);
         if (self.animation_playback) {
             self.animation_system.update(dt);
-            self.keyframe_system.applyToScene(&self.scene_system);
+            self.keyframe_system.applyToECS(&self.world, &self.scene_index_to_entity);
         }
     }
 
@@ -1322,6 +1363,7 @@ pub const MaterialNodeEditor = struct {
         var iter = sync_q.iter();
         while (iter.next()) |data| {
             const transform = data.get(ecs.Transform).?;
+            var matched = false;
             for (0..self.scene_system.modelCount()) |i| {
                 if (self.scene_system.getModelInfo(i)) |info| {
                     if (std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.05) and
@@ -1329,9 +1371,100 @@ pub const MaterialNodeEditor = struct {
                         std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.05))
                     {
                         self.scene_system.setPosition(i, raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z });
+                        self.scene_index_to_entity.put(i, data.entity) catch {};
+                        matched = true;
                         break;
                     }
                 }
+            }
+        }
+    }
+
+    fn syncSceneToECS(self: *MainEditor) void {
+        var query = self.world.createQuery();
+        defer query.deinit();
+        var sync_q = query.with(ecs.Transform).build() catch return;
+        defer sync_q.deinit();
+        sync_q.updateMatches(self.world.archetypes.items);
+        var iter = sync_q.iter();
+        while (iter.next()) |data| {
+            const transform = data.get(ecs.Transform).?;
+            var matched = false;
+            for (0..self.scene_system.modelCount()) |i| {
+                if (self.scene_system.getModelInfo(i)) |info| {
+                    if (self.scene_index_to_entity.get(i)) |entity_id| {
+                        if (entity_id == data.entity) {
+                            if (!std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.001) or
+                                !std.math.approxEqAbs(f32, info.position.y, transform.position.y, 0.001) or
+                                !std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.001))
+                            {
+                                const transform_ptr = self.world.getComponent(data.entity, ecs.Transform) orelse continue;
+                                transform_ptr.position.x = info.position.x;
+                                transform_ptr.position.y = info.position.y;
+                                transform_ptr.position.z = info.position.z;
+                            }
+                            matched = true;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (!matched) {
+                for (0..self.scene_system.modelCount()) |i| {
+                    if (self.scene_index_to_entity.get(i)) |_| continue;
+                    if (self.scene_system.getModelInfo(i)) |info| {
+                        if (std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.05) and
+                            std.math.approxEqAbs(f32, info.position.y, transform.position.y, 0.05) and
+                            std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.05))
+                        {
+                            self.scene_index_to_entity.put(i, data.entity) catch {};
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn rebuildSceneEntityMapping(self: *MainEditor) void {
+        self.scene_index_to_entity.clearRetainingCapacity();
+        var query = self.world.createQuery();
+        defer query.deinit();
+        var sync_q = query.with(ecs.Transform).build() catch return;
+        defer sync_q.deinit();
+        sync_q.updateMatches(self.world.archetypes.items);
+        var iter = sync_q.iter();
+        while (iter.next()) |data| {
+            const transform = data.get(ecs.Transform).?;
+            for (0..self.scene_system.modelCount()) |i| {
+                if (self.scene_system.getModelInfo(i)) |info| {
+                    if (std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.05) and
+                        std.math.approxEqAbs(f32, info.position.y, transform.position.y, 0.05) and
+                        std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.05))
+                    {
+                        self.scene_index_to_entity.put(i, data.entity) catch {};
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    fn renderECSEntities(self: *MainEditor) void {
+        var query = self.world.createQuery();
+        defer query.deinit();
+        var render_q = query.with(ecs.Transform).with(ecs.Renderable).build() catch return;
+        defer render_q.deinit();
+        render_q.updateMatches(self.world.archetypes.items);
+        var iter = render_q.iter();
+        while (iter.next()) |data| {
+            const transform = data.get(ecs.Transform).?;
+            const renderable = data.get(ecs.Renderable).?;
+            if (!renderable.visible) continue;
+            const pos = raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z };
+            const scale = raylib.Vector3{ .x = transform.scale.x, .y = transform.scale.y, .z = transform.scale.z };
+            if (self.asset_manager.models.getPtr("assets/models/cube.obj")) |entry| {
+                raylib.drawModelEx(entry.asset, pos, .{ .x = 0, .y = 1, .z = 0 }, 0, scale, raylib.Color.white);
             }
         }
     }

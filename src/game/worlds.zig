@@ -104,6 +104,28 @@ pub fn listWorlds(allocator: std.mem.Allocator) ![]WorldEntry {
     return worlds.toOwnedSlice(allocator);
 }
 
+pub fn getMostRecentWorld(allocator: std.mem.Allocator) ?WorldEntry {
+    const worlds = listWorlds(allocator) catch return null;
+    defer {
+        for (worlds) |*entry| entry.deinit();
+        allocator.free(worlds);
+    }
+    if (worlds.len == 0) return null;
+    const entry = worlds[0];
+    return .{
+        .allocator = allocator,
+        .folder = allocator.dupe(u8, entry.folder) catch return null,
+        .meta = .{
+            .version = entry.meta.version,
+            .name = allocator.dupe(u8, entry.meta.name) catch return null,
+            .created_ns = entry.meta.created_ns,
+            .last_played_ns = entry.meta.last_played_ns,
+            .best_score = entry.meta.best_score,
+            .best_time_ms = entry.meta.best_time_ms,
+        },
+    };
+}
+
 pub fn createWorld(allocator: std.mem.Allocator, display_name: []const u8) !WorldEntry {
     try ensureSavesDir();
 

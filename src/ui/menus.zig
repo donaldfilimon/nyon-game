@@ -1,3 +1,9 @@
+//! Main Menus - Title screen, world selection, and pause menu.
+//!
+//! This module provides the main menu system for Nyon Game Engine,
+//! including title screen, world list, world creation, and pause menu.
+//! These menus serve as entry points for different game modes.
+
 const std = @import("std");
 const nyon_game = @import("../root.zig");
 const ui_mod = nyon_game.ui;
@@ -18,7 +24,7 @@ const TitleMenuAction = enum {
     none,
     singleplayer,
     multiplayer,
-
+    continue_last,
     quit,
 };
 
@@ -145,19 +151,24 @@ pub fn drawTitleMenu(menu: *MenuState, ui_style: ui_mod.UiStyle, status_message:
         return .singleplayer;
     }
 
+    const continue_id = std.hash.Wyhash.hash(0, "menu_continue");
+    if (menu.ctx.button(continue_id, nyon_game.engine.Rectangle{ .x = x, .y = start_y + button_h + 12, .width = button_w, .height = button_h }, "Continue")) {
+        return .continue_last;
+    }
+
     const multiplayer_id = std.hash.Wyhash.hash(0, "menu_multiplayer");
-    if (menu.ctx.button(multiplayer_id, nyon_game.engine.Rectangle{ .x = x, .y = start_y + button_h + 12, .width = button_w, .height = button_h }, "Multiplayer")) {
+    if (menu.ctx.button(multiplayer_id, nyon_game.engine.Rectangle{ .x = x, .y = start_y + (button_h + 12) * 2, .width = button_w, .height = button_h }, "Multiplayer")) {
         return .multiplayer;
     }
 
     const options_id = std.hash.Wyhash.hash(0, "menu_options");
-    if (menu.ctx.button(options_id, nyon_game.engine.Rectangle{ .x = x, .y = start_y + (button_h + 12) * 2, .width = button_w, .height = button_h }, "Options")) {
+    if (menu.ctx.button(options_id, nyon_game.engine.Rectangle{ .x = x, .y = start_y + (button_h + 12) * 3, .width = button_w, .height = button_h }, "Options")) {
         status_message.set("Use in-game Settings panel for now (F2)", 4.5);
         return .none;
     }
 
     const quit_id = std.hash.Wyhash.hash(0, "menu_quit");
-    if (menu.ctx.button(quit_id, nyon_game.engine.Rectangle{ .x = x, .y = start_y + (button_h + 12) * 3, .width = button_w, .height = button_h }, "Quit")) {
+    if (menu.ctx.button(quit_id, nyon_game.engine.Rectangle{ .x = x, .y = start_y + (button_h + 12) * 4, .width = button_w, .height = button_h }, "Quit")) {
         return .quit;
     }
 

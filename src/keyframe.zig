@@ -385,13 +385,30 @@ pub const KeyframeSystem = struct {
             if (!track.enabled) continue;
 
             if (track.evaluate(self.timeline.current_time)) |value| {
-                self.applyPropertyValue(scene, track.target_entity, track.property_name, value);
+                self.applyPropertyValueToScene(scene, track.target_entity, track.property_name, value);
+            }
+        }
+    }
+
+    /// Evaluate all tracks at current time and apply to ECS world
+    pub fn applyToECS(self: *const KeyframeSystem, world: *nyon.ecs.World, scene_index_to_entity: *const std.AutoHashMap(usize, nyon.ecs.EntityId)) void {
+        for (self.tracks.items) |*track| {
+            if (!track.enabled) continue;
+
+            if (track.evaluate(self.timeline.current_time)) |value| {
+                // Map scene index to entity ID if applicable
+                if (scene_index_to_entity.get(track.target_entity)) |entity_id| {
+                    self.applyPropertyValueToECS(world, @as(u32, @intCast(entity_id)), track.property_name, value);
+                } else {
+                    // Direct entity ID if track.target_entity is already an entity ID
+                    self.applyPropertyValueToECS(world, @as(u32, @intCast(track.target_entity)), track.property_name, value);
+                }
             }
         }
     }
 
     /// Apply a property value to an entity in the scene
-    fn applyPropertyValue(self: *const KeyframeSystem, scene: *nyon.Scene, entity_id: usize, property_name: []const u8, value: PropertyValue) void {
+    fn applyPropertyValueToScene(self: *const KeyframeSystem, scene: *nyon.Scene, entity_id: usize, property_name: []const u8, value: PropertyValue) void {
         _ = self;
 
         if (scene.getModelInfo(entity_id) != null) {
@@ -406,6 +423,41 @@ pub const KeyframeSystem = struct {
             } else if (std.mem.eql(u8, property_name, "scale")) {
                 if (value == .scale) {
                     scene.setScale(entity_id, value.scale);
+                }
+            }
+        }
+    }
+
+    /// Apply a property value to an ECS entity
+    fn applyPropertyValueToECS(self: *const KeyframeSystem, world: *nyon.ecs.World, entity_id: u32, property_name: []const u8, value: PropertyValue) void {
+        _ = self;
+
+        if (world.getComponent(entity_id, nyon.ecs.Transform)) |transform| {
+            if (std.mem.eql(u8, property_name, "position")) {
+                if (value == .position) {
+                    transform.position.x = value.position.x;
+                    transform.position.y = value.position.y;
+                    transform.position.z = value.position.z;
+                }
+            } else if (std.mem.eql(u8, property_name, "rotation")) {
+                if (value == .rotation) {
+                    const euler = value.rotation;
+                    const cr = @cos(euler.z * 0.5);
+                    const sr = @sin(euler.z * 0.5);
+                    const cp = @cos(euler.x * 0.5);
+                    const sp = @sin(euler.x * 0.5);
+                    const cy = @cos(euler.y * 0.5);
+                    const sy = @sin(euler.y * 0.5);
+                    transform.rotation.w = cr * cp * cy + sr * sp * sy;
+                    transform.rotation.x = sr * cp * cy - cr * sp * sy;
+                    transform.rotation.y = cr * sp * cy + sr * cp * sy;
+                    transform.rotation.z = cr * cp * sy - sr * sp * cy;
+                }
+            } else if (std.mem.eql(u8, property_name, "scale")) {
+                if (value == .scale) {
+                    transform.scale.x = value.scale.x;
+                    transform.scale.y = value.scale.y;
+                    transform.scale.z = value.scale.z;
                 }
             }
         }

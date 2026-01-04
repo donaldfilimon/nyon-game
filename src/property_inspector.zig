@@ -10,9 +10,11 @@ pub const PropertyInspector = struct {
     scroll_offset: f32,
     selected_object: ?ObjectReference,
     post_processing_system: ?*@import("post_processing.zig").PostProcessingSystem = null,
+    ecs_world: ?*@import("ecs/ecs.zig").World = null,
 
     pub const ObjectReference = union(enum) {
         scene_node: usize, // Index in scene
+        ecs_entity: usize, // ECS Entity ID
         geometry_node: usize, // Node ID in geometry system
         material: usize, // Material ID
         light: usize, // Light ID
@@ -48,6 +50,11 @@ pub const PropertyInspector = struct {
         self.scroll_offset = 0; // Reset scroll when selecting new object
     }
 
+    /// Set the ECS world reference for entity inspection
+    pub fn setECSWorld(self: *PropertyInspector, world: *@import("ecs/ecs.zig").World) void {
+        self.ecs_world = world;
+    }
+
     /// Render the property inspector UI
     pub fn render(self: *PropertyInspector, rect: raylib.Rectangle, post_sys: *@import("post_processing.zig").PostProcessingSystem) void {
         self.post_processing_system = post_sys;
@@ -80,6 +87,9 @@ pub const PropertyInspector = struct {
             switch (object) {
                 .scene_node => |node_id| {
                     y_offset = self.renderSceneNodeProperties(node_id, content_rect.x, y_offset, content_rect.width);
+                },
+                .ecs_entity => |entity_id| {
+                    y_offset = self.renderECSEntityProperties(entity_id, content_rect.x, y_offset, content_rect.width);
                 },
                 .geometry_node => |node_id| {
                     y_offset = self.renderGeometryNodeProperties(node_id, content_rect.x, y_offset, content_rect.width);
@@ -125,6 +135,59 @@ pub const PropertyInspector = struct {
         // Material
         current_y = self.drawPropertyHeader("Material", x, current_y, width);
         current_y = self.drawColorProperty("Diffuse Color", raylib.Color.white, x, current_y, width);
+
+        return current_y;
+    }
+
+    fn renderECSEntityProperties(self: *PropertyInspector, entity_id: usize, x: f32, y: f32, width: f32) f32 {
+        var current_y = y;
+
+        // Header
+        current_y = self.drawPropertyHeader("ECS Entity", x, current_y, width);
+
+        // Entity ID display
+        var id_buf: [32]u8 = undefined;
+        const id_str = std.fmt.bufPrintZ(&id_buf, "ID: {d}", .{entity_id}) catch "ID: ?";
+        current_y = self.drawPropertyHeader(id_str, x, current_y, width);
+
+        if (self.ecs_world) |world| {
+            const entity = @as(u32, @intCast(entity_id));
+
+            // Transform component
+            if (world.getComponent(entity, @import("ecs/component.zig").Transform)) |transform| {
+                current_y = self.drawPropertyHeader("Transform", x, current_y, width);
+                current_y = self.drawVector3Property("Position", .{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z }, x, current_y, width);
+                current_y = self.drawVector3Property("Scale", .{ .x = transform.scale.x, .y = transform.scale.y, .z = transform.scale.z }, x, current_y, width);
+            }
+
+            // RigidBody component
+            if (world.getComponent(entity, @import("ecs/component.zig").RigidBody)) |rigid_body| {
+                current_y = self.drawPropertyHeader("RigidBody", x, current_y, width);
+                const mass_str = std.fmt.allocPrintZ(self.allocator, "{d:.2}", .{rigid_body.mass}) catch "0.00";
+                defer self.allocator.free(mass_str);
+                current_y = self.drawPropertyHeader(std.fmt.comptimePrint("Mass: {s}", .{mass_str}), x, current_y, width);
+                const is_kinematic = if (rigid_body.is_kinematic) "Kinematic" else "Dynamic";
+                current_y = self.drawPropertyHeader(is_kinematic, x, current_y, width);
+            }
+
+            // Collider component
+            if (world.getComponent(entity, @import("ecs/component.zig").Collider)) |collider| {
+                current_y = self.drawPropertyHeader("Collider", x, current_y, width);
+                const collider_type = @tagName(collider.*);
+                current_y = self.drawPropertyHeader(std.fmt.comptimePrint("Type: {s}", .{collider_type}), x, current_y, width);
+            }
+
+            // Renderable component
+            if (world.getComponent(entity, @import("ecs/component.zig").Renderable)) |renderable| {
+                current_y = self.drawPropertyHeader("Renderable", x, current_y, width);
+                const visible_str = if (renderable.visible) "Visible" else "Hidden";
+                current_y = self.drawPropertyHeader(visible_str, x, current_y, width);
+                const shadow_str = if (renderable.cast_shadows) "Cast Shadows" else "No Shadows";
+                current_y = self.drawPropertyHeader(shadow_str, x, current_y, width);
+            }
+        } else {
+            current_y = self.drawPropertyHeader("No ECS World", x, current_y, width);
+        }
 
         return current_y;
     }

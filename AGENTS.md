@@ -3,31 +3,111 @@
 ## Project Structure & Module Organization
 
 - `src/` stores engine, editor, and library code. Entry points: `src/main.zig`, `src/editor.zig`, `src/main_editor.zig`; public API re-exported in `src/root.zig`.
-- Subsystems live in `src/ui/`, `src/nodes/`, `src/game/`, `src/io/`, `src/ecs/`, `src/physics/`, `src/rendering/`, plus shared modules `src/rendering.zig` and `src/engine.zig`.
-- Sandbox runtime/UI live in `src/game/sandbox.zig` and `src/ui/sandbox_ui.zig`; reuse their allocator patterns for blocks, camera, HUD.
-- Raylib demos in `examples/`; worlds and UI layouts (e.g., `nyon_ui.json`) in `saves/`.
-- Keep `build.zig` and `build.zig.zon` aligned with dependency pins (`raylib_zig`, `zglfw`) when APIs shift.
+- Core subsystems:
+  - `src/ui/` - UI framework with modules: `ui.zig`, `scaling.zig`, `panels.zig`, `widgets.zig`, `sandbox_ui.zig`, `game_ui.zig`, `menus.zig`, `status_message.zig`
+  - `src/common/` - Shared utilities: `error_handling.zig`, `memory.zig`
+  - `src/platform/` - Platform abstraction: `paths.zig` (cross-platform paths, fonts, config dirs)
+  - `src/config/` - Centralized constants: `constants.zig`
+  - `src/nodes/`, `src/game/`, `src/io/`, `src/ecs/`, `src/physics/`, `src/rendering/`
+  - Shared modules: `src/rendering.zig`, `src/engine.zig`
+- Raylib demos in `examples/`; worlds and UI layouts in `saves/`.
+- Keep `build.zig` and `build.zig.zon` aligned with dependency pins.
+
+## New Module Architecture
+
+### `src/common/` - Shared Utilities
+- `error_handling.zig`: `ErrorContext`, `SafeWrapper`, `Cast`, `safeArrayAccess`
+- `memory.zig`: `ObjectPool`, `MemoryConfig`, `createArena`
+
+### `src/platform/` - Platform Abstraction
+- `paths.zig`: `Platform`, `PathUtils`, `FontPaths`, `ExecutablePaths` (cross-platform support)
+
+### `src/config/` - Centralized Constants
+- `constants.zig`: `UI`, `Rendering`, `Physics`, `Game`, `Memory`, `Performance`, `Editor` namespaces
+
+### `src/ui/` - Modular UI Framework
+- `ui.zig`: Core framework (re-exports widgets, panels, scaling)
+- `scaling.zig`: `UiScale`, `DpiInfo`, `ResponsiveConfig`
+- `panels.zig`: `clampPanelRect`, `splitDockPanels`, `detectDockPosition`
+- `widgets.zig`: `button`, `checkbox`, `sliderFloat`, `sliderInt`
+- `sandbox_ui.zig`: Sandbox HUD and settings
+- `game_ui.zig`: Game HUD and settings
+- `menus.zig`: Menu screens
+- `status_message.zig`: Notifications
 
 ## Build, Test, and Development Commands
 
-- `zig build`: compile the sandbox executable via `src/root.zig`.
-- `zig build run`: launch the sandbox demo (free-fly camera; place/remove blocks).
+- `zig build`: compile the sandbox executable.
+- `zig build run`: launch the sandbox demo.
 - `zig build run-editor`: build and start the editor UI.
-- `zig build nyon-cli`: build the CLI helper.
-- `zig build wasm`: emit the WebAssembly target (requires Emscripten).
-- `zig build example-file-browser` / `zig build example-drop-viewer`: build bundled Raylib samples.
-- `zig build test`: run all tests (module tests and executable tests).
-- `zig build test -- src/rendering/render_graph.zig`: run tests in a specific file only.
+- `zig build wasm`: emit WebAssembly target.
+- `zig build test`: run all tests.
+- `zig build test -- <file>`: run tests in a specific file.
 - `zig fmt`: format sources before submitting.
 
 ## Coding Style & Naming Conventions
 
-- Use four-space indentation; let `zig fmt` align fields and struct members.
-- Import order: `std` library first, then external dependencies (raylib/zglfw), then local modules with descriptive aliases (e.g., `const engine = @import("engine.zig");`).
-- Naming: PascalCase for types, camelCase for functions/variables, ALL_CAPS for constants.
-- Prefer explicit error sets over `anyerror`. Example: `pub const ECSError = error{EntityNotAlive, ComponentNotFound, OutOfMemory};`
-- Error handling: Use `try` for error propagation, `catch` for error recovery, and error unions `!T` for fallible functions.
-- Document modules with top-level `//!` comments and public APIs with `///` documentation comments.
+- Use four-space indentation; let `zig fmt` align fields.
+- Import order: `std` → external → local modules.
+- Naming: PascalCase types, camelCase functions/variables, ALL_CAPS constants.
+- Explicit error sets preferred over `anyerror`.
+- Error handling: `try` propagation, `catch` recovery, error unions `!T`.
+- Document modules with `//!` and public APIs with `///`.
+
+## Memory Management
+
+- Use `std.heap.ArenaAllocator` for temporary allocations.
+- Use `ObjectPool` for frequently allocated types.
+- Track allocations with `LeakyDetector` in debug builds.
+- Always pair allocations with `defer` cleanup.
+
+## Platform Abstraction
+
+- Use `platform/paths.zig` for cross-platform operations:
+  - `PathUtils.join()` - Platform-aware path joining
+  - `FontPaths.getSystemFontPaths()` - Platform font detection
+  - `ExecutablePaths.getConfigDir()` / `getSaveDir()`
+- No hardcoded paths (e.g., `C:\\Windows\\Fonts`)
+
+## Centralized Configuration
+
+- All magic numbers in `src/config/constants.zig`:
+  - `UI.*` - Scale (0.6-2.5), touch target (44px), font sizes
+  - `Rendering.*` - Screen (1920x1080), texture sizes, limits
+  - `Physics.*` - Gravity, forces, masses
+  - `Game.*` - Grid size, block limits, file sizes
+  - `Memory.*` - Arena sizes, buffer limits
+  - `Performance.*` - LOD thresholds, instance limits
+  - `Editor.*` - Timeline, gizmo, grid sizes
+
+## Safe Type Conversions
+
+- Use `Cast.toInt()`, `Cast.toFloat()` for safe conversions.
+- Use `Cast.toIntClamped()` / `Cast.toFloatClamped()` with bounds.
+- Use `safeArrayAccess()` for bounds-checked array access.
+
+## UI & Editor Patterns
+
+- Immediate-mode UI with `UiContext`, `UiStyle`, `UiConfig`.
+- DPI-aware scaling via `UiScale` (0.6-2.5 range).
+- Panel docking with `panels.zig` utilities.
+- Widget composition with `widgets.zig` primitives.
+- UI state persists to `saves/nyon_ui.json`.
+- Press `F1` for edit mode, `Ctrl+S` to save layout.
+
+## Testing Guidelines
+
+- Place tests beside code using `test "name"` blocks.
+- Use `std.testing.allocator`, `std.testing.expect`.
+- Test error handling paths and edge cases.
+- Run targeted tests: `zig build test -- <file>`
+
+## Performance Considerations
+
+- Use `ObjectPool` for frequently created/destroyed objects.
+- Use arena allocators for per-frame temporary data.
+- Batch render calls; minimize state changes.
+- Cache component queries; avoid rebuilding per frame.
 - Use `initCapacity` for collections with known sizes: `std.ArrayList(T).initCapacity(allocator, 0)`
 
 ## Memory Management & Allocator Usage

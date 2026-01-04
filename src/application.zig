@@ -2,6 +2,8 @@ const std = @import("std");
 const nyon_game = @import("nyon_game");
 const engine_mod = nyon_game.engine;
 const status_msg = nyon_game.status_message;
+const common = @import("src/common/error_handling.zig");
+const config = @import("src/config/constants.zig");
 
 // Direct types from engine modules
 const Engine = engine_mod.Engine;
@@ -21,10 +23,10 @@ const MenuState = menus_mod.MenuState;
 const WorldSession = menus_mod.WorldSession;
 
 // Game constants
-const WINDOW_WIDTH: u32 = 1280;
-const WINDOW_HEIGHT: u32 = 720;
+const WINDOW_WIDTH = config.Rendering.WINDOW_WIDTH;
+const WINDOW_HEIGHT = config.Rendering.WINDOW_HEIGHT;
 const WINDOW_TITLE = "Nyon Game - 3D Sandbox";
-const TARGET_FPS: u32 = 60;
+const TARGET_FPS = config.Rendering.TARGET_FPS;
 
 pub const Application = struct {
     allocator: std.mem.Allocator,
@@ -74,13 +76,19 @@ pub const Application = struct {
     pub fn deinit(self: *Application) void {
         // Save UI config if dirty
         if (self.ui_state.dirty) {
-            self.ui_state.config.save(self.allocator, nyon_game.ui.UiConfig.DEFAULT_PATH) catch {};
+            if (self.ui_state.config.save(self.allocator, nyon_game.ui.UiConfig.DEFAULT_PATH)) |_| {} else |err| {
+                std.log.err("Failed to save UI config: {}", .{err});
+            }
         }
 
         // Save world session data
         if (self.world_session) |session| {
-            self.sandbox_state.saveWorld(session.folder) catch {};
-            worlds_mod.touchWorld(self.allocator, session.folder, null, null) catch {};
+            if (self.sandbox_state.saveWorld(session.folder)) |_| {} else |err| {
+                std.log.err("Failed to save world: {}", .{err});
+            }
+            if (worlds_mod.touchWorld(self.allocator, session.folder, null, null)) |_| {} else |err| {
+                std.log.err("Failed to touch world metadata: {}", .{err});
+            }
         }
 
         clearWorldSession(&self.world_session);
@@ -97,8 +105,8 @@ pub const Application = struct {
 
             self.engine.pollEvents();
             const window_size = self.engine.getWindowSize();
-            const screen_width = @as(f32, @floatFromInt(window_size.width));
-            const screen_height = @as(f32, @floatFromInt(window_size.height));
+            const screen_width = common.Cast.toFloat(f32, window_size.width);
+            const screen_height = common.Cast.toFloat(f32, window_size.height);
 
             const ctrl_down = Input.Keyboard.isDown(KeyboardKey.left_control) or Input.Keyboard.isDown(KeyboardKey.right_control);
 
@@ -134,6 +142,22 @@ pub const Application = struct {
                 sandbox_ui_mod.drawStatusMessage(&self.status_message, screen_width);
                 if (action == .singleplayer) {
                     self.app_mode = .worlds;
+                } else if (action == .continue_last) {
+                    if (worlds_mod.getMostRecentWorld(self.allocator)) |entry| {
+                        setWorldSession(&self.world_session, WorldSession{
+                            .allocator = self.allocator,
+                            .folder = entry.folder,
+                            .name = entry.meta.name,
+                        });
+                        self.sandbox_state.clearWorld();
+                        self.sandbox_state.loadWorld(entry.folder) catch {
+                            self.status_message.set("Failed to load world data", 3.0);
+                        };
+                        self.status_message.set("Resuming world...", 3.0);
+                        self.app_mode = .playing;
+                    } else {
+                        self.status_message.set("No saved worlds found", 3.0);
+                    }
                 } else if (action == .multiplayer) {
                     self.app_mode = .server_browser;
                 } else if (action == .quit) {

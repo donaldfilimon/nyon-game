@@ -3,6 +3,8 @@
 const std = @import("std");
 const engine = @import("../engine.zig");
 const worlds_mod = @import("worlds.zig");
+const common = @import("../common/error_handling.zig");
+const config = @import("../config/constants.zig");
 
 const Color = engine.Color;
 const Vector2 = engine.Vector2;
@@ -14,26 +16,47 @@ const Input = engine.Input;
 const KeyboardKey = engine.KeyboardKey;
 const MouseButton = engine.MouseButton;
 
-pub const BLOCK_SIZE: f32 = 1.0;
-const HALF_BLOCK: f32 = BLOCK_SIZE * 0.5;
+pub const BLOCK_SIZE = config.Game.BLOCK_SIZE;
+const HALF_BLOCK = config.Game.HALF_BLOCK;
+const GRID_CELL_SIZE = config.Game.GRID_CELL_SIZE;
 
-pub const WORLD_DATA_FILE: []const u8 = "world_data.json";
-pub const WORLD_DATA_VERSION: u32 = 1;
+pub const WORLD_DATA_FILE = config.Game.WORLD_DATA_FILE;
+pub const WORLD_DATA_VERSION = config.Game.WORLD_DATA_VERSION;
 
-pub const COLOR_BACKGROUND = Color{ .r = 20, .g = 28, .b = 36, .a = 255 };
-const COLOR_GROUND = Color{ .r = 60, .g = 70, .b = 80, .a = 255 };
-const COLOR_HIGHLIGHT = Color{ .r = 255, .g = 220, .b = 120, .a = 255 };
-const COLOR_PREVIEW = Color{ .r = 120, .g = 220, .b = 160, .a = 200 };
+pub const COLOR_BACKGROUND = Color{ .r = config.Colors.BACKGROUND.r, .g = config.Colors.BACKGROUND.g, .b = config.Colors.BACKGROUND.b, .a = config.Colors.BACKGROUND.a };
+const COLOR_GROUND = Color{ .r = config.Colors.GROUND.r, .g = config.Colors.GROUND.g, .b = config.Colors.GROUND.b, .a = config.Colors.GROUND.a };
+const COLOR_HIGHLIGHT = Color{ .r = config.Colors.HIGHLIGHT.r, .g = config.Colors.HIGHLIGHT.g, .b = config.Colors.HIGHLIGHT.b, .a = config.Colors.HIGHLIGHT.a };
+const COLOR_PREVIEW = Color{ .r = config.Colors.PREVIEW.r, .g = config.Colors.PREVIEW.g, .b = config.Colors.PREVIEW.b, .a = config.Colors.PREVIEW.a };
+
+const GRID_SIZE: u32 = 256;
+const PRIME1: u32 = 73856093;
+const PRIME2: u32 = 83492791;
 
 pub const BlockPos = struct {
     x: i32,
     y: i32,
     z: i32,
+
+    pub fn hash(self: BlockPos) u32 {
+        const x_hash = @as(u32, @bitCast(@as(i32, self.x))) *% PRIME1;
+        const y_hash = @as(u32, @bitCast(@as(i32, self.y))) *% PRIME2;
+        const z_hash = @as(u32, @bitCast(@as(i32, self.z))) *% PRIME1;
+        return (x_hash +% y_hash +% z_hash) % GRID_SIZE;
+    }
+
+    pub fn toCell(self: BlockPos) BlockPos {
+        return .{
+            .x = @divFloor(self.x, GRID_CELL_SIZE),
+            .y = @divFloor(self.y, GRID_CELL_SIZE),
+            .z = @divFloor(self.z, GRID_CELL_SIZE),
+        };
+    }
 };
 
 pub const Block = struct {
     pos: BlockPos,
     color_index: u8,
+    index: usize = 0,
 };
 
 pub const BlockColor = struct {
@@ -66,20 +89,35 @@ pub const WorldData = struct {
 pub const SandboxWorld = struct {
     allocator: std.mem.Allocator,
     blocks: std.ArrayList(Block),
+    spatial_grid: std.ArrayList(std.ArrayListUnmanaged(usize)),
 
     pub fn init(allocator: std.mem.Allocator) SandboxWorld {
+        var spatial_grid = std.ArrayList(std.ArrayListUnmanaged(usize)).initCapacity(allocator, GRID_SIZE) catch unreachable;
+        spatial_grid.items.len = GRID_SIZE;
+        for (0..GRID_SIZE) |i| {
+            spatial_grid.items[i] = .{};
+        }
+
         return .{
             .allocator = allocator,
             .blocks = std.ArrayList(Block).initCapacity(allocator, 0) catch unreachable,
+            .spatial_grid = spatial_grid,
         };
     }
 
     pub fn deinit(self: *SandboxWorld) void {
         self.blocks.deinit(self.allocator);
+        for (self.spatial_grid.items) |*cell| {
+            cell.deinit(self.allocator);
+        }
+        self.spatial_grid.deinit(self.allocator);
     }
 
     pub fn clear(self: *SandboxWorld) void {
         self.blocks.clearRetainingCapacity();
+        for (self.spatial_grid.items) |*cell| {
+            cell.clearRetainingCapacity();
+        }
     }
 
     pub fn count(self: *const SandboxWorld) usize {
@@ -87,9 +125,13 @@ pub const SandboxWorld = struct {
     }
 
     pub fn findIndex(self: *const SandboxWorld, pos: BlockPos) ?usize {
-        for (self.blocks.items, 0..) |block, i| {
+        const cell_hash = pos.hash();
+        const cell = &self.spatial_grid.items[cell_hash];
+
+        for (cell.items) |block_index| {
+            const block = &self.blocks.items[block_index];
             if (block.pos.x == pos.x and block.pos.y == pos.y and block.pos.z == pos.z) {
-                return i;
+                return block_index;
             }
         }
         return null;
@@ -97,13 +139,53 @@ pub const SandboxWorld = struct {
 
     pub fn add(self: *SandboxWorld, pos: BlockPos, color_index: u8) bool {
         if (self.findIndex(pos) != null) return false;
-        self.blocks.append(self.allocator, .{ .pos = pos, .color_index = color_index }) catch return false;
+
+        const index = self.blocks.items.len;
+        self.blocks.append(self.allocator, .{ .pos = pos, .color_index = color_index, .index = index }) catch return false;
+        self.blocks.items[index].index = index;
+
+        const cell_hash = pos.hash();
+        try self.spatial_grid.items[cell_hash].append(self.allocator, index);
+
         return true;
     }
 
     pub fn removeIndex(self: *SandboxWorld, index: usize) void {
         if (index >= self.blocks.items.len) return;
+
+        const block = self.blocks.items[index];
+        const cell_hash = block.pos.hash();
+        const cell = &self.spatial_grid.items[cell_hash];
+
+        var found_cell_idx: ?usize = null;
+        for (cell.items, 0..) |block_idx, i| {
+            if (block_idx == index) {
+                found_cell_idx = i;
+                break;
+            }
+        }
+
+        if (found_cell_idx) |ci| {
+            const last_idx = cell.items.len - 1;
+            if (ci < last_idx) {
+                cell.items[ci] = cell.items[last_idx];
+            }
+            cell.items.len -= 1;
+        }
+
         _ = self.blocks.swapRemove(index);
+        try self.rebuildSpatialGrid();
+    }
+
+    fn rebuildSpatialGrid(self: *SandboxWorld) !void {
+        for (self.spatial_grid.items) |*cell| {
+            cell.clearRetainingCapacity();
+        }
+
+        for (self.blocks.items, 0..) |block, i| {
+            const cell_hash = block.pos.hash();
+            try self.spatial_grid.items[cell_hash].append(self.allocator, i);
+        }
     }
 };
 
@@ -181,14 +263,14 @@ pub const SandboxState = struct {
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
         const path = try worldDataPath(folder, &path_buf);
 
-        const file_bytes = std.fs.cwd().readFileAlloc(path, self.allocator, std.Io.Limit.limited(512 * 1024)) catch |err| switch (err) {
-            error.FileNotFound => return,
-            else => return err,
-        };
+        const file_bytes = try retryRead(3, path, self.allocator, std.Io.Limit.limited(512 * 1024));
         defer self.allocator.free(file_bytes);
 
+        var arena = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena.deinit();
+
         const Parsed = std.json.Parsed(WorldData);
-        var parsed: Parsed = try std.json.parseFromSlice(WorldData, self.allocator, file_bytes, .{
+        var parsed: Parsed = try std.json.parseFromSlice(WorldData, arena.allocator(), file_bytes, .{
             .ignore_unknown_fields = true,
         });
         defer parsed.deinit();
@@ -197,6 +279,8 @@ pub const SandboxState = struct {
             _ = self.world.add(block.pos, block.color_index);
         }
 
+        self.world.rebuildSpatialGrid() catch {};
+
         self.camera.position = vec3(parsed.value.camera.x, parsed.value.camera.y, parsed.value.camera.z);
         self.yaw = parsed.value.camera.yaw;
         self.pitch = parsed.value.camera.pitch;
@@ -204,12 +288,32 @@ pub const SandboxState = struct {
         self.camera.target = vec3Add(self.camera.position, forwardFromAngles(self.yaw, self.pitch));
     }
 
+    fn retryRead(max_attempts: u32, path: []const u8, allocator: std.mem.Allocator, max_size: std.Io.SizeLimit) ![]u8 {
+        var attempt: u32 = 0;
+        while (attempt < max_attempts) : (attempt += 1) {
+            const result = std.fs.cwd().readFileAlloc(path, allocator, max_size);
+            if (result) |data| {
+                return data;
+            } else |err| {
+                if (attempt < max_attempts - 1) {
+                    std.log.warn("Failed to read file (attempt {d}/{d}): {}, retrying...", .{ attempt + 1, max_attempts, err });
+                    std.time.sleep(100 * std.time.ns_per_ms);
+                    continue;
+                }
+                if (err == error.FileNotFound) {
+                    std.log.warn("World file not found: {s}", .{path});
+                    return error.FileNotFound;
+                }
+                std.log.err("Failed to read file after {d} attempts: {}", .{ max_attempts, err });
+                return err;
+            }
+        }
+        return error.OperationFailed;
+    }
+
     pub fn saveWorld(self: *const SandboxState, folder: []const u8) !void {
         var path_buf: [std.fs.max_path_bytes]u8 = undefined;
         const path = try worldDataPath(folder, &path_buf);
-
-        var file = try std.fs.cwd().createFile(path, .{ .truncate = true });
-        defer file.close();
 
         const data = WorldData{
             .version = WORLD_DATA_VERSION,
@@ -224,9 +328,47 @@ pub const SandboxState = struct {
         };
 
         var buffer: [4096]u8 = undefined;
-        var writer = file.writer(&buffer);
-        try std.json.Stringify.value(data, .{ .whitespace = .indent_2 }, &writer.interface);
-        try writer.interface.flush();
+        var fba = std.heap.FixedBufferAllocator.init(&buffer);
+        const arena = fba.allocator();
+
+        var string_writer = std.ArrayList(u8).initCapacity(arena, 4096) catch unreachable;
+        defer string_writer.deinit();
+
+        try std.json.stringify(data, .{ .whitespace = .indent_2 }, string_writer.writer());
+
+        try retryWrite(3, path, string_writer.items);
+    }
+
+    fn retryWrite(max_attempts: u32, path: []const u8, data: []const u8) !void {
+        var attempt: u32 = 0;
+        while (attempt < max_attempts) : (attempt += 1) {
+            const result = std.fs.cwd().atomicFile(path, .{ .mode = .write_only });
+            if (result) |af| {
+                defer af.file_handle.close();
+                const write_result = af.file_handle.writeAll(data);
+                if (write_result) |_| {
+                    try af.finish();
+                    return;
+                } else |err| {
+                    std.log.warn("Failed to write file (attempt {d}/{d}): {}, retrying...", .{ attempt + 1, max_attempts, err });
+                    if (attempt < max_attempts - 1) {
+                        std.time.sleep(100 * std.time.ns_per_ms);
+                        continue;
+                    }
+                    std.log.err("Failed to write file after {d} attempts: {}", .{ max_attempts, err });
+                    return err;
+                }
+            } else |err| {
+                std.log.warn("Failed to create file (attempt {d}/{d}): {}, retrying...", .{ attempt + 1, max_attempts, err });
+                if (attempt < max_attempts - 1) {
+                    std.time.sleep(100 * std.time.ns_per_ms);
+                    continue;
+                }
+                std.log.err("Failed to create file after {d} attempts: {}", .{ max_attempts, err });
+                return err;
+            }
+        }
+        return error.OperationFailed;
     }
 
     pub fn update(
@@ -248,8 +390,8 @@ pub const SandboxState = struct {
         if (!allow_input) return action;
 
         if (Input.Keyboard.isPressed(KeyboardKey.tab)) {
-            const next = (@as(usize, self.active_color) + 1) % BLOCK_COLORS.len;
-            self.active_color = @intCast(next);
+            const next = (common.Cast.toInt(usize, self.active_color) + 1) % BLOCK_COLORS.len;
+            self.active_color = common.Cast.toInt(u8, next);
             action = .{ .color_changed = self.active_color };
         }
 
@@ -283,7 +425,7 @@ pub const SandboxState = struct {
 
         for (self.world.blocks.items) |block| {
             const center = blockCenter(block.pos);
-            const color_index = @min(@as(usize, block.color_index), BLOCK_COLORS.len - 1);
+            const color_index = @min(common.Cast.toInt(usize, block.color_index), BLOCK_COLORS.len - 1);
             const color = BLOCK_COLORS[color_index].color;
             engine.Shapes.drawCube(center, BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, color);
         }
@@ -302,7 +444,7 @@ pub const SandboxState = struct {
     }
 
     pub fn activeColor(self: *const SandboxState) BlockColor {
-        const index = @min(@as(usize, self.active_color), BLOCK_COLORS.len - 1);
+        const index = @min(common.Cast.toInt(usize, self.active_color), BLOCK_COLORS.len - 1);
         return BLOCK_COLORS[index];
     }
 
@@ -449,9 +591,9 @@ fn orientationFromTarget(position: Vector3, target: Vector3) struct { yaw: f32, 
 
 fn blockCenter(pos: BlockPos) Vector3 {
     return vec3(
-        @as(f32, @floatFromInt(pos.x)) + 0.5,
-        @as(f32, @floatFromInt(pos.y)) + 0.5,
-        @as(f32, @floatFromInt(pos.z)) + 0.5,
+        common.Cast.toFloat(f32, pos.x) + 0.5,
+        common.Cast.toFloat(f32, pos.y) + 0.5,
+        common.Cast.toFloat(f32, pos.z) + 0.5,
     );
 }
 
@@ -465,9 +607,9 @@ fn blockBounds(pos: BlockPos) BoundingBox {
 
 fn blockPosFromPoint(point: Vector3) BlockPos {
     return .{
-        .x = @intFromFloat(@floor(point.x)),
-        .y = @intFromFloat(@floor(point.y)),
-        .z = @intFromFloat(@floor(point.z)),
+        .x = common.Cast.toInt(i32, @floor(point.x)),
+        .y = common.Cast.toInt(i32, @floor(point.y)),
+        .z = common.Cast.toInt(i32, @floor(point.z)),
     };
 }
 
@@ -491,7 +633,8 @@ fn rayPlaneIntersection(ray: Ray, plane_y: f32) ?Vector3 {
 }
 
 fn worldDataPath(folder: []const u8, buffer: *[std.fs.max_path_bytes]u8) ![]const u8 {
-    const sep = std.fs.path.sep_str;
+    const platform = @import("../platform/paths.zig");
+    const sep = platform.PathUtils.Separator;
     return std.fmt.bufPrint(buffer, "{s}{s}{s}{s}{s}", .{
         worlds_mod.SAVES_DIR,
         sep,
@@ -499,4 +642,56 @@ fn worldDataPath(folder: []const u8, buffer: *[std.fs.max_path_bytes]u8) ![]cons
         sep,
         WORLD_DATA_FILE,
     });
+}
+
+test "block position hashing" {
+    const pos = BlockPos{ .x = 10, .y = 20, .z = 30 };
+    const hash1 = pos.hash();
+    const hash2 = pos.hash();
+
+    try std.testing.expect(hash1 == hash2);
+    try std.testing.expect(hash1 < GRID_SIZE);
+}
+
+test "spatial grid cell computation" {
+    const pos = BlockPos{ .x = 10, .y = 5, .z = 15 };
+    const cell = pos.toCell();
+
+    const expected_x = @divFloor(pos.x, GRID_CELL_SIZE);
+    const expected_y = @divFloor(pos.y, GRID_CELL_SIZE);
+    const expected_z = @divFloor(pos.z, GRID_CELL_SIZE);
+
+    try std.testing.expect(cell.x == expected_x);
+    try std.testing.expect(cell.y == expected_y);
+    try std.testing.expect(cell.z == expected_z);
+}
+
+test "spatial grid lookup" {
+    var world = SandboxWorld.init(std.testing.allocator);
+    defer world.deinit();
+
+    const pos1 = BlockPos{ .x = 0, .y = 0, .z = 0 };
+    const pos2 = BlockPos{ .x = 100, .y = 0, .z = 0 };
+    const pos3 = BlockPos{ .x = 50, .y = 0, .z = 50 };
+
+    _ = world.add(pos1, 0);
+    _ = world.add(pos2, 1);
+    _ = world.add(pos3, 2);
+
+    const found = world.findIndex(pos2);
+    try std.testing.expect(found != null);
+
+    const not_found = world.findIndex(BlockPos{ .x = 999, .y = 999, .z = 999 });
+    try std.testing.expect(not_found == null);
+}
+
+test "spatial grid collision detection" {
+    var world = SandboxWorld.init(std.testing.allocator);
+    defer world.deinit();
+
+    const pos = BlockPos{ .x = 10, .y = 10, .z = 10 };
+    _ = world.add(pos, 0);
+
+    const duplicate_result = world.add(pos, 1);
+    try std.testing.expect(duplicate_result == false);
 }
