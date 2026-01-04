@@ -18,6 +18,8 @@ pub const PhysicsConfig = struct {
     broad_phase_enabled: bool = true,
     sleep_threshold: f32 = 0.1,
     baumgarte_factor: f32 = 0.2, // Constraint stabilization
+    spatial_hash_enabled: bool = true,
+    spatial_hash_cell_size: f32 = 10.0,
 };
 
 /// Collision pair for broad phase results
@@ -85,6 +87,10 @@ pub const PhysicsWorld = struct {
     dynamic_aabbs: std.ArrayList(types.AABB),
     static_aabbs: std.ArrayList(types.AABB),
 
+    // Spatial hash grid for O(n) broad phase
+    spatial_hash_grid: std.ArrayList(std.ArrayListUnmanaged(usize)),
+    spatial_hash_enabled: bool = false,
+
     // Collision detection results
     potential_pairs: std.ArrayList(CollisionPair),
     manifolds: std.ArrayList(types.ContactManifold),
@@ -96,36 +102,56 @@ pub const PhysicsWorld = struct {
         potential_collisions: usize = 0,
         actual_collisions: usize = 0,
         solve_time: u64 = 0,
+        broad_phase_time: u64 = 0,
     },
 
-    /// Initialize a new physics world
+    /// Initialize a new physics world with given configuration.
+    /// Pre-allocates arrays with configured capacities to reduce reallocations.
     pub fn init(allocator: std.mem.Allocator, config: PhysicsConfig) PhysicsWorld {
+        const config_mod = @import("../config/constants.zig");
+        const GRID_SIZE: usize = 1024;
+
+        var spatial_hash_grid = std.ArrayList(std.ArrayListUnmanaged(usize)).initCapacity(allocator, GRID_SIZE) catch unreachable;
+        spatial_hash_grid.items.len = GRID_SIZE;
+        for (0..GRID_SIZE) |i| {
+            spatial_hash_grid.items[i] = .{};
+        }
+
         return .{
             .allocator = allocator,
             .config = config,
-            .bodies = std.ArrayList(rigidbody.RigidBody).initCapacity(allocator, 0) catch unreachable,
-            .colliders = std.ArrayList(?colliders.Collider).initCapacity(allocator, 0) catch unreachable,
-            .constraints = std.ArrayList(Constraint).initCapacity(allocator, 0) catch unreachable,
-            .dynamic_aabbs = std.ArrayList(types.AABB).initCapacity(allocator, 0) catch unreachable,
-            .static_aabbs = std.ArrayList(types.AABB).initCapacity(allocator, 0) catch unreachable,
-            .potential_pairs = std.ArrayList(CollisionPair).initCapacity(allocator, 0) catch unreachable,
-            .manifolds = std.ArrayList(types.ContactManifold).initCapacity(allocator, 0) catch unreachable,
+            .bodies = std.ArrayList(rigidbody.RigidBody).initCapacity(allocator, config_mod.Memory.PHYSICS_BODIES_INITIAL) catch unreachable,
+            .colliders = std.ArrayList(?colliders.Collider).initCapacity(allocator, config_mod.Memory.PHYSICS_COLLIDERS_INITIAL) catch unreachable,
+            .constraints = std.ArrayList(Constraint).initCapacity(allocator, config_mod.Memory.PHYSICS_CONSTRAINTS_INITIAL) catch unreachable,
+            .dynamic_aabbs = std.ArrayList(types.AABB).initCapacity(allocator, config_mod.Memory.PHYSICS_AABBS_INITIAL) catch unreachable,
+            .static_aabbs = std.ArrayList(types.AABB).initCapacity(allocator, config_mod.Memory.PHYSICS_AABBS_INITIAL) catch unreachable,
+            .spatial_hash_grid = spatial_hash_grid,
+            .spatial_hash_enabled = config.spatial_hash_enabled,
+            .potential_pairs = std.ArrayList(CollisionPair).initCapacity(allocator, config_mod.Memory.PHYSICS_POTENTIAL_PAIRS_INITIAL) catch unreachable,
+            .manifolds = std.ArrayList(types.ContactManifold).initCapacity(allocator, config_mod.Memory.PHYSICS_MANIFOLDS_INITIAL) catch unreachable,
             .stats = .{},
         };
     }
 
-    /// Deinitialize the physics world
+    /// Deinitialize the physics world and free all resources.
+    /// Destroys all bodies, colliders, constraints, and AABB arrays.
     pub fn deinit(self: *PhysicsWorld) void {
         self.bodies.deinit(self.allocator);
         self.colliders.deinit(self.allocator);
         self.constraints.deinit(self.allocator);
         self.dynamic_aabbs.deinit(self.allocator);
         self.static_aabbs.deinit(self.allocator);
+        for (self.spatial_hash_grid.items) |*cell| {
+            cell.deinit(self.allocator);
+        }
+        self.spatial_hash_grid.deinit(self.allocator);
         self.potential_pairs.deinit(self.allocator);
         self.manifolds.deinit(self.allocator);
     }
 
-    /// Create a new rigid body
+    /// Create a new rigid body and return its handle.
+    /// The handle is an index into the bodies array; destroying bodies
+    /// after this one will invalidate handles with higher indices.
     pub fn createBody(self: *PhysicsWorld, body: rigidbody.RigidBody) !BodyHandle {
         const handle = self.bodies.items.len;
         try self.bodies.append(self.allocator, body);
@@ -138,7 +164,10 @@ pub const PhysicsWorld = struct {
         return handle;
     }
 
-    /// Destroy a rigid body
+    /// Destroy a rigid body by handle.
+    /// Note: This invalidates handles for bodies with higher indices
+    /// (swapRemove shifts elements in array). Use handle mapping or
+    /// free list in production systems.
     pub fn destroyBody(self: *PhysicsWorld, handle: BodyHandle) void {
         if (handle >= self.bodies.items.len) return;
 
@@ -156,24 +185,34 @@ pub const PhysicsWorld = struct {
         // In a production system, you'd use a free list or handle remapping
     }
 
-    /// Attach a collider to a body
+    /// Attach a collider to a body at given handle.
+    /// Returns error.InvalidBodyHandle if handle is out of bounds.
     pub fn attachCollider(self: *PhysicsWorld, handle: BodyHandle, collider: colliders.Collider) !void {
         if (handle >= self.colliders.items.len) return error.InvalidBodyHandle;
         self.colliders.items[handle] = collider;
     }
 
-    /// Add a constraint between two bodies
+    /// Add a constraint (joint) between two bodies.
+    /// Constraint must have valid body handles that exist in the world.
     pub fn addConstraint(self: *PhysicsWorld, constraint: Constraint) !void {
         try self.constraints.append(self.allocator, constraint);
     }
 
-    /// Step the physics simulation
+    /// Step the physics simulation forward by given time delta.
+    /// Performs substepping with fixed timestep for stability.
+    /// Updates AABBs, detects collisions, solves constraints, and integrates motion.
     pub fn step(self: *PhysicsWorld, dt: f32) !void {
         var timer = std.time.Timer.start() catch null;
 
         // Handle variable timestep with substepping
         const substep_dt = self.config.fixed_timestep;
-        const num_substeps = @min(self.config.max_substeps, @as(u32, @intFromFloat(@ceil(dt / substep_dt))));
+        // Safely calculate number of substeps with bounds checking
+        const substeps_f = @ceil(dt / substep_dt);
+        const max_u32_f = @as(f32, @floatFromInt(std.math.maxInt(u32)));
+        const num_substeps = if (substeps_f > max_u32_f)
+            self.config.max_substeps
+        else
+            @min(self.config.max_substeps, @as(u32, @intFromFloat(substeps_f)));
 
         for (0..num_substeps) |_| {
             try self.substep(substep_dt);
@@ -238,22 +277,84 @@ pub const PhysicsWorld = struct {
     fn broadPhase(self: *PhysicsWorld) !void {
         self.potential_pairs.clearRetainingCapacity();
 
-        // Dynamic vs dynamic
+        var timer = std.time.Timer.start() catch null;
+        defer {
+            if (timer) |*active_timer| {
+                self.stats.broad_phase_time = active_timer.read();
+            }
+        }
+
+        if (self.spatial_hash_enabled and self.bodies.items.len > 50) {
+            try self.spatialHashBroadPhase();
+        } else {
+            try self.bruteForceBroadPhase();
+        }
+    }
+
+    /// Broad phase using spatial hash grid for O(n) collision detection
+    fn spatialHashBroadPhase(self: *PhysicsWorld) !void {
+        try self.rebuildSpatialHash();
+
+        const GRID_SIZE: u32 = 1024;
+        const PRIME1: u32 = 73856093;
+        const PRIME2: u32 = 83492791;
+
         for (0..self.bodies.items.len) |i| {
-            for (i + 1..self.bodies.items.len) |j| {
-                if (self.dynamic_aabbs.items[i].intersects(self.dynamic_aabbs.items[j])) {
-                    try self.potential_pairs.append(self.allocator, CollisionPair{ .a = i, .b = j });
+            const aabb = &self.dynamic_aabbs.items[i];
+            const center_x = (aabb.min.x + aabb.max.x) * 0.5;
+            const center_y = (aabb.min.y + aabb.max.y) * 0.5;
+            const center_z = (aabb.min.z + aabb.max.z) * 0.5;
+
+            const cell_x = @as(i32, @intFromFloat(@divFloor(center_x, self.config.spatial_hash_cell_size)));
+            const cell_y = @as(i32, @intFromFloat(@divFloor(center_y, self.config.spatial_hash_cell_size)));
+            const cell_z = @as(i32, @intFromFloat(@divFloor(center_z, self.config.spatial_hash_cell_size)));
+
+            const cell_hash = @as(u32, @bitCast(cell_x)) *% PRIME1 +% @as(u32, @bitCast(cell_y)) *% PRIME2 +% @as(u32, @bitCast(cell_z)) *% PRIME1 % GRID_SIZE;
+
+            const cell = &self.spatial_hash_grid.items[cell_hash];
+
+            for (cell.items) |j| {
+                if (j > i) {
+                    if (self.dynamic_aabbs.items[i].intersects(self.dynamic_aabbs.items[j])) {
+                        try self.potential_pairs.append(self.allocator, CollisionPair{ .a = i, .b = j });
+                    }
                 }
             }
         }
 
-        // Dynamic vs static
         for (0..self.bodies.items.len) |i| {
             for (0..self.static_aabbs.items.len) |j| {
                 if (self.dynamic_aabbs.items[i].intersects(self.static_aabbs.items[j])) {
                     try self.potential_pairs.append(self.allocator, CollisionPair{ .a = i, .b = j });
                 }
             }
+        }
+    }
+
+    fn rebuildSpatialHash(self: *PhysicsWorld) !void {
+        for (self.spatial_hash_grid.items) |*cell| {
+            cell.clearRetainingCapacity();
+        }
+
+        const GRID_SIZE: u32 = 1024;
+        const PRIME1: u32 = 73856093;
+        const PRIME2: u32 = 83492791;
+
+        for (self.bodies.items, 0..) |body, i| {
+            if (body.is_static) continue;
+
+            const aabb = &self.dynamic_aabbs.items[i];
+            const center_x = (aabb.min.x + aabb.max.x) * 0.5;
+            const center_y = (aabb.min.y + aabb.max.y) * 0.5;
+            const center_z = (aabb.min.z + aabb.max.z) * 0.5;
+
+            const cell_x = @as(i32, @intFromFloat(@divFloor(center_x, self.config.spatial_hash_cell_size)));
+            const cell_y = @as(i32, @intFromFloat(@divFloor(center_y, self.config.spatial_hash_cell_size)));
+            const cell_z = @as(i32, @intFromFloat(@divFloor(center_z, self.config.spatial_hash_cell_size)));
+
+            const cell_hash = @as(u32, @bitCast(cell_x)) *% PRIME1 +% @as(u32, @bitCast(cell_y)) *% PRIME2 +% @as(u32, @bitCast(cell_z)) *% PRIME1 % GRID_SIZE;
+
+            try self.spatial_hash_grid.items[cell_hash].append(self.allocator, i);
         }
     }
 
@@ -459,7 +560,9 @@ pub const PhysicsWorld = struct {
         }
     }
 
-    /// Perform ray casting against all bodies
+    /// Perform ray casting against all bodies with colliders.
+    /// Returns closest hit (by distance) or null if ray hits nothing.
+    /// Result contains both hit information and the body handle that was hit.
     pub fn raycast(self: *const PhysicsWorld, ray: types.Ray) ?struct { hit: types.RaycastHit, body: BodyHandle } {
         var closest_hit: ?struct { hit: types.RaycastHit, body: BodyHandle } = null;
 
@@ -478,13 +581,17 @@ pub const PhysicsWorld = struct {
         return closest_hit;
     }
 
-    /// Get body by handle
+    /// Get mutable pointer to rigid body by handle.
+    /// Returns null if handle is out of bounds.
+    /// Use with caution as body data may be invalidated by other operations.
     pub fn getBody(self: *PhysicsWorld, handle: BodyHandle) ?*rigidbody.RigidBody {
         if (handle >= self.bodies.items.len) return null;
         return &self.bodies.items[handle];
     }
 
-    /// Get current physics statistics
+    /// Get current physics statistics for profiling/debugging.
+    /// Returns struct with body counts, collision stats, and timing information.
+    /// Stats are reset each physics step.
     pub fn getStats(self: *const PhysicsWorld) struct {
         bodies: usize,
         constraints: usize,
@@ -541,4 +648,45 @@ test "constraint creation" {
 
     try std.testing.expect(world.constraints.items.len == 1);
     try std.testing.expect(world.constraints.items[0].type == .distance);
+}
+
+test "spatial hash broad phase" {
+    var world = PhysicsWorld.init(std.testing.allocator, .{
+        .spatial_hash_enabled = true,
+        .spatial_hash_cell_size = 10.0,
+    });
+    defer world.deinit();
+
+    const body_a = try world.createBody(rigidbody.RigidBody.dynamic(1.0, types.Vector3.init(0, 0, 0)));
+    const body_b = try world.createBody(rigidbody.RigidBody.dynamic(1.0, types.Vector3.init(1, 0, 0)));
+    const body_c = try world.createBody(rigidbody.RigidBody.dynamic(1.0, types.Vector3.init(100, 0, 0)));
+
+    try world.attachCollider(body_a, colliders.Collider{ .sphere = .{ .radius = 1.0 } });
+    try world.attachCollider(body_b, colliders.Collider{ .sphere = .{ .radius = 1.0 } });
+    try world.attachCollider(body_c, colliders.Collider{ .sphere = .{ .radius = 1.0 } });
+
+    try world.step(0.016);
+
+    const stats = world.getStats();
+    try std.testing.expect(stats.bodies == 3);
+    try std.testing.expect(stats.potential_collisions > 0);
+}
+
+test "spatial hash fallback to brute force" {
+    var world = PhysicsWorld.init(std.testing.allocator, .{
+        .spatial_hash_enabled = true,
+        .spatial_hash_cell_size = 10.0,
+    });
+    defer world.deinit();
+
+    const body_a = try world.createBody(rigidbody.RigidBody.dynamic(1.0, types.Vector3.init(0, 0, 0)));
+    const body_b = try world.createBody(rigidbody.RigidBody.dynamic(1.0, types.Vector3.init(1, 0, 0)));
+
+    try world.attachCollider(body_a, colliders.Collider{ .sphere = .{ .radius = 1.0 } });
+    try world.attachCollider(body_b, colliders.Collider{ .sphere = .{ .radius = 1.0 } });
+
+    try world.step(0.016);
+
+    const stats = world.getStats();
+    try std.testing.expect(stats.bodies == 2);
 }

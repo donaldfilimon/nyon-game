@@ -13,6 +13,8 @@ const Rectangle = engine_mod.Rectangle;
 const Vector2 = engine_mod.Vector2;
 const Shapes = engine_mod.Shapes;
 const Text = engine_mod.Text;
+const config = @import("config/constants.zig");
+const platform = @import("platform/paths.zig");
 
 // Re-export modules for convenience
 pub const widgets = @import("widgets.zig");
@@ -59,10 +61,20 @@ pub const FontSet = struct {
     }
 
     pub fn loadCustomFonts(self: *FontSet, font_size: i32) void {
-        const fallback = raylib.getFontDefault() catch std.mem.zeroes(raylib.Font);
-        self.regular = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeui.ttf", font_size, null) catch fallback;
-        self.bold = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeuib.ttf", font_size, null) catch self.regular;
-        self.mono = raylib.loadFontEx("C:\\Windows\\Fonts\\consola.ttf", font_size, null) catch self.regular;
+        const fallback = raylib.getFontDefault() catch undefined;
+        const paths = platform.FontPaths.getSystemFontPaths(std.heap.page_allocator) catch fallback;
+        defer {
+            for (paths) |p| std.heap.page_allocator.free(p);
+            std.heap.page_allocator.free(paths);
+        }
+
+        if (paths.len > 0) {
+            self.regular = raylib.loadFontEx(paths[0], font_size, null) catch fallback;
+        } else {
+            self.regular = fallback;
+        }
+        self.bold = self.regular;
+        self.mono = self.regular;
         self.icon = raylib.getFontDefault() catch self.regular;
     }
 
@@ -79,10 +91,10 @@ pub const UiStyle = struct {
     scale: f32 = 1.0,
     fonts: ?FontSet = null,
 
-    font_size: i32 = 20,
-    small_font_size: i32 = 16,
-    padding: i32 = 14,
-    panel_title_height: i32 = 30,
+    font_size: i32 = config.UI.DEFAULT_FONT_SIZE,
+    small_font_size: i32 = config.UI.SMALL_FONT_SIZE,
+    padding: i32 = config.UI.DEFAULT_PADDING,
+    panel_title_height: i32 = config.UI.PANEL_TITLE_HEIGHT,
     border_width: f32 = 2.0,
     corner_radius: f32 = 6.0,
     shadow_offset: f32 = 4.0,
@@ -99,8 +111,8 @@ pub const UiStyle = struct {
     pub fn fromTheme(theme: UiTheme, opacity: u8, scale: f32) UiStyle {
         const clamped_scale = scaling.UiScale.clamp(scale);
 
-        const base_font: i32 = @intFromFloat(std.math.round(20.0 * clamped_scale));
-        const small_font: i32 = @intFromFloat(std.math.round(16.0 * clamped_scale));
+        const base_font: i32 = @intFromFloat(std.math.round(@as(f32, @floatFromInt(config.UI.DEFAULT_FONT_SIZE)) * clamped_scale));
+        const small_font: i32 = @intFromFloat(std.math.round(@as(f32, @floatFromInt(config.UI.SMALL_FONT_SIZE)) * clamped_scale));
         const pad: i32 = @intFromFloat(std.math.round(16.0 * clamped_scale));
         const title_h: i32 = @intFromFloat(std.math.round(36.0 * clamped_scale));
 
@@ -203,7 +215,10 @@ pub const UiConfig = struct {
     pub const DEFAULT_PATH = "nyon_ui.json";
 
     pub fn loadOrDefault(allocator: std.mem.Allocator, path: []const u8) UiConfig {
-        return UiConfig.load(allocator, path) catch UiConfig{};
+        return UiConfig.load(allocator, path) catch |err| {
+            std.log.warn("Failed to load UI config from '{s}': {}, using defaults", .{ path, err });
+            return UiConfig{};
+        };
     }
 
     pub fn load(allocator: std.mem.Allocator, path: []const u8) !UiConfig {
