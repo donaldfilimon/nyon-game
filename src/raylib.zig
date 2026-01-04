@@ -17,6 +17,16 @@ pub const Color = extern struct {
     a: u8,
 };
 
+// Common color constants
+pub const WHITE = Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+pub const BLACK = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
+pub const RED = Color{ .r = 255, .g = 0, .b = 0, .a = 255 };
+pub const GREEN = Color{ .r = 0, .g = 255, .b = 0, .a = 255 };
+pub const BLUE = Color{ .r = 0, .g = 0, .b = 255, .a = 255 };
+pub const YELLOW = Color{ .r = 255, .g = 255, .b = 0, .a = 255 };
+pub const MAGENTA = Color{ .r = 255, .g = 0, .b = 255, .a = 255 };
+pub const CYAN = Color{ .r = 0, .g = 255, .b = 255, .a = 255 };
+
 pub const Vector2 = extern struct {
     x: f32,
     y: f32,
@@ -123,6 +133,12 @@ pub const Model = extern struct {
     bindPose: ?[*]Transform,
 };
 
+/// 4x4 matrix in column-major order (OpenGL style)
+/// Layout:
+///   m0  m4  m8  m12
+///   m1  m5  m9  m13
+///   m2  m6  m10 m14
+///   m3  m7  m11 m15
 pub const Matrix = extern struct {
     m0: f32,
     m4: f32,
@@ -140,6 +156,12 @@ pub const Matrix = extern struct {
     m7: f32,
     m11: f32,
     m15: f32,
+};
+
+pub const Transform = extern struct {
+    translation: Vector3,
+    rotation: Vector3,
+    scale: Vector3,
 };
 
 pub const Material = extern struct {
@@ -203,6 +225,12 @@ pub const GlyphInfo = extern struct {
     offsetY: c_int,
     advanceX: c_int,
     image: Image,
+    id: u32,
+};
+
+pub const BoneInfo = extern struct {
+    id: [32]u8,
+    parent: c_int,
 };
 
 // ============================================================================
@@ -238,15 +266,15 @@ pub fn beginDrawing() void {}
 
 pub fn endDrawing() void {}
 
-pub fn isKeyDown(key: KeyboardKey) bool {
+pub fn isKeyDown(_: KeyboardKey) bool {
     return false;
 }
 
-pub fn isKeyPressed(key: KeyboardKey) bool {
+pub fn isKeyPressed(_: KeyboardKey) bool {
     return false;
 }
 
-pub fn isKeyReleased(key: KeyboardKey) bool {
+pub fn isKeyReleased(_: KeyboardKey) bool {
     return false;
 }
 
@@ -254,15 +282,15 @@ pub fn getMousePosition() Vector2 {
     return Vector2{ .x = 0, .y = 0 };
 }
 
-pub fn isMouseButtonDown(button: MouseButton) bool {
+pub fn isMouseButtonDown(_: MouseButton) bool {
     return false;
 }
 
-pub fn isMouseButtonPressed(button: MouseButton) bool {
+pub fn isMouseButtonPressed(_: MouseButton) bool {
     return false;
 }
 
-pub fn isMouseButtonReleased(button: MouseButton) bool {
+pub fn isMouseButtonReleased(_: MouseButton) bool {
     return false;
 }
 
@@ -329,10 +357,7 @@ pub fn drawRectangleLinesEx(rec: Rectangle, lineThick: f32, color: Color) void {
 }
 
 pub fn drawRectangleRounded(rec: Rectangle, roundness: f32, segments: c_int, color: Color) void {
-    _ = rec;
-    _ = roundness;
-    _ = segments;
-    _ = color;
+    _ = .{ rec, roundness, segments, color };
 }
 
 pub fn drawRectangleRoundedLines(rec: Rectangle, roundness: f32, segments: c_int, lineThick: f32, color: Color) void {
@@ -352,9 +377,10 @@ pub fn drawText(text: [*:0]const u8, posX: c_int, posY: c_int, fontSize: c_int, 
 }
 
 pub fn measureText(text: [*:0]const u8, fontSize: c_int) c_int {
-    _ = text;
-    _ = fontSize;
-    return @intCast(text.len * fontSize);
+    // Calculate length of null-terminated string
+    var len: usize = 0;
+    while (text[len] != 0) : (len += 1) {}
+    return @intCast(len * fontSize);
 }
 
 pub fn checkCollisionPointRec(point: Vector2, rec: Rectangle) bool {
@@ -439,6 +465,7 @@ pub fn drawModel(model: Model) void {
     _ = model;
 }
 
+/// 4x4 identity matrix (diagonal = 1, all others = 0)
 pub const MatrixIdentity = Matrix{
     .m0 = 1,
     .m1 = 0,
@@ -450,15 +477,15 @@ pub const MatrixIdentity = Matrix{
     .m7 = 0,
     .m8 = 0,
     .m9 = 0,
-    .m10 = 0,
-    .m11 = 1,
+    .m10 = 1,
+    .m11 = 0,
     .m12 = 0,
     .m13 = 0,
     .m14 = 0,
-    .m15 = 0,
+    .m15 = 1,
 };
 
-pub fn genMeshCube(width: f32, height: f32, depth: f32) Mesh {
+pub fn genMeshCube(_: f32, _: f32, _: f32) Mesh {
     return Mesh{
         .vertexCount = 24,
         .triangleCount = 12,
@@ -479,7 +506,7 @@ pub fn genMeshCube(width: f32, height: f32, depth: f32) Mesh {
     };
 }
 
-pub fn genMeshSphere(radius: f32, rings: i32, slices: i32) Mesh {
+pub fn genMeshSphere(_: f32, _: i32, _: i32) Mesh {
     return Mesh{
         .vertexCount = 100,
         .triangleCount = 180,
