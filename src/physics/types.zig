@@ -12,7 +12,9 @@ const Mat4 = @Vector(16, f32);
 // Core Physics Types
 // ============================================================================
 
-/// 3D vector for physics calculations
+/// 3D vector for physics calculations and spatial operations
+/// Provides fundamental vector math operations used throughout the physics system.
+/// All operations are component-wise and follow standard vector algebra rules.
 pub const Vector3 = struct {
     x: f32 = 0,
     y: f32 = 0,
@@ -75,7 +77,9 @@ pub const Vector3 = struct {
     }
 };
 
-/// Quaternion for 3D rotations
+/// Quaternion for 3D rotations and orientation representation
+/// Uses standard quaternion mathematics for rotation operations.
+/// Provides efficient rotation calculations and interpolation capabilities.
 pub const Quaternion = struct {
     x: f32 = 0,
     y: f32 = 0,

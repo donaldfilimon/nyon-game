@@ -2,11 +2,11 @@
 
 ## ✅ COMPLETED: Continue Feature
 
-### What was implemented:
+### What was implemented
 
 A "Continue" button on the title menu that loads and resumes the most recently played world, allowing users to quickly jump back into their last session without navigating through the world selection menu.
 
-### Files Modified:
+### Files Modified
 
 #### 1. `src/ui/menus.zig`
 
@@ -29,7 +29,7 @@ A "Continue" button on the title menu that loads and resumes the most recently p
   - Transitions directly to `.playing` mode
   - Shows "No saved worlds found" message if needed
 
-### How it works:
+### How it works
 
 1. **User clicks "Continue"** on title menu
 2. **System calls `getMostRecentWorld()`** which:
@@ -43,18 +43,19 @@ A "Continue" button on the title menu that loads and resumes the most recently p
    - Setting status message "Resuming world..."
 4. **World resumes** with exact camera position and placed blocks intact
 
-### Save Data Format:
+### Save Data Format
 
 The feature works with existing save files:
+
 - `saves/{world}/world.json` - Metadata including `last_played_ns`
 - `saves/{world}/world_data.json` - Camera position and block data
 
-### Example Save Files Found:
+### Example Save Files Found
 
 - `saves/hello/` - Contains world with 120+ stone blocks
 - `saves/hi/` - Additional saved world
 
-### Error Handling:
+### Error Handling
 
 - **No worlds found**: Shows "No saved worlds found" message
 - **Load failure**: Shows "Failed to load world data" message  

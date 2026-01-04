@@ -12,7 +12,7 @@ const colliders = @import("colliders.zig");
 pub const PhysicsConfig = struct {
     gravity: types.Vector3 = types.Vector3.init(0, -9.81, 0),
     max_substeps: u32 = 10,
-    fixed_timestep: f32 = 1.0 / 60.0,
+    fixed_timestep: f32 = 1.0 / config.Rendering.TARGET_FPS,
     position_iterations: u32 = 8,
     velocity_iterations: u32 = 4,
     broad_phase_enabled: bool = true,
@@ -359,11 +359,23 @@ pub const PhysicsWorld = struct {
     }
 
     /// Brute force broad phase (for testing/small scenes)
+    /// WARNING: O(n²) complexity - only use for small numbers of bodies (< 50)
     fn bruteForceBroadPhase(self: *PhysicsWorld) !void {
         self.potential_pairs.clearRetainingCapacity();
 
-        for (0..self.bodies.items.len) |i| {
-            for (i + 1..self.bodies.items.len) |j| {
+        // Early exit optimization for empty scenes
+        if (self.bodies.items.len == 0) return;
+
+        // Skip AABB checks for performance in brute force mode
+        // All pairs are potential collisions
+        const body_count = self.bodies.items.len;
+        const estimated_pairs = (body_count * (body_count - 1)) / 2;
+
+        // Pre-allocate for known capacity
+        try self.potential_pairs.ensureTotalCapacity(self.allocator, estimated_pairs);
+
+        for (0..body_count) |i| {
+            for (i + 1..body_count) |j| {
                 try self.potential_pairs.append(self.allocator, CollisionPair{ .a = i, .b = j });
             }
         }

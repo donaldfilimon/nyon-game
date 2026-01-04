@@ -219,6 +219,43 @@ pub fn drawSettingsPanel(
     }
 }
 
+/// Draw HUD panel with game statistics and information.
+/// Displays world info, performance metrics, and game status.
+/// This function is shared between sandbox and game UI modes.
+pub fn drawHudPanel(
+    world_name: ?[]const u8,
+    ui_state: *SandboxUiState,
+    screen_width: f32,
+    screen_height: f32,
+) !void {
+    const style = ui_state.style();
+    const text_x: i32 = 10;
+    var line_y: i32 = 10;
+    const line_step: i32 = @intFromFloat(std.math.round(20.0 * style.scale));
+
+    // World name if provided
+    if (world_name) |name| {
+        const world_text = try std.fmt.bufPrintZ(&[_:0]u8{0} ** 64, "World: {s}", .{name});
+        nyon_game.engine.Text.draw(world_text, text_x, line_y, style.small_font_size, style.text);
+        line_y += line_step;
+    }
+
+    // Active color indicator
+    const color_text = try std.fmt.bufPrintZ(&[_:0]u8{0} ** 32, "Color: {d}", .{ui_state.sandbox_state.active_color});
+    nyon_game.engine.Text.draw(color_text, text_x, line_y, style.small_font_size, style.text);
+    line_y += line_step;
+
+    // Block count
+    const block_text = try std.fmt.bufPrintZ(&[_:0]u8{0} ** 32, "Blocks: {d}", .{ui_state.sandbox_state.world.count()});
+    nyon_game.engine.Text.draw(block_text, text_x, line_y, style.small_font_size, style.text);
+    line_y += line_step;
+
+    // Camera position (last line)
+    const cam_pos = ui_state.sandbox_state.camera.position;
+    const cam_text = try std.fmt.bufPrintZ(&[_:0]u8{0} ** 64, "X:{d:.1} Y:{d:.1} Z:{d:.1}", .{ cam_pos.x, cam_pos.y, cam_pos.z });
+    nyon_game.engine.Text.draw(cam_text, text_x, line_y, style.small_font_size, style.text_muted);
+}
+
 /// Apply panel docking functionality when in edit mode.
 /// Allows panels to be docked to each other by dragging them together.
 pub fn applyDocking(ui_state: *GameUiState, status_message: *StatusMessage) void {

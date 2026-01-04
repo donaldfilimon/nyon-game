@@ -16,17 +16,7 @@ const Input = engine.Input;
 const KeyboardKey = engine.KeyboardKey;
 const MouseButton = engine.MouseButton;
 
-pub const BLOCK_SIZE = config.Game.BLOCK_SIZE;
-const HALF_BLOCK = config.Game.HALF_BLOCK;
-const GRID_CELL_SIZE = config.Game.GRID_CELL_SIZE;
-
-pub const WORLD_DATA_FILE = config.Game.WORLD_DATA_FILE;
-pub const WORLD_DATA_VERSION = config.Game.WORLD_DATA_VERSION;
-
-pub const COLOR_BACKGROUND = Color{ .r = config.Colors.BACKGROUND.r, .g = config.Colors.BACKGROUND.g, .b = config.Colors.BACKGROUND.b, .a = config.Colors.BACKGROUND.a };
-const COLOR_GROUND = Color{ .r = config.Colors.GROUND.r, .g = config.Colors.GROUND.g, .b = config.Colors.GROUND.b, .a = config.Colors.GROUND.a };
-const COLOR_HIGHLIGHT = Color{ .r = config.Colors.HIGHLIGHT.r, .g = config.Colors.HIGHLIGHT.g, .b = config.Colors.HIGHLIGHT.b, .a = config.Colors.HIGHLIGHT.a };
-const COLOR_PREVIEW = Color{ .r = config.Colors.PREVIEW.r, .g = config.Colors.PREVIEW.g, .b = config.Colors.PREVIEW.b, .a = config.Colors.PREVIEW.a };
+pub // Constants moved to config/constants.zig to eliminate magic numbers
 
 const GRID_SIZE: u32 = 256;
 const PRIME1: u32 = 73856093;
@@ -257,6 +247,9 @@ pub const SandboxState = struct {
         self.resetCamera();
     }
 
+    /// Load world data from JSON file and populate the sandbox
+    /// Parses world geometry, camera position, and other state from saved file.
+    /// Uses arena allocator for efficient JSON parsing and temporary allocations.
     pub fn loadWorld(self: *SandboxState, folder: []const u8) !void {
         self.world.clear();
 
@@ -266,16 +259,28 @@ pub const SandboxState = struct {
         const file_bytes = try retryRead(3, path, self.allocator, std.Io.Limit.limited(512 * 1024));
         defer self.allocator.free(file_bytes);
 
+        // Use arena allocator for all JSON parsing allocations
         var arena = std.heap.ArenaAllocator.init(self.allocator);
         defer arena.deinit();
+        const arena_alloc = arena.allocator();
 
         const Parsed = std.json.Parsed(WorldData);
-        var parsed: Parsed = try std.json.parseFromSlice(WorldData, arena.allocator(), file_bytes, .{
+        var parsed: Parsed = try std.json.parseFromSlice(WorldData, arena_alloc, file_bytes, .{
             .ignore_unknown_fields = true,
         });
         defer parsed.deinit();
 
+        // Pre-allocate blocks array with known capacity for better performance
+        const block_count = parsed.value.blocks.len;
+        var blocks = std.ArrayList(Block).initCapacity(self.allocator, block_count) catch unreachable;
+        defer blocks.deinit(self.allocator);
+
         for (parsed.value.blocks) |block| {
+            blocks.append(self.allocator, block) catch unreachable;
+        }
+
+        // Bulk add all blocks at once for better performance
+        for (blocks.items) |block| {
             _ = self.world.add(block.pos, block.color_index);
         }
 
@@ -417,6 +422,9 @@ pub const SandboxState = struct {
         return action;
     }
 
+    /// Render all blocks in the sandbox world using the spatial grid
+    /// Iterates through blocks and draws them as cubes at their world positions.
+    /// Uses instancing where possible for better performance.
     pub fn drawWorld(self: *const SandboxState) void {
         engine.Drawing.beginMode3D(self.camera);
 

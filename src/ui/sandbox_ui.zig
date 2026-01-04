@@ -84,7 +84,7 @@ pub fn drawUI(
     screen_width: f32,
     screen_height: f32,
 ) !void {
-    try drawHudPanel(sandbox_state, world_name, ui_state, screen_width, screen_height);
+    try shared_ui.drawHudPanel(world_name, ui_state, screen_width, screen_height);
     try shared_ui.drawSettingsPanel(ui_state, status_message, allocator, screen_width, screen_height);
     shared_ui.applyDocking(ui_state, status_message);
     ui_state.config.sanitize();

@@ -84,7 +84,7 @@ pub fn defaultUiScaleFromDpi() f32 {
 
 const shared_ui = @import("shared_ui.zig");
 
-fn drawHudPanel(game_state: *const game_state_module.GameState, ui_state: *GameUiState, screen_width: f32, screen_height: f32) !void {
+// HUD panel drawing moved to shared_ui.zig for code deduplication
     if (!ui_state.config.hud.visible) return;
 
     var rect = ui_state.config.hud.rect;
