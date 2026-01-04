@@ -349,9 +349,7 @@ pub const UndoRedoSystem = struct {
 
     /// Undo the last command
     pub fn undo(self: *UndoRedoSystem) !bool {
-        if (self.undo_stack.items.len == 0) return false;
-
-        const command = self.undo_stack.pop();
+        const command = self.undo_stack.popOrNull() orelse return false;
         try command.undo();
 
         // Move to redo stack
@@ -362,9 +360,7 @@ pub const UndoRedoSystem = struct {
 
     /// Redo the last undone command
     pub fn redo(self: *UndoRedoSystem) !bool {
-        if (self.redo_stack.items.len == 0) return false;
-
-        const command = self.redo_stack.pop();
+        const command = self.redo_stack.popOrNull() orelse return false;
         try command.execute();
 
         // Move back to undo stack

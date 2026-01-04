@@ -13,6 +13,8 @@ pub const UI = struct {
     pub const PANEL_TITLE_HEIGHT: i32 = 30;
     pub const MIN_PANEL_WIDTH: f32 = 220.0;
     pub const MIN_PANEL_HEIGHT: f32 = 160.0;
+    pub const SETTINGS_MIN_WIDTH: f32 = 240.0;
+    pub const SETTINGS_MIN_HEIGHT: f32 = 190.0;
     pub const DEFAULT_OPACITY: u8 = 180;
     pub const STATUS_DURATION: f32 = 3.0;
     pub const INSTRUCTION_FONT_SIZE: i32 = 16;
@@ -20,6 +22,9 @@ pub const UI = struct {
     pub const STATUS_MESSAGE_FONT_SIZE: i32 = 18;
     pub const STATUS_MESSAGE_DURATION: f32 = 3.0;
     pub const STATUS_MESSAGE_Y_OFFSET: i32 = 8;
+    pub const PROGRESS_HEIGHT: f32 = 10.0;
+    pub const WIN_FONT_SIZE: i32 = 40;
+    pub const WIN_Y_OFFSET: i32 = 20;
 };
 
 pub const Rendering = struct {
@@ -92,6 +97,9 @@ pub const Editor = struct {
     pub const TIMELINE_HEIGHT: f32 = 100.0;
     pub const GIZMO_SIZE: f32 = 50.0;
     pub const GRID_SIZE: f32 = 50.0;
+    pub const TAB_BAR_HEIGHT: f32 = 40.0;
+    pub const TOOLBAR_HEIGHT: f32 = 35.0;
+    pub const STATUS_BAR_HEIGHT: f32 = 25.0;
 };
 
 pub const Colors = struct {
@@ -99,6 +107,9 @@ pub const Colors = struct {
     pub const GROUND = struct { r: u8 = 60, g: u8 = 70, b: u8 = 80, a: u8 = 255 };
     pub const HIGHLIGHT = struct { r: u8 = 255, g: u8 = 220, b: u8 = 120, a: u8 = 255 };
     pub const PREVIEW = struct { r: u8 = 120, g: u8 = 220, b: u8 = 160, a: u8 = 200 };
+    pub const STATUS_MESSAGE = struct { r: u8 = 200, g: u8 = 220, b: u8 = 255, a: u8 = 255 };
+    pub const TEXT_MUTED = struct { r: u8 = 200, g: u8 = 200, b: u8 = 200, a: u8 = 255 };
+    pub const CROSSHAIR = struct { r: u8 = 255, g: u8 = 255, b: u8 = 255, a: u8 = 200 };
 };
 
 test "UI constants valid" {

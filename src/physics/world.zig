@@ -7,12 +7,13 @@ const std = @import("std");
 const types = @import("types.zig");
 const rigidbody = @import("rigidbody.zig");
 const colliders = @import("colliders.zig");
+const cfg = @import("../config/constants.zig");
 
 /// Physics simulation configuration
 pub const PhysicsConfig = struct {
     gravity: types.Vector3 = types.Vector3.init(0, -9.81, 0),
     max_substeps: u32 = 10,
-    fixed_timestep: f32 = 1.0 / config.Rendering.TARGET_FPS,
+    fixed_timestep: f32 = 1.0 / cfg.Rendering.TARGET_FPS,
     position_iterations: u32 = 8,
     velocity_iterations: u32 = 4,
     broad_phase_enabled: bool = true,

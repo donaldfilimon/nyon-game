@@ -2,8 +2,8 @@ const std = @import("std");
 const nyon_game = @import("nyon_game");
 const engine_mod = nyon_game.engine;
 const status_msg = nyon_game.status_message;
-const common = @import("src/common/error_handling.zig");
-const config = @import("src/config/constants.zig");
+const common = @import("common/error_handling.zig");
+const config = @import("config/constants.zig");
 
 // Direct types from engine modules
 const Engine = engine_mod.Engine;

@@ -13,8 +13,8 @@ const Rectangle = engine_mod.Rectangle;
 const Vector2 = engine_mod.Vector2;
 const Shapes = engine_mod.Shapes;
 const Text = engine_mod.Text;
-const config = @import("config/constants.zig");
-const platform = @import("platform/paths.zig");
+const config = @import("../config/constants.zig");
+const platform = @import("../platform/paths.zig");
 
 // Re-export modules for convenience
 pub const widgets = @import("widgets.zig");
@@ -170,9 +170,9 @@ pub const PanelConfig = struct {
 pub const FontConfig = struct {
     use_system_font: bool = true,
     font_path: ?[]const u8 = null,
-    font_size: i32 = 20,
-    title_font_size: i32 = 24,
-    small_font_size: i32 = 16,
+    font_size: i32 = config.UI.DEFAULT_FONT_SIZE,
+    title_font_size: i32 = config.UI.TITLE_FONT_SIZE,
+    small_font_size: i32 = config.UI.SMALL_FONT_SIZE,
     dpi_scale: f32 = 1.0,
 
     pub fn effectiveFontSize(self: FontConfig, base_size: i32) i32 {
@@ -222,8 +222,11 @@ pub const UiConfig = struct {
     }
 
     pub fn load(allocator: std.mem.Allocator, path: []const u8) !UiConfig {
-        const file_bytes = try std.fs.cwd().readFileAlloc(path, allocator, std.Io.Limit.limited(256 * 1024));
-        defer allocator.free(file_bytes);
+        var dir = try std.fs.openDirAbsolute(".", .{ .access_sub_paths = false });
+        defer dir.close();
+        const file = try dir.openFile(path, .{ .mode = .read_only });
+        defer file.close();
+        const file_bytes = try file.readToEndAlloc(allocator, 256 * 1024);
 
         var parsed: std.json.Parsed(UiConfig) = try std.json.parseFromSlice(UiConfig, allocator, file_bytes, .{
             .ignore_unknown_fields = true,
@@ -237,7 +240,9 @@ pub const UiConfig = struct {
 
     pub fn save(self: *const UiConfig, allocator: std.mem.Allocator, path: []const u8) !void {
         _ = allocator;
-        var file = try std.fs.cwd().createFile(path, .{ .truncate = true });
+        var dir = try std.fs.openDirAbsolute(".", .{ .access_sub_paths = false });
+        defer dir.close();
+        var file = try dir.createFile(path, .{ .truncate = true });
         defer file.close();
 
         var buffer: [4096]u8 = undefined;

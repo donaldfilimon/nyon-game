@@ -1,8 +1,8 @@
 .{
     .name = .nyon_game,
     .version = "0.1.0",
-    .fingerprint = 0x369b208f67ab89e1,
-    .paths = .{""},
+    .fingerprint = 0x369b208fd10649a7,
+    .paths = .{ ".", "build.zig", "build.zig.zon", "src" },
     .dependencies = .{
         .raylib_zig = .{
             .url = "https://github.com/raylib-zig/raylib-zig/archive/master.tar.gz",

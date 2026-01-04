@@ -172,7 +172,7 @@ fn copyMesh(mesh: raylib.Mesh, allocator: std.mem.Allocator) !raylib.Mesh {
 }
 
 /// Cube primitive node
-const CubeNode = struct {
+pub const CubeNode = struct {
     pub fn createVTable() nodes.NodeGraph.Node.NodeVTable {
         return .{
             .execute = execute,

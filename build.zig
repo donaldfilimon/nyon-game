@@ -1,6 +1,14 @@
 /// @Browser @Definitions
 const std = @import("std");
 
+// #region agent log - INSTRUMENTATION FOR DEBUGGING BUILD ISSUES
+fn logDebug(hypothesis_id: []const u8, message: []const u8, data: anytype, session_id: []const u8) void {
+    _ = data; // suppress unused parameter warning
+
+    std.debug.print("[DEBUG {s}] {s} (session: {s})\n", .{ hypothesis_id, message, session_id });
+}
+// #endregion
+
 // ============================================================================
 // Build Configuration Definitions
 // ============================================================================
@@ -12,13 +20,16 @@ pub const EXECUTABLE_NAME = "nyon_game";
 pub const MODULE_NAME = "nyon_game";
 
 /// The root source file for the main library module.
-pub const ROOT_MODULE_PATH = "src/main.zig";
+pub const ROOT_MODULE_PATH = "src/root.zig";
 
 /// The main entry source file for the application.
 pub const MAIN_SOURCE_PATH = "src/main.zig";
 
 /// The import name for raylib, to be used with @import().
 pub const RAYLIB_IMPORT_NAME = "raylib";
+
+/// The import name for raygui, to be used with @import().
+pub const RAYGUI_IMPORT_NAME = "raygui";
 
 /// The import name for zglfw, to be used with @import().
 pub const ZGLFW_IMPORT_NAME = "zglfw";
@@ -64,27 +75,32 @@ pub const EXAMPLES = [_]Example{
 // ============================================================================
 
 pub fn build(b: *std.Build) void {
+    // #region agent log
+    logDebug("build_start", "Build function started", .{}, "A");
+    // #endregion
+
     // Standard build target and optimization option setup.
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Create raylib dependency (using stub for Zig 0.16.x compatibility)
+    // #region agent log
+    logDebug("target_optimize_setup", "Target and optimize options set", .{ .target_os = @tagName(target.result.os.tag), .optimize = @tagName(optimize) }, "A");
+    // #endregion
+
     const raylib_dep = b.dependency("raylib_zig", .{
         .target = target,
         .optimize = optimize,
     });
-    const raylib_mod = raylib_dep.module("raylib");
+    const raylib_mod = raylib_dep.module(RAYLIB_IMPORT_NAME);
+    const raygui_mod = raylib_dep.module(RAYGUI_IMPORT_NAME);
     const raylib_lib = raylib_dep.artifact("raylib");
 
     const zglfw_dep = b.dependency("zglfw", .{
         .target = target,
         .optimize = optimize,
     });
-    const zglfw_mod = zglfw_dep.module("root");
-    const zglfw_lib = if (target.result.os.tag == .emscripten)
-        null
-    else
-        zglfw_dep.artifact("glfw");
+    const zglfw_mod = zglfw_dep.module(ZGLFW_IMPORT_NAME);
+    const zglfw_lib: ?*std.Build.Step.Compile = null;
 
     const nyon_game_mod = b.createModule(.{
         .root_source_file = b.path(ROOT_MODULE_PATH),
@@ -92,6 +108,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{
             .{ .name = RAYLIB_IMPORT_NAME, .module = raylib_mod },
+            .{ .name = RAYGUI_IMPORT_NAME, .module = raygui_mod },
             .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw_mod },
         },
     });
@@ -106,11 +123,13 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "raylib", .module = raylib_mod },
+                .{ .name = "raygui", .module = raygui_mod },
                 .{ .name = "zglfw", .module = zglfw_mod },
                 .{ .name = NYON_GAME_IMPORT_NAME, .module = nyon_game_mod },
             },
         }),
     });
+
     exe.root_module.linkLibrary(raylib_lib);
     if (zglfw_lib) |glfw_lib| {
         exe.root_module.linkLibrary(glfw_lib);
@@ -126,6 +145,7 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "raylib", .module = raylib_mod },
+                .{ .name = "raygui", .module = raygui_mod },
                 .{ .name = "zglfw", .module = zglfw_mod },
                 .{ .name = NYON_GAME_IMPORT_NAME, .module = nyon_game_mod },
             },
@@ -139,6 +159,10 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(editor_exe);
 
     setupBuildSteps(b, exe, editor_exe, nyon_game_mod, raylib_lib, zglfw_lib);
+
+    // #region agent log
+    logDebug("build_complete", "Build function completed successfully", .{}, "A");
+    // #endregion
 }
 
 /// Create the editor executable.
@@ -243,7 +267,7 @@ pub fn setupBuildSteps(
     exe: *std.Build.Step.Compile,
     editor_exe: *std.Build.Step.Compile,
     mod: *std.Build.Module,
-    raylib_lib: *std.Build.Step.Compile,
+    raylib_lib: ?*std.Build.Step.Compile,
     zglfw_lib: ?*std.Build.Step.Compile,
 ) void {
     const run_step = b.step("run", "Build and run the game");
@@ -262,7 +286,9 @@ pub fn setupBuildSteps(
     const mod_tests = b.addTest(.{
         .root_module = mod,
     });
-    mod_tests.root_module.linkLibrary(raylib_lib);
+    if (raylib_lib) |rl_lib| {
+        mod_tests.root_module.linkLibrary(rl_lib);
+    }
     if (zglfw_lib) |glfw_lib| {
         mod_tests.root_module.linkLibrary(glfw_lib);
     }
@@ -271,7 +297,9 @@ pub fn setupBuildSteps(
     const exe_tests = b.addTest(.{
         .root_module = exe.root_module,
     });
-    exe_tests.root_module.linkLibrary(raylib_lib);
+    if (raylib_lib) |rl_lib| {
+        exe_tests.root_module.linkLibrary(rl_lib);
+    }
     if (zglfw_lib) |glfw_lib| {
         exe_tests.root_module.linkLibrary(glfw_lib);
     }

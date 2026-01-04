@@ -272,7 +272,6 @@ pub const World = struct {
         // Create new archetype
         const new_archetype = try self.createArchetype(new_comp_types.items);
 
-
         // Move entity and data
         try self.moveEntityData(entity_id, current_archetype, new_archetype);
 

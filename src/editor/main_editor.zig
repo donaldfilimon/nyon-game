@@ -11,23 +11,21 @@ const raylib = @import("raylib");
 const animation = @import("animation.zig");
 const asset = @import("asset.zig");
 const docking = @import("docking.zig");
-const engine = @import("engine.zig");
 const geometry_nodes = @import("geometry_nodes.zig");
 const keyframe = @import("keyframe.zig");
-const material = @import("material.zig");
 const performance = @import("performance.zig");
 const post_processing = @import("post_processing.zig");
 const property_inspector = @import("property_inspector.zig");
 const rendering = @import("rendering.zig");
 const scene = @import("scene.zig");
-const tool_system = @import("tool_system.zig");
 const undo_redo = @import("undo_redo.zig");
-const material_nodes = @import("material_nodes.zig");
 const audio = @import("game/audio_system.zig");
 const ecs = @import("ecs/ecs.zig");
 const physics = @import("physics/ecs_integration.zig");
-const physics_core = @import("physics/physics.zig");
-const nodes = @import("nodes/node_graph.zig");
+const config = @import("config/constants.zig");
+
+const editor_tui = @import("editor/main_editor_tui.zig");
+const MaterialNodeEditor = @import("editor/material_node_editor.zig").MaterialNodeEditor;
 
 // ============================================================================
 // Imports and Dependencies
@@ -72,9 +70,9 @@ pub const MainEditor = struct {
     /// Main window and UI layout dimensions.
     screen_width: f32,
     screen_height: f32,
-    tab_bar_height: f32 = 40,
-    toolbar_height: f32 = 35,
-    status_bar_height: f32 = 25,
+    tab_bar_height: f32 = config.Editor.TAB_BAR_HEIGHT,
+    toolbar_height: f32 = config.Editor.TOOLBAR_HEIGHT,
+    status_bar_height: f32 = config.Editor.STATUS_BAR_HEIGHT,
 
     /// Selected object in the 3D scene.
     selected_scene_object: ?usize,
@@ -100,6 +98,19 @@ pub const MainEditor = struct {
         material_editor, // Node graph for editing PBR materials
         animation_editor, // Timeline-based 3D animation editing
         tui_mode, // Terminal-like in-editor command line UI
+    };
+
+    const TabDefinition = struct {
+        mode: EditorMode,
+        label: [:0]const u8,
+    };
+
+    const tab_definitions = [_]TabDefinition{
+        .{ .mode = .geometry_nodes, .label = "Geometry Nodes" },
+        .{ .mode = .scene_editor, .label = "Scene Editor" },
+        .{ .mode = .material_editor, .label = "Material Editor" },
+        .{ .mode = .animation_editor, .label = "Animation Editor" },
+        .{ .mode = .tui_mode, .label = "TUI" },
     };
 
     /// Create and fully initialize a MainEditor, including all system dependencies.
@@ -267,7 +278,7 @@ pub const MainEditor = struct {
             .geometry_nodes => self.updateGeometryNodeEditor(dt),
             .material_editor => self.updateMaterialEditor(dt),
             .animation_editor => try self.updateAnimationEditor(dt),
-            .tui_mode => self.updateTUIMode(dt),
+            .tui_mode => editor_tui.update(self, dt),
         }
 
         self.keyframe_system.update(dt);
@@ -295,7 +306,7 @@ pub const MainEditor = struct {
             .geometry_nodes => self.renderGeometryNodeEditor(content_rect),
             .material_editor => self.renderMaterialEditor(content_rect),
             .animation_editor => try self.renderAnimationEditor(content_rect),
-            .tui_mode => self.renderTUIMode(content_rect),
+            .tui_mode => editor_tui.render(self, content_rect),
         }
 
         self.docking_system.render();
@@ -314,14 +325,14 @@ pub const MainEditor = struct {
 
     /// Handles user input events and dispatches to the current editor mode.
     pub fn handleInput(self: *MainEditor) !void {
-        if (raylib.isKeyPressed(.z) and raylib.isKeyDown(.left_control)) _ = self.undo_redo_system.undo();
-        if (raylib.isKeyPressed(.y) and raylib.isKeyDown(.left_control)) _ = self.undo_redo_system.redo();
+        if (raylib.isKeyPressed(.z) and raylib.isKeyDown(.left_control)) _ = try self.undo_redo_system.undo();
+        if (raylib.isKeyPressed(.y) and raylib.isKeyDown(.left_control)) _ = try self.undo_redo_system.redo();
         switch (self.current_mode) {
             .scene_editor => try self.handleSceneEditorInput(),
             .geometry_nodes => self.handleGeometryNodeInput(),
             .material_editor => self.handleMaterialEditorInput(),
             .animation_editor => try self.handleAnimationEditorInput(),
-            .tui_mode => self.handleTUIInput(),
+            .tui_mode => editor_tui.handleInput(self),
         }
 
         // Handle post-processing hotkeys
@@ -404,257 +415,6 @@ pub const MainEditor = struct {
         return clicked;
     }
 
-    // ============================================================================
-    // TUI Mode
-    // ============================================================================
-
-    /// TUI update - does nothing (input handled separately).
-    fn updateTUIMode(self: *MainEditor, _: f32) void {
-        _ = self;
-    }
-
-    /// Draws the terminal UI mode area, including command buffer and output scrollback.
-    fn renderTUIMode(self: *MainEditor, content_rect: raylib.Rectangle) void {
-        raylib.beginScissorMode(
-            @intFromFloat(content_rect.x),
-            @intFromFloat(content_rect.y),
-            @intFromFloat(content_rect.width),
-            @intFromFloat(content_rect.height),
-        );
-        raylib.drawRectangleRec(content_rect, raylib.Color{ .r = 20, .g = 20, .b = 30, .a = 255 });
-        const line_height: f32 = 20;
-        const max_visible_lines = @as(usize, @intFromFloat(content_rect.height / line_height)) - 2;
-
-        var y: f32 = content_rect.y + 10;
-        const start_line = if (self.tui_output_lines.items.len > max_visible_lines)
-            self.tui_output_lines.items.len - max_visible_lines
-        else
-            0;
-        for (self.tui_output_lines.items[start_line..]) |line| {
-            raylib.drawText(line, @intFromFloat(content_rect.x + 10), @intFromFloat(y), 16, raylib.Color.white);
-            y += line_height;
-            if (y > content_rect.y + content_rect.height - 60) break;
-        }
-        // Draw the command prompt and cursor.
-        const prompt_y = content_rect.y + content_rect.height - 40;
-        raylib.drawText(">", @intFromFloat(content_rect.x + 10), @intFromFloat(prompt_y), 16, raylib.Color.green);
-        const command_text = self.tui_command_buffer.items;
-        raylib.drawText(command_text, @intFromFloat(content_rect.x + 25), @intFromFloat(prompt_y), 16, raylib.Color.white);
-        if (raylib.getTime() - @floor(raylib.getTime()) < 0.5) {
-            const cursor_x = content_rect.x + 25 + @as(f32, @floatFromInt(self.tui_cursor_pos)) * 8.5;
-            raylib.drawLine(@intFromFloat(cursor_x), @intFromFloat(prompt_y), @intFromFloat(cursor_x), @intFromFloat(prompt_y + 16), raylib.Color.white);
-        }
-        raylib.endScissorMode();
-    }
-
-    /// TUI mode input processing (ASCII only).
-    fn handleTUIInput(self: *MainEditor) void {
-        const char = raylib.getCharPressed();
-        if (char != 0) {
-            if (self.tui_cursor_pos < self.tui_command_buffer.items.len)
-                self.tui_command_buffer.insert(self.tui_cursor_pos, @as(u8, @intCast(char))) catch return
-            else
-                self.tui_command_buffer.append(@as(u8, @intCast(char))) catch return;
-            self.tui_cursor_pos += 1;
-        }
-        if (raylib.isKeyPressed(.backspace)) {
-            if (self.tui_cursor_pos > 0) {
-                _ = self.tui_command_buffer.orderedRemove(self.tui_cursor_pos - 1);
-                self.tui_cursor_pos -= 1;
-            }
-        }
-        if (raylib.isKeyPressed(.enter)) self.executeTUICommand();
-
-        // Command history navigation/up/down
-        if (raylib.isKeyPressed(.up)) {
-            if (self.tui_history_index < @as(i32, @intCast(self.tui_command_history.items.len)) - 1) {
-                self.tui_history_index += 1;
-                const history_cmd = self.tui_command_history.items[self.tui_command_history.items.len - 1 - @as(usize, @intCast(self.tui_history_index))];
-                self.tui_command_buffer.clearRetainingCapacity();
-                self.tui_command_buffer.appendSlice(history_cmd) catch return;
-                self.tui_cursor_pos = history_cmd.len;
-            }
-        }
-        if (raylib.isKeyPressed(.down)) {
-            if (self.tui_history_index > 0) {
-                self.tui_history_index -= 1;
-                const history_cmd = self.tui_command_history.items[self.tui_command_history.items.len - 1 - @as(usize, @intCast(self.tui_history_index))];
-                self.tui_command_buffer.clearRetainingCapacity();
-                self.tui_command_buffer.appendSlice(history_cmd) catch return;
-                self.tui_cursor_pos = history_cmd.len;
-            } else if (self.tui_history_index == 0) {
-                self.tui_history_index = -1;
-                self.tui_command_buffer.clearRetainingCapacity();
-                self.tui_cursor_pos = 0;
-            }
-        }
-        // Buffer editing
-        if (raylib.isKeyPressed(.left)) {
-            if (self.tui_cursor_pos > 0) self.tui_cursor_pos -= 1;
-        }
-        if (raylib.isKeyPressed(.right)) {
-            if (self.tui_cursor_pos < self.tui_command_buffer.items.len) self.tui_cursor_pos += 1;
-        }
-    }
-
-    /// Executes the current entered terminal command buffer in TUI mode.
-    fn executeTUICommand(self: *MainEditor) void {
-        const command = self.tui_command_buffer.items;
-        if (command.len == 0) return;
-        const cmd_copy = self.allocator.dupe(u8, command) catch return;
-        self.tui_command_history.append(cmd_copy) catch {
-            self.allocator.free(cmd_copy);
-            return;
-        };
-
-        var output_line = std.ArrayList(u8).initCapacity(self.allocator, command.len + 3) catch return;
-        defer output_line.deinit();
-        output_line.appendSlice("> ") catch return;
-        output_line.appendSlice(command) catch return;
-        const output_cmd = output_line.toOwnedSlice() catch return;
-        self.tui_output_lines.append(output_cmd) catch {
-            self.allocator.free(output_cmd);
-        };
-
-        // Built-in TUI command set: @Definitions
-        if (std.mem.eql(u8, command, "help")) {
-            self.addTUIOutput("Available commands:");
-            self.addTUIOutput("  help          - Show this help");
-            self.addTUIOutput("  clear         - Clear terminal");
-            self.addTUIOutput("  mode scene    - Switch to scene editor");
-            self.addTUIOutput("  mode geometry - Switch to geometry nodes");
-            self.addTUIOutput("  mode material - Switch to material editor");
-            self.addTUIOutput("  mode animation- Switch to animation editor");
-            self.addTUIOutput("  mode tui      - Stay in TUI mode");
-            self.addTUIOutput("  panels        - List dock panel names and ids");
-            self.addTUIOutput("  exit          - Exit application");
-        } else if (std.mem.eql(u8, command, "clear")) {
-            for (self.tui_output_lines.items) |line| self.allocator.free(line);
-            self.tui_output_lines.clearRetainingCapacity();
-            self.addTUIOutput("Terminal cleared");
-        } else if (std.mem.eql(u8, command, "undo")) {
-            self.undo_redo_system.undo() catch |err| {
-                var buf: [64]u8 = undefined;
-                self.addTUIOutput(std.fmt.bufPrint(&buf, "Undo failed: {any}", .{err}) catch "Undo failed");
-                return;
-            };
-            self.addTUIOutput("Undone successfully");
-        } else if (std.mem.eql(u8, command, "redo")) {
-            self.undo_redo_system.redo() catch |err| {
-                var buf: [64]u8 = undefined;
-                self.addTUIOutput(std.fmt.bufPrint(&buf, "Redo failed: {any}", .{err}) catch "Redo failed");
-                return;
-            };
-            self.addTUIOutput("Redone successfully");
-        } else if (std.mem.startsWith(u8, command, "add ")) {
-            const model_path = command[4..];
-            const cmd = undo_redo.AddObjectCommand.create(
-                self.allocator,
-                &self.scene_system,
-                &self.asset_manager,
-                &self.world,
-                &self.physics_system,
-                model_path,
-                .{ .x = 0, .y = 0, .z = 0 },
-                "Add object through TUI",
-            ) catch |err| {
-                var buf: [64]u8 = undefined;
-                self.addTUIOutput(std.fmt.bufPrint(&buf, "Failed to create add command: {any}", .{err}) catch "Add failed");
-                return;
-            };
-            self.undo_redo_system.executeCommand(&cmd.base) catch |err| {
-                var buf: [64]u8 = undefined;
-                self.addTUIOutput(std.fmt.bufPrint(&buf, "Failed to execute add command: {any}", .{err}) catch "Add execution failed");
-                return;
-            };
-            self.addTUIOutput("Object added");
-            self.rebuildSceneEntityMapping();
-        } else if (std.mem.startsWith(u8, command, "remove ")) {
-            const index_str = command[7..];
-            const index = std.fmt.parseInt(usize, index_str, 10) catch {
-                self.addTUIOutput("Invalid index");
-                return;
-            };
-            const cmd = undo_redo.RemoveObjectCommand.create(
-                self.allocator,
-                &self.scene_system,
-                &self.asset_manager,
-                &self.world,
-                &self.physics_system,
-                index,
-                "Remove object through TUI",
-            ) catch |err| {
-                var buf: [64]u8 = undefined;
-                self.addTUIOutput(std.fmt.bufPrint(&buf, "Failed to create remove command: {any}", .{err}) catch "Remove failed");
-                return;
-            };
-            self.undo_redo_system.executeCommand(&cmd.base) catch |err| {
-                var buf: [64]u8 = undefined;
-                self.addTUIOutput(std.fmt.bufPrint(&buf, "Failed to execute remove command: {any}", .{err}) catch "Remove execution failed");
-                return;
-            };
-            self.addTUIOutput("Object removed");
-            self.rebuildSceneEntityMapping();
-        } else if (std.mem.startsWith(u8, command, "mode ")) {
-            const mode_arg = command[5..];
-            if (std.mem.eql(u8, mode_arg, "scene")) {
-                self.current_mode = .scene_editor;
-                self.addTUIOutput("Switched to Scene Editor");
-            } else if (std.mem.eql(u8, mode_arg, "geometry")) {
-                self.current_mode = .geometry_nodes;
-                self.addTUIOutput("Switched to Geometry Nodes");
-            } else if (std.mem.eql(u8, mode_arg, "material")) {
-                self.current_mode = .material_editor;
-                self.addTUIOutput("Switched to Material Editor");
-            } else if (std.mem.eql(u8, mode_arg, "animation")) {
-                self.current_mode = .animation_editor;
-                self.addTUIOutput("Switched to Animation Editor");
-            } else if (std.mem.eql(u8, mode_arg, "tui")) {
-                self.addTUIOutput("Already in TUI mode");
-            } else {
-                self.addTUIOutput("Unknown mode. Use: scene, geometry, material, animation, tui");
-            }
-        } else if (std.mem.eql(u8, command, "panels")) {
-            for (self.docking_system.panels.items, 0..) |*panel, idx| {
-                var buf: [128]u8 = undefined;
-                const panel_str = std.fmt.bufPrint(&buf, "#{d} {s} @ [{d},{d},{d},{d}]", .{
-                    idx,
-                    panel.title,
-                    @intFromFloat(panel.rect.x),
-                    @intFromFloat(panel.rect.y),
-                    @intFromFloat(panel.rect.width),
-                    @intFromFloat(panel.rect.height),
-                }) catch continue;
-                self.addTUIOutput(panel_str);
-            }
-            if (self.docking_system.panels.items.len == 0)
-                self.addTUIOutput("No panels defined.");
-        } else if (std.mem.eql(u8, command, "exit")) {
-            self.addTUIOutput("Use Ctrl+C or close window to exit");
-        } else {
-            var unknown_msg = std.ArrayList(u8).initCapacity(self.allocator, command.len + 20) catch return;
-            defer unknown_msg.deinit();
-            unknown_msg.appendSlice("Unknown command: ") catch return;
-            unknown_msg.appendSlice(command) catch return;
-            const unknown_str = unknown_msg.toOwnedSlice() catch return;
-            self.tui_output_lines.append(unknown_str) catch {
-                self.allocator.free(unknown_str);
-            };
-        }
-
-        self.tui_command_buffer.clearRetainingCapacity();
-        self.tui_cursor_pos = 0;
-        self.tui_history_index = -1;
-    }
-
-    /// Add a line to the TUI terminal scrollback output buffer.
-    fn addTUIOutput(self: *MainEditor, text: []const u8) void {
-        const output_line = self.allocator.dupe(u8, text) catch return;
-        self.tui_output_lines.append(output_line) catch {
-            self.allocator.free(output_line);
-        };
-    }
-
     /// Status bar UI at the bottom of the editor window.
     fn renderStatusBar(self: *MainEditor) void {
         const status_bar_y = self.screen_height - self.status_bar_height;
@@ -690,35 +450,28 @@ pub const MainEditor = struct {
         const mouse_pos = raylib.getMousePosition();
         const mouse_pressed = raylib.isMouseButtonPressed(.left);
         if (mouse_pressed and mouse_pos.y <= self.tab_bar_height) {
-            const tab_count: usize = 5;
-            const tab_width = self.screen_width / @as(f32, @floatFromInt(tab_count));
+            const tab_width = self.screen_width / @as(f32, @floatFromInt(tab_definitions.len));
             const tab_index = @as(usize, @intFromFloat(mouse_pos.x / tab_width));
-            self.current_mode = switch (tab_index) {
-                0 => .geometry_nodes,
-                1 => .scene_editor,
-                2 => .material_editor,
-                3 => .animation_editor,
-                4 => .tui_mode,
-                else => self.current_mode,
-            };
+            if (tab_index < tab_definitions.len) {
+                self.current_mode = tab_definitions[tab_index].mode;
+            }
         }
     }
 
     /// Draw the top tab bar for switching editor modes ("browser" tabs).
     fn renderTabBar(self: *MainEditor) void {
         raylib.drawRectangle(0, 0, @intFromFloat(self.screen_width), @intFromFloat(self.tab_bar_height), raylib.Color{ .r = 40, .g = 40, .b = 50, .a = 255 });
-        const tab_names = [_][:0]const u8{ "Geometry Nodes", "Scene Editor", "Material Editor", "Animation Editor", "TUI" };
-        const tab_width = self.screen_width / @as(f32, @floatFromInt(tab_names.len));
-        for (tab_names, 0..) |name, i| {
+        const tab_width = self.screen_width / @as(f32, @floatFromInt(tab_definitions.len));
+        for (tab_definitions, 0..) |tab, i| {
             const x = @as(f32, @floatFromInt(i)) * tab_width;
             const tab_rect = raylib.Rectangle{ .x = x, .y = 0, .width = tab_width, .height = self.tab_bar_height };
-            const is_active = @intFromEnum(self.current_mode) == i;
+            const is_active = self.current_mode == tab.mode;
             const bg_color = if (is_active)
                 raylib.Color{ .r = 60, .g = 60, .b = 80, .a = 255 }
             else
                 raylib.Color{ .r = 50, .g = 50, .b = 60, .a = 255 };
             raylib.drawRectangleRec(tab_rect, bg_color);
-            raylib.drawText(name, @intFromFloat(x + 10), 10, 16, raylib.Color.white);
+            raylib.drawText(tab.label, @intFromFloat(x + 10), 10, 16, raylib.Color.white);
         }
     }
 
@@ -1158,202 +911,6 @@ pub const MainEditor = struct {
         const perf_text = std.fmt.bufPrint(&buf, "FPS: {}", .{fps}) catch "Performance";
         raylib.drawText(perf_text.ptr, @intFromFloat(self.screen_width - 200), 10, 14, raylib.Color.yellow);
     }
-};
-
-// ============================================================================
-// Material Node Editor (Simplified)
-// ============================================================================
-
-pub const MaterialNodeEditor = struct {
-    allocator: std.mem.Allocator,
-    graph: nodes.NodeGraph,
-    selected_node: ?nodes.NodeGraph.NodeId = null,
-    is_dragging: bool = false,
-    drag_offset: raylib.Vector2 = .{ .x = 0, .y = 0 },
-    menu_open: bool = false,
-    menu_pos: raylib.Vector2 = .{ .x = 0, .y = 0 },
-
-    pub fn init(allocator: std.mem.Allocator) !MaterialNodeEditor {
-        var editor = MaterialNodeEditor{
-            .allocator = allocator,
-            .graph = nodes.NodeGraph.init(allocator),
-        };
-
-        // Create default PBR output node
-        const vtable = material_nodes.PBREutputNode.createVTable();
-        const node_id = try editor.graph.addNode("PBR Output", &vtable);
-        if (editor.graph.findNodeIndex(node_id)) |idx| {
-            try material_nodes.PBREutputNode.initNode(&editor.graph.nodes.items[idx]);
-            editor.graph.nodes.items[idx].position = .{ .x = 400, .y = 300 };
-        }
-
-        return editor;
-    }
-
-    pub fn deinit(self: *MaterialNodeEditor) void {
-        self.graph.deinit();
-    }
-
-    pub fn update(self: *MaterialNodeEditor) void {
-        const mouse_pos = raylib.getMousePosition();
-        const mouse_pressed = raylib.isMouseButtonPressed(.left);
-        const mouse_down = raylib.isMouseButtonDown(.left);
-        const right_pressed = raylib.isMouseButtonPressed(.right);
-        const key_delete = raylib.isKeyPressed(.delete);
-
-        // Handle context menu
-        if (right_pressed) {
-            self.menu_open = true;
-            self.menu_pos = mouse_pos;
-        }
-
-        if (self.menu_open) {
-            if (mouse_pressed and !self.isOverMenu(mouse_pos)) {
-                self.menu_open = false;
-            }
-            return;
-        }
-
-        // Selection and Dragging
-        if (mouse_pressed) {
-            self.selected_node = null;
-            self.is_dragging = false;
-
-            var i: usize = self.graph.nodes.items.len;
-            while (i > 0) {
-                i -= 1;
-                const node = &self.graph.nodes.items[i];
-                const node_rect = raylib.Rectangle{ .x = node.position.x, .y = node.position.y, .width = 180, .height = 140 };
-                if (raylib.checkCollisionPointRec(mouse_pos, node_rect)) {
-                    self.selected_node = node.id;
-                    self.is_dragging = true;
-                    self.drag_offset = .{ .x = mouse_pos.x - node.position.x, .y = mouse_pos.y - node.position.y };
-                    break;
-                }
-            }
-        }
-
-        if (self.is_dragging and mouse_down) {
-            if (self.selected_node) |id| {
-                if (self.graph.findNodeIndex(id)) |idx| {
-                    self.graph.nodes.items[idx].position = .{
-                        .x = mouse_pos.x - self.drag_offset.x,
-                        .y = mouse_pos.y - self.drag_offset.y,
-                    };
-                }
-            }
-        } else {
-            self.is_dragging = false;
-        }
-
-        // Deletion
-        if (key_delete) {
-            if (self.selected_node) |id| {
-                if (self.graph.findNodeIndex(id)) |idx| {
-                    if (!std.mem.eql(u8, self.graph.nodes.items[idx].node_type, "PBR Output")) {
-                        self.graph.removeNode(id) catch {};
-                        self.selected_node = null;
-                    }
-                }
-            }
-        }
-    }
-
-    fn isOverMenu(self: *const MaterialNodeEditor, pos: raylib.Vector2) bool {
-        const menu_rect = raylib.Rectangle{ .x = self.menu_pos.x, .y = self.menu_pos.y, .width = 150, .height = 100 };
-        return raylib.checkCollisionPointRec(pos, menu_rect);
-    }
-
-    fn createNode(self: *MaterialNodeEditor, node_type: []const u8, pos: raylib.Vector2) void {
-        var vtable: nodes.NodeGraph.Node.NodeVTable = undefined;
-        var initFn: ?*const fn (*nodes.NodeGraph.Node) anyerror!void = null;
-
-        if (std.mem.eql(u8, node_type, "Color")) {
-            vtable = material_nodes.ColorNode.createVTable();
-            initFn = material_nodes.ColorNode.initNode;
-        } else if (std.mem.eql(u8, node_type, "Texture")) {
-            vtable = material_nodes.TextureNode.createVTable();
-            initFn = material_nodes.TextureNode.initNode;
-        } else if (std.mem.eql(u8, node_type, "Mix")) {
-            vtable = material_nodes.MixNode.createVTable();
-            initFn = material_nodes.MixNode.initNode;
-        } else return;
-
-        const id = self.graph.addNode(node_type, &vtable) catch return;
-        if (self.graph.findNodeIndex(id)) |idx| {
-            if (initFn) |f| f(&self.graph.nodes.items[idx]) catch {};
-            self.graph.nodes.items[idx].position = pos;
-        }
-        self.menu_open = false;
-    }
-
-    pub fn render(self: *MaterialNodeEditor, width: f32, height: f32) void {
-        raylib.drawRectangle(0, 0, @intFromFloat(width), @intFromFloat(height), raylib.Color{ .r = 30, .g = 30, .b = 40, .a = 255 });
-
-        // Draw grid
-        const grid_size = 50;
-        var x: f32 = 0;
-        while (x < width) : (x += grid_size) {
-            raylib.drawLine(@intFromFloat(x), 0, @intFromFloat(x), @intFromFloat(height), raylib.Color{ .r = 45, .g = 45, .b = 55, .a = 255 });
-        }
-        var y: f32 = 0;
-        while (y < height) : (y += grid_size) {
-            raylib.drawLine(0, @intFromFloat(y), @intFromFloat(width), @intFromFloat(y), raylib.Color{ .r = 45, .g = 45, .b = 55, .a = 255 });
-        }
-
-        // Draw nodes
-        for (self.graph.nodes.items) |node| {
-            const is_selected = self.selected_node != null and self.selected_node.? == node.id;
-            const node_rect = raylib.Rectangle{ .x = node.position.x, .y = node.position.y, .width = 180, .height = 140 };
-
-            // Node body
-            raylib.drawRectangleRec(node_rect, raylib.Color{ .r = 50, .g = 50, .b = 60, .a = 255 });
-            const border_color = if (is_selected) raylib.Color.yellow else raylib.Color{ .r = 80, .g = 80, .b = 90, .a = 255 };
-            raylib.drawRectangleLinesEx(node_rect, 2, border_color);
-
-            // Header
-            const header_color = if (std.mem.eql(u8, node.node_type, "PBR Output")) raylib.Color{ .r = 180, .g = 70, .b = 70, .a = 255 } else raylib.Color{ .r = 70, .g = 70, .b = 180, .a = 255 };
-            raylib.drawRectangle(@intFromFloat(node.position.x), @intFromFloat(node.position.y), 180, 25, header_color);
-            raylib.drawText(node.node_type.ptr, @intFromFloat(node.position.x + 10), @intFromFloat(node.position.y + 5), 14, raylib.Color.white);
-
-            // Inputs
-            for (node.inputs.items, 0..) |input, idx| {
-                const input_y = node.position.y + 35 + @as(f32, @floatFromInt(idx)) * 18;
-                raylib.drawCircle(@intFromFloat(node.position.x), @intFromFloat(input_y), 4, raylib.Color.yellow);
-                raylib.drawText(input.name.ptr, @intFromFloat(node.position.x + 10), @intFromFloat(input_y - 6), 12, raylib.Color.light_gray);
-            }
-
-            // Outputs
-            for (node.outputs.items, 0..) |output, idx| {
-                const output_y = node.position.y + 35 + @as(f32, @floatFromInt(idx)) * 18;
-                raylib.drawCircle(@intFromFloat(node.position.x + 180), @intFromFloat(output_y), 4, raylib.Color.green);
-                const text_width = raylib.measureText(output.name.ptr, 12);
-                raylib.drawText(output.name.ptr, @intFromFloat(node.position.x + 170 - @as(f32, @floatFromInt(text_width))), @intFromFloat(output_y - 6), 12, raylib.Color.light_gray);
-            }
-        }
-
-        // Draw context menu
-        if (self.menu_open) {
-            const menu_rect = raylib.Rectangle{ .x = self.menu_pos.x, .y = self.menu_pos.y, .width = 150, .height = 100 };
-            raylib.drawRectangleRec(menu_rect, raylib.Color{ .r = 45, .g = 45, .b = 55, .a = 255 });
-            raylib.drawRectangleLinesEx(menu_rect, 1, raylib.Color.gray);
-
-            const items = [_][]const u8{ "Color", "Texture", "Mix" };
-            for (items, 0..) |item, i| {
-                const item_rect = raylib.Rectangle{ .x = self.menu_pos.x, .y = self.menu_pos.y + @as(f32, @floatFromInt(i)) * 25, .width = 150, .height = 25 };
-                if (raylib.checkCollisionPointRec(raylib.getMousePosition(), item_rect)) {
-                    raylib.drawRectangleRec(item_rect, raylib.Color{ .r = 70, .g = 70, .b = 180, .a = 255 });
-                    if (raylib.isMouseButtonPressed(.left)) {
-                        self.createNode(item, self.menu_pos);
-                    }
-                }
-                raylib.drawText(item.ptr, @intFromFloat(item_rect.x + 10), @intFromFloat(item_rect.y + 5), 14, raylib.Color.white);
-            }
-        }
-
-        raylib.drawText("Material Node Editor", 20, 20, 20, raylib.Color.gray);
-    }
-
     fn syncECSToScene(self: *MainEditor) void {
         var query = self.world.createQuery();
         defer query.deinit();

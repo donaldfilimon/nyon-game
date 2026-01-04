@@ -6,6 +6,15 @@ const worlds_mod = @import("worlds.zig");
 const common = @import("../common/error_handling.zig");
 const config = @import("../config/constants.zig");
 
+const GRID_CELL_SIZE = config.Game.GRID_CELL_SIZE;
+const WORLD_DATA_VERSION = config.Game.WORLD_DATA_VERSION;
+const COLOR_GROUND = config.Colors.GROUND;
+const HALF_BLOCK = config.Game.HALF_BLOCK;
+const WORLD_DATA_FILE = config.Game.WORLD_DATA_FILE;
+const BLOCK_SIZE = config.Game.BLOCK_SIZE;
+const COLOR_HIGHLIGHT = config.Colors.HIGHLIGHT;
+const COLOR_PREVIEW = config.Colors.PREVIEW;
+
 const Color = engine.Color;
 const Vector2 = engine.Vector2;
 const Vector3 = engine.Vector3;

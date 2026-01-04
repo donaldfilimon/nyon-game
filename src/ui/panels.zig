@@ -11,12 +11,13 @@
 const std = @import("std");
 const engine_mod = @import("../engine.zig");
 const ui_mod = @import("ui.zig");
+const config = @import("../config/constants.zig");
 
 const Rectangle = engine_mod.Rectangle;
 const PanelConfig = ui_mod.PanelConfig;
 
-const MIN_PANEL_WIDTH: f32 = 220.0;
-const MIN_PANEL_HEIGHT: f32 = 160.0;
+const MIN_PANEL_WIDTH: f32 = config.UI.MIN_PANEL_WIDTH;
+const MIN_PANEL_HEIGHT: f32 = config.UI.MIN_PANEL_HEIGHT;
 
 pub const DockPosition = enum {
     left,
@@ -115,11 +116,11 @@ pub fn detectDockPosition(
     const ady = @abs(dy);
 
     if (adx > ady) {
-        if (adx > target_rect.width * 0.3) return null;
-        if (dx > 0) return .left else return .right;
+        if (adx > target_rect.width * 0.5) return null;
+        if (dx > 0) return .right else return .left;
     } else {
-        if (ady > target_rect.height * 0.3) return null;
-        if (dy > 0) return .top else return .bottom;
+        if (ady > target_rect.height * 0.5) return null;
+        if (dy > 0) return .bottom else return .top;
     }
 }
 

@@ -1,13 +1,10 @@
 //! HUD and UI helpers for the 3D sandbox experience.
 
 const std = @import("std");
-const nyon_game = @import("../root.zig");
-const ui_mod = nyon_game.ui;
-const StatusMessage = nyon_game.status_message.StatusMessage;
+const engine = @import("../engine.zig");
+const StatusMessage = @import("status_message.zig").StatusMessage;
 const sandbox_mod = @import("../game/sandbox.zig");
 const game_ui_mod = @import("game_ui.zig");
-const engine = nyon_game.engine;
-const panels = ui_mod.panels;
 const common = @import("../common/error_handling.zig");
 const config = @import("../config/constants.zig");
 
@@ -16,9 +13,8 @@ pub const defaultUiScaleFromDpi = game_ui_mod.defaultUiScaleFromDpi;
 
 const shared_ui = @import("shared_ui.zig");
 
-const COLOR_TEXT_GRAY = engine.Color{ .r = 210, .g = 210, .b = 210, .a = 255 };
-const COLOR_STATUS_MESSAGE = engine.Color{ .r = 200, .g = 220, .b = 255, .a = 255 };
-const COLOR_CROSSHAIR = engine.Color{ .r = 255, .g = 255, .b = 255, .a = 200 };
+const COLOR_TEXT_GRAY = engine.Color{ .r = config.Colors.TEXT_MUTED.r, .g = config.Colors.TEXT_MUTED.g, .b = config.Colors.TEXT_MUTED.b, .a = config.Colors.TEXT_MUTED.a };
+const COLOR_CROSSHAIR = engine.Color{ .r = config.Colors.CROSSHAIR.r, .g = config.Colors.CROSSHAIR.g, .b = config.Colors.CROSSHAIR.b, .a = config.Colors.CROSSHAIR.a };
 
 fn drawHudPanel(
     sandbox_state: *const sandbox_mod.SandboxState,
@@ -27,26 +23,18 @@ fn drawHudPanel(
     screen_width: f32,
     screen_height: f32,
 ) !void {
-    if (!ui_state.config.hud.visible) return;
-
-    var rect = ui_state.config.hud.rect;
     const style = ui_state.ctx.style;
+    const layout = shared_ui.beginHudPanel(
+        ui_state,
+        screen_width,
+        screen_height,
+        config.UI.MIN_PANEL_WIDTH,
+        config.UI.MIN_PANEL_HEIGHT,
+    ) orelse return;
 
-    const result = ui_state.ctx.panel(.hud, &rect, "HUD", ui_state.edit_mode);
-    if (result.dragged) ui_state.dirty = true;
-    if (ui_state.edit_mode) {
-        if (ui_state.ctx.resizeHandle(.hud, &rect, 240.0, 170.0)) ui_state.dirty = true;
-    }
-
-    panels.clampPanelRect(&rect, screen_width, screen_height);
-    ui_state.config.hud.rect = rect;
-
-    const padding_f: f32 = common.Cast.toFloat(f32, style.padding);
-    const text_x: i32 = common.Cast.toInt(i32, rect.x + padding_f);
-    const start_y: i32 = common.Cast.toInt(i32, rect.y + common.Cast.toFloat(f32, style.panel_title_height) + padding_f);
-    const line_step: i32 = style.font_size + common.Cast.toInt(i32, std.math.round(6.0 * style.scale));
-
-    var line_y = start_y;
+    const text_x = layout.text_x;
+    var line_y = layout.start_y;
+    const line_step = layout.line_step;
 
     const active_world = world_name orelse "Unsaved World";
     var world_buf: [96:0]u8 = undefined;
@@ -84,7 +72,7 @@ pub fn drawUI(
     screen_width: f32,
     screen_height: f32,
 ) !void {
-    try shared_ui.drawHudPanel(world_name, ui_state, screen_width, screen_height);
+    try drawHudPanel(sandbox_state, world_name, ui_state, screen_width, screen_height);
     try shared_ui.drawSettingsPanel(ui_state, status_message, allocator, screen_width, screen_height);
     shared_ui.applyDocking(ui_state, status_message);
     ui_state.config.sanitize();
@@ -114,21 +102,7 @@ pub fn drawInstructions(screen_width: f32, screen_height: f32) void {
 }
 
 pub fn drawStatusMessage(status: *const StatusMessage, screen_width: f32) void {
-    if (!status.isActive()) return;
-
-    const text = status.textZ();
-    const text_width = engine.Text.measure(text, config.UI.STATUS_MESSAGE_FONT_SIZE);
-    const text_x: i32 = common.Cast.toInt(i32, (screen_width - common.Cast.toFloat(f32, text_width)) / 2.0);
-
-    const alpha_byte = status.alphaU8();
-    const message_color = engine.Color{
-        .r = COLOR_STATUS_MESSAGE.r,
-        .g = COLOR_STATUS_MESSAGE.g,
-        .b = COLOR_STATUS_MESSAGE.b,
-        .a = alpha_byte,
-    };
-
-    engine.Text.draw(text, text_x, config.UI.STATUS_MESSAGE_Y_OFFSET, config.UI.STATUS_MESSAGE_FONT_SIZE, message_color);
+    shared_ui.drawStatusMessage(status, screen_width);
 }
 
 test "drawCrosshair centers on screen" {

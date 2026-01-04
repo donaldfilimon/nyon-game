@@ -16,16 +16,20 @@
 ## New Module Architecture
 
 ### `src/common/` - Shared Utilities
+
 - `error_handling.zig`: `ErrorContext`, `SafeWrapper`, `Cast`, `safeArrayAccess`
 - `memory.zig`: `ObjectPool`, `MemoryConfig`, `createArena`
 
 ### `src/platform/` - Platform Abstraction
+
 - `paths.zig`: `Platform`, `PathUtils`, `FontPaths`, `ExecutablePaths` (cross-platform support)
 
 ### `src/config/` - Centralized Constants
+
 - `constants.zig`: `UI`, `Rendering`, `Physics`, `Game`, `Memory`, `Performance`, `Editor` namespaces
 
 ### `src/ui/` - Modular UI Framework
+
 - `ui.zig`: Core framework (re-exports widgets, panels, scaling)
 - `scaling.zig`: `UiScale`, `DpiInfo`, `ResponsiveConfig`
 - `panels.zig`: `clampPanelRect`, `splitDockPanels`, `detectDockPosition`
