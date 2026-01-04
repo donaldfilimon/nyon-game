@@ -14,6 +14,11 @@ const Vector2 = engine_mod.Vector2;
 const Shapes = engine_mod.Shapes;
 const Text = engine_mod.Text;
 
+// Re-export modules for convenience
+pub const widgets = @import("widgets.zig");
+pub const panels = @import("panels.zig");
+pub const scaling = @import("scaling.zig");
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -37,7 +42,6 @@ pub const FontSet = struct {
     icon: raylib.Font,
 
     pub fn init() FontSet {
-        // Initialize with zero values - will be loaded at runtime
         return FontSet{
             .regular = std.mem.zeroes(raylib.Font),
             .bold = std.mem.zeroes(raylib.Font),
@@ -47,7 +51,6 @@ pub const FontSet = struct {
     }
 
     pub fn loadDefault(self: *FontSet) void {
-        // Load default font for all slots
         const default_font = raylib.getFontDefault() catch std.mem.zeroes(raylib.Font);
         self.regular = default_font;
         self.bold = default_font;
@@ -56,16 +59,14 @@ pub const FontSet = struct {
     }
 
     pub fn loadCustomFonts(self: *FontSet, font_size: i32) void {
-        // Try to load system fonts with fallbacks
         const fallback = raylib.getFontDefault() catch std.mem.zeroes(raylib.Font);
         self.regular = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeui.ttf", font_size, null) catch fallback;
         self.bold = raylib.loadFontEx("C:\\Windows\\Fonts\\segoeuib.ttf", font_size, null) catch self.regular;
         self.mono = raylib.loadFontEx("C:\\Windows\\Fonts\\consola.ttf", font_size, null) catch self.regular;
-        self.icon = raylib.getFontDefault() catch self.regular; // Placeholder
+        self.icon = raylib.getFontDefault() catch self.regular;
     }
 
     pub fn unload(self: FontSet) void {
-        // Only unload if not the default font
         const default_font = raylib.getFontDefault() catch std.mem.zeroes(raylib.Font);
         if (self.regular.texture.id != default_font.texture.id) raylib.unloadFont(self.regular);
         if (self.bold.texture.id != default_font.texture.id and self.bold.texture.id != self.regular.texture.id) raylib.unloadFont(self.bold);
@@ -95,16 +96,13 @@ pub const UiStyle = struct {
     accent_hover: Color,
     accent_pressed: Color,
 
-    /// Create UI style from theme with modern defaults
     pub fn fromTheme(theme: UiTheme, opacity: u8, scale: f32) UiStyle {
-        const clamped_scale = if (scale < 0.6) 0.6 else if (scale > 2.5) 2.5 else scale;
+        const clamped_scale = scaling.UiScale.clamp(scale);
 
         const base_font: i32 = @intFromFloat(std.math.round(20.0 * clamped_scale));
         const small_font: i32 = @intFromFloat(std.math.round(16.0 * clamped_scale));
         const pad: i32 = @intFromFloat(std.math.round(16.0 * clamped_scale));
         const title_h: i32 = @intFromFloat(std.math.round(36.0 * clamped_scale));
-
-        // Fonts will be initialized at runtime when needed
 
         return switch (theme) {
             .dark => .{
@@ -157,7 +155,6 @@ pub const PanelConfig = struct {
     visible: bool = true,
 };
 
-/// Font configuration for high-DPI rendering
 pub const FontConfig = struct {
     use_system_font: bool = true,
     font_path: ?[]const u8 = null,
@@ -166,49 +163,34 @@ pub const FontConfig = struct {
     small_font_size: i32 = 16,
     dpi_scale: f32 = 1.0,
 
-    /// Calculate effective font size with DPI scaling
     pub fn effectiveFontSize(self: FontConfig, base_size: i32) i32 {
         return @intFromFloat(@as(f32, @floatFromInt(base_size)) * self.dpi_scale);
     }
 };
 
-/// Game settings beyond just UI configuration
 pub const GameSettings = struct {
-    // Audio settings
     master_volume: f32 = 1.0,
     music_volume: f32 = 0.8,
     sfx_volume: f32 = 1.0,
     audio_enabled: bool = true,
-
-    // Gameplay settings
     show_fps: bool = true,
     vsync: bool = true,
     fullscreen: bool = false,
     target_fps: u32 = 60,
-
-    // Accessibility
     high_contrast: bool = false,
     reduced_motion: bool = false,
     large_text: bool = false,
-
-    // Advanced
     debug_mode: bool = false,
     show_performance: bool = false,
 };
 
-/// Persisted UI configuration for sample apps.
 pub const UiConfig = struct {
-    version: u32 = 2, // Incremented for new settings
+    version: u32 = 2,
     theme: UiTheme = .dark,
     opacity: u8 = 180,
     scale: f32 = 1.0,
-
-    // Font settings
     font: FontConfig = .{},
-
-    // Game settings
     game: GameSettings = .{},
-
     hud: PanelConfig = .{
         .rect = Rectangle{ .x = 10, .y = 10, .width = 320, .height = 240 },
         .visible = true,
@@ -228,8 +210,7 @@ pub const UiConfig = struct {
         const file_bytes = try std.fs.cwd().readFileAlloc(path, allocator, std.Io.Limit.limited(256 * 1024));
         defer allocator.free(file_bytes);
 
-        const Parsed = std.json.Parsed(UiConfig);
-        var parsed: Parsed = try std.json.parseFromSlice(UiConfig, allocator, file_bytes, .{
+        var parsed: std.json.Parsed(UiConfig) = try std.json.parseFromSlice(UiConfig, allocator, file_bytes, .{
             .ignore_unknown_fields = true,
         });
         defer parsed.deinit();
@@ -265,7 +246,10 @@ pub const PanelResult = struct {
     clicked: bool = false,
 };
 
-/// Immediate-mode UI context with basic interaction state.
+// ============================================================================
+// UI Context
+// ============================================================================
+
 pub const UiContext = struct {
     style: UiStyle,
     input: FrameInput = .{
@@ -284,7 +268,6 @@ pub const UiContext = struct {
     pub fn beginFrame(self: *UiContext, input: FrameInput, style: UiStyle) void {
         self.input = input;
         self.style = style;
-        // Ensure fonts are loaded
         if (self.style.fonts == null) {
             self.style.fonts = FontSet.init();
         }
@@ -296,7 +279,6 @@ pub const UiContext = struct {
 
     pub fn getStyle(self: UiContext) UiStyle {
         var style = self.style;
-        // Ensure fonts are loaded
         if (style.fonts == null) {
             style.fonts = FontSet.init();
         }
@@ -306,21 +288,7 @@ pub const UiContext = struct {
         return style;
     }
 
-    pub fn endFrame(_: *UiContext) void {
-        // Reset state for next frame
-    }
-
-    pub fn getCurrentStyle(self: *UiContext) UiStyle {
-        var style = self.style;
-        if (style.fonts == null) {
-            style.fonts = FontSet.init();
-        }
-        if (style.fonts.?.regular.texture.id == 0) {
-            style.fonts.?.loadDefault();
-        }
-        self.style = style;
-        return style;
-    }
+    pub fn endFrame(_: *UiContext) void {}
 
     pub fn makeId(prefix: []const u8, extra: []const u8) u64 {
         var hasher = std.hash.Wyhash.init(0);
@@ -339,11 +307,8 @@ pub const UiContext = struct {
         const radius = self.style.corner_radius;
         const bg_color = if (highlight) self.style.accent else self.style.panel_bg;
 
-        // Draw rounded background
-        Shapes.drawRectangleRounded(rect, radius / @min(rect.width, rect.height), 8, bg_color);
-
-        // Draw border
-        Shapes.drawRectangleRoundedLinesEx(rect, radius / @min(rect.width, rect.height), 8, self.style.border_width, self.style.panel_border);
+        Shapes.drawRectangleRounded(rect, radius / std.math.min(rect.width, rect.height), 8, bg_color);
+        Shapes.drawRectangleRoundedLinesEx(rect, radius / std.math.min(rect.width, rect.height), 8, self.style.border_width, self.style.panel_border);
 
         const title_color = if (highlight) self.style.accent_hover else self.style.text;
         const title_y: i32 = @as(i32, @intFromFloat(rect.y)) + @divTrunc(self.style.padding, 2);
@@ -427,91 +392,14 @@ pub const UiContext = struct {
     }
 
     pub fn button(self: *UiContext, id: u64, rect: Rectangle, label: [:0]const u8) bool {
-        const hovered = self.isMouseOverRect(rect);
-        if (hovered) self.hot_id = id;
-
-        const is_active = self.active_id == id;
-        if (hovered and self.input.mouse_pressed) {
-            self.active_id = id;
-        }
-
-        const pressed = hovered and is_active and self.input.mouse_released;
-
-        const bg = if (hovered) self.style.accent_hover else self.style.accent;
-        Shapes.drawRectangleRec(rect, bg);
-        Shapes.drawRectangleLinesEx(rect, self.style.border_width, self.style.panel_border);
-
-        const text_w = Text.measure(label, self.style.small_font_size);
-        const tx: i32 = @intFromFloat(rect.x + (rect.width - @as(f32, @floatFromInt(text_w))) / 2.0);
-        const ty: i32 = @intFromFloat(rect.y + (rect.height - @as(f32, @floatFromInt(self.style.small_font_size))) / 2.0);
-        Text.draw(label, tx, ty, self.style.small_font_size, self.style.text);
-
-        return pressed;
+        return widgets.button(self, id, rect, label);
     }
 
     pub fn checkbox(self: *UiContext, id: u64, rect: Rectangle, label: [:0]const u8, value: *bool) bool {
-        const box = Rectangle{ .x = rect.x, .y = rect.y, .width = rect.height, .height = rect.height };
-        const hovered = self.isMouseOverRect(rect);
-        if (hovered) self.hot_id = id;
-
-        if (hovered and self.input.mouse_pressed) {
-            self.active_id = id;
-        }
-
-        const clicked = hovered and self.active_id == id and self.input.mouse_released;
-        if (clicked) value.* = !value.*;
-
-        const radius = self.style.corner_radius * 0.5;
-        const bg_color = if (value.*) self.style.accent else self.style.panel_bg;
-
-        Shapes.drawRectangleRounded(box, radius / @min(box.width, box.height), 4, bg_color);
-        Shapes.drawRectangleRoundedLinesEx(box, radius / @min(box.width, box.height), 4, self.style.border_width, self.style.panel_border);
-        if (value.*) {
-            const mark = Rectangle{
-                .x = box.x + 4,
-                .y = box.y + 4,
-                .width = box.width - 8,
-                .height = box.height - 8,
-            };
-            Shapes.drawRectangleRec(mark, self.style.panel_border);
-        }
-
-        const label_x: i32 = @as(i32, @intFromFloat(rect.x + rect.height + 10));
-        const label_y: i32 = @as(i32, @intFromFloat(rect.y + 2));
-        Text.draw(label, label_x, label_y, self.style.small_font_size, self.style.text);
-        return clicked;
+        return widgets.checkbox(self, id, rect, label, value);
     }
 
     pub fn sliderFloat(self: *UiContext, id: u64, rect: Rectangle, label: [:0]const u8, value: *f32, min: f32, max: f32) bool {
-        const label_x: i32 = @as(i32, @intFromFloat(rect.x));
-        const label_y: i32 = @as(i32, @intFromFloat(rect.y)) - self.style.small_font_size - 4;
-        Text.draw(label, label_x, label_y, self.style.small_font_size, self.style.text_muted);
-
-        const hovered = self.isMouseOverRect(rect);
-        if (hovered) self.hot_id = id;
-
-        if (hovered and self.input.mouse_pressed) {
-            self.active_id = id;
-        }
-
-        var changed = false;
-        if (self.active_id == id and self.input.mouse_down) {
-            const t = (self.input.mouse_pos.x - rect.x) / rect.width;
-            const clamped = if (t < 0.0) 0.0 else if (t > 1.0) 1.0 else t;
-            value.* = min + (max - min) * clamped;
-            changed = true;
-        }
-
-        const radius = self.style.corner_radius * 0.3;
-        Shapes.drawRectangleRounded(rect, radius / @min(rect.width, rect.height), 6, self.style.panel_bg);
-        Shapes.drawRectangleRoundedLinesEx(rect, radius / @min(rect.width, rect.height), 6, self.style.border_width, self.style.panel_border);
-
-        const ratio = (value.* - min) / (max - min);
-        const fill_w = rect.width * (if (ratio < 0.0) 0.0 else if (ratio > 1.0) 1.0 else ratio);
-        if (fill_w > 0.0) {
-            Shapes.drawRectangleRec(Rectangle{ .x = rect.x, .y = rect.y, .width = fill_w, .height = rect.height }, self.style.accent);
-        }
-
-        return changed;
+        return widgets.sliderFloat(self, id, rect, label, value, min, max);
     }
 };

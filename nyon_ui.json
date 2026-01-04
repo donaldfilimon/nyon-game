@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "theme": "dark",
+  "opacity": 180,
+  "scale": 1,
+  "font": {
+    "use_system_font": true,
+    "font_path": null,
+    "font_size": 20,
+    "title_font_size": 24,
+    "small_font_size": 16,
+    "dpi_scale": 1
+  },
+  "game": {
+    "master_volume": 1,
+    "music_volume": 0.800000011920929,
+    "sfx_volume": 1,
+    "audio_enabled": true,
+    "show_fps": true,
+    "vsync": true,
+    "fullscreen": false,
+    "target_fps": 60,
+    "high_contrast": false,
+    "reduced_motion": false,
+    "large_text": false,
+    "debug_mode": false,
+    "show_performance": true
+  },
+  "hud": {
+    "rect": {
+      "x": 10,
+      "y": 10,
+      "width": 320,
+      "height": 240
+    },
+    "visible": true
+  },
+  "settings": {
+    "rect": {
+      "x": 842,
+      "y": 1170,
+      "width": 795,
+      "height": 190
+    },
+    "visible": true
+  }
+}

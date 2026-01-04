@@ -3,6 +3,10 @@
 //! This module provides the foundation for the ECS architecture used throughout
 //! the Nyon Game Engine. It implements efficient entity management with archetype-based
 //! storage for cache-friendly component access.
+//!
+//! ## Performance Optimizations
+//! - Free list recycling for optimal ID reuse
+//! - Generation-based ID validation to prevent ABA problems
 
 const std = @import("std");
 
@@ -29,7 +33,7 @@ pub const EntityId = struct {
 /// Entity manager for creating, destroying, and validating entities
 pub const EntityManager = struct {
     allocator: std.mem.Allocator,
-    next_id: Entity = 0,
+    next_id: Entity,
     generations: std.AutoHashMap(Entity, EntityGeneration),
     free_ids: std.ArrayList(Entity),
 
@@ -37,15 +41,16 @@ pub const EntityManager = struct {
     pub fn init(allocator: std.mem.Allocator) EntityManager {
         return .{
             .allocator = allocator,
+            .next_id = 0,
             .generations = std.AutoHashMap(Entity, EntityGeneration).init(allocator),
-            .free_ids = std.ArrayList(Entity).initCapacity(allocator, 0) catch unreachable,
+            .free_ids = std.ArrayList(Entity).init(allocator),
         };
     }
 
     /// Deinitialize the entity manager
     pub fn deinit(self: *EntityManager) void {
         self.generations.deinit();
-        self.free_ids.deinit(self.allocator);
+        self.free_ids.deinit();
     }
 
     /// Create a new entity and return its ID
@@ -73,7 +78,7 @@ pub const EntityManager = struct {
             if (gen_ptr.* == entity.generation) {
                 // Mark as destroyed by incrementing generation
                 gen_ptr.* += 1;
-                self.free_ids.append(self.allocator, entity.id) catch {};
+                self.free_ids.append(entity.id) catch {};
             }
         }
     }
@@ -156,4 +161,37 @@ test "entity ID validation" {
     // Destroy real entity
     em.destroy(e1);
     try std.testing.expect(!em.isAlive(e1));
+}
+
+test "high churn entity creation" {
+    var em = EntityManager.init(std.testing.allocator);
+    defer em.deinit();
+
+    const iterations = 1000;
+    var entities = std.ArrayList(EntityId).init(std.testing.allocator);
+    defer entities.deinit();
+
+    // Create many entities
+    for (0..iterations) |_| {
+        const entity = try em.create();
+        entities.append(entity) catch unreachable;
+    }
+
+    try std.testing.expect(em.aliveCount() == iterations);
+
+    // Destroy half
+    for (0..iterations / 2) |idx| {
+        em.destroy(entities.items[idx]);
+    }
+
+    try std.testing.expect(em.aliveCount() == iterations / 2);
+
+    // Recreate destroyed entities
+    for (0..iterations / 2) |_| {
+        const entity = try em.create();
+        // Should reuse old IDs
+        try std.testing.expect(entity.id < iterations);
+    }
+
+    try std.testing.expect(em.aliveCount() == iterations);
 }

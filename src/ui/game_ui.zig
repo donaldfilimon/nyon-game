@@ -5,11 +5,10 @@ const ui_mod = nyon_game.ui;
 const StatusMessage = nyon_game.status_message.StatusMessage;
 const FontManager = nyon_game.font_manager.FontManager;
 const game_state_module = @import("../game/state.zig");
+const panels = ui_mod.panels;
 
-// Grid constants
 const GRID_SIZE: f32 = 50.0;
 
-// UI constants
 const UI_INSTRUCTION_FONT_SIZE: i32 = 16;
 const UI_INSTRUCTION_Y_OFFSET: i32 = 30;
 const UI_WIN_FONT_SIZE: i32 = 40;
@@ -19,7 +18,6 @@ const STATUS_MESSAGE_FONT_SIZE: i32 = 18;
 const STATUS_MESSAGE_DURATION: f32 = 3.0;
 const STATUS_MESSAGE_Y_OFFSET: i32 = 8;
 
-// Colors
 pub const COLOR_BACKGROUND = nyon_game.engine.Color{ .r = 30, .g = 30, .b = 50, .a = 255 };
 const COLOR_GRID = nyon_game.engine.Color{ .r = 40, .g = 40, .b = 60, .a = 255 };
 const COLOR_ITEM = nyon_game.engine.Color{ .r = 255, .g = 215, .b = 0, .a = 255 };
@@ -43,9 +41,8 @@ pub const GameUiState = struct {
     pub fn initWithDefaultScale(allocator: std.mem.Allocator, default_scale: f32) GameUiState {
         var cfg = ui_mod.UiConfig{};
         cfg.scale = default_scale;
-        cfg.font.dpi_scale = default_scale; // Initialize DPI scale
+        cfg.font.dpi_scale = default_scale;
 
-        // Try to load saved config
         if (ui_mod.UiConfig.load(allocator, ui_mod.UiConfig.DEFAULT_PATH)) |loaded_cfg| {
             cfg = loaded_cfg;
         } else |_| {
@@ -53,10 +50,6 @@ pub const GameUiState = struct {
         }
 
         const font_manager = FontManager.init(allocator);
-        // Temporarily disable font loading to fix build
-        // font_manager.loadUI(cfg.font) catch {
-        //     // Font loading failed, continue with defaults
-        // };
 
         return .{
             .config = cfg,
@@ -82,17 +75,6 @@ pub fn defaultUiScaleFromDpi() f32 {
     return avg;
 }
 
-fn clampPanelRect(rect: *nyon_game.engine.Rectangle, screen_width: f32, screen_height: f32) void {
-    if (rect.width > screen_width) rect.width = screen_width;
-    if (rect.height > screen_height) rect.height = screen_height;
-
-    if (rect.x < 0.0) rect.x = 0.0;
-    if (rect.y < 0.0) rect.y = 0.0;
-
-    if (rect.x + rect.width > screen_width) rect.x = screen_width - rect.width;
-    if (rect.y + rect.height > screen_height) rect.y = screen_height - rect.height;
-}
-
 fn drawHudPanel(game_state: *const game_state_module.GameState, ui_state: *GameUiState, screen_width: f32, screen_height: f32) !void {
     if (!ui_state.config.hud.visible) return;
 
@@ -105,7 +87,7 @@ fn drawHudPanel(game_state: *const game_state_module.GameState, ui_state: *GameU
         if (ui_state.ctx.resizeHandle(.hud, &rect, 220.0, 160.0)) ui_state.dirty = true;
     }
 
-    clampPanelRect(&rect, screen_width, screen_height);
+    panels.clampPanelRect(&rect, screen_width, screen_height);
     ui_state.config.hud.rect = rect;
 
     const padding_f: f32 = @floatFromInt(style.padding);
@@ -193,7 +175,7 @@ fn drawSettingsPanel(ui_state: *GameUiState, status_message: *StatusMessage, all
         if (ui_state.ctx.resizeHandle(.settings, &rect, 240.0, 190.0)) ui_state.dirty = true;
     }
 
-    clampPanelRect(&rect, screen_width, screen_height);
+    panels.clampPanelRect(&rect, screen_width, screen_height);
     ui_state.config.settings.rect = rect;
 
     const pad_f: f32 = @floatFromInt(style.padding);
@@ -203,7 +185,6 @@ fn drawSettingsPanel(ui_state: *GameUiState, status_message: *StatusMessage, all
 
     const row_h: f32 = @floatFromInt(@max(style.small_font_size + 8, 22));
 
-    // Edit mode indicator
     if (ui_state.edit_mode) {
         nyon_game.engine.Text.draw("UI Edit Mode (F1 to exit)", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
         y += row_h;
@@ -212,7 +193,6 @@ fn drawSettingsPanel(ui_state: *GameUiState, status_message: *StatusMessage, all
         y += row_h;
     }
 
-    // Show HUD toggle
     const show_hud_id: u64 = std.hash.Wyhash.hash(0, "settings_show_hud");
     _ = ui_state.ctx.checkbox(
         show_hud_id,
@@ -222,7 +202,6 @@ fn drawSettingsPanel(ui_state: *GameUiState, status_message: *StatusMessage, all
     );
     y += row_h + 6;
 
-    // Theme toggle button
     var theme_buf: [32:0]u8 = undefined;
     const theme_label = try std.fmt.bufPrintZ(&theme_buf, "Theme: {s}", .{if (ui_state.config.theme == .dark) "Dark" else "Light"});
     const theme_id: u64 = std.hash.Wyhash.hash(0, "settings_theme");
@@ -232,7 +211,6 @@ fn drawSettingsPanel(ui_state: *GameUiState, status_message: *StatusMessage, all
     }
     y += row_h + 18;
 
-    // Scale slider
     const scale_id: u64 = std.hash.Wyhash.hash(0, "settings_scale");
     var scale = ui_state.config.scale;
     if (ui_state.ctx.sliderFloat(scale_id, nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Scale", &scale, 0.6, 2.5)) {
@@ -241,7 +219,6 @@ fn drawSettingsPanel(ui_state: *GameUiState, status_message: *StatusMessage, all
     }
     y += row_h + 22;
 
-    // Opacity slider (stored as u8)
     const opacity_id: u64 = std.hash.Wyhash.hash(0, "settings_opacity");
     var opacity_f: f32 = @floatFromInt(ui_state.config.opacity);
     if (ui_state.ctx.sliderFloat(opacity_id, nyon_game.engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Panel Opacity", &opacity_f, 60.0, 255.0)) {
@@ -252,7 +229,6 @@ fn drawSettingsPanel(ui_state: *GameUiState, status_message: *StatusMessage, all
     }
     y += row_h + 18;
 
-    // Audio Settings Section
     nyon_game.engine.Text.draw("Audio", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
     y += row_h;
 
@@ -280,7 +256,6 @@ fn drawSettingsPanel(ui_state: *GameUiState, status_message: *StatusMessage, all
     }
     y += row_h + 12;
 
-    // Graphics Settings Section
     nyon_game.engine.Text.draw("Graphics", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
     y += row_h;
 
@@ -311,7 +286,6 @@ fn drawSettingsPanel(ui_state: *GameUiState, status_message: *StatusMessage, all
     );
     y += row_h + 12;
 
-    // Accessibility Settings Section
     nyon_game.engine.Text.draw("Accessibility", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
     y += row_h;
 
@@ -342,7 +316,6 @@ fn drawSettingsPanel(ui_state: *GameUiState, status_message: *StatusMessage, all
     );
     y += row_h + 12;
 
-    // Font Settings Section
     nyon_game.engine.Text.draw("Fonts", @intFromFloat(x), @intFromFloat(y), style.small_font_size, style.accent);
     y += row_h;
 
@@ -386,71 +359,13 @@ fn drawSettingsPanel(ui_state: *GameUiState, status_message: *StatusMessage, all
     }
 }
 
-const DockPosition = enum {
-    left,
-    right,
-    top,
-    bottom,
-};
-
-fn splitDockPanels(moving: *ui_mod.PanelConfig, target: *ui_mod.PanelConfig, position: DockPosition) void {
-    const min_w: f32 = 220.0;
-    const min_h: f32 = 160.0;
-    const target_rect = target.rect;
-
-    switch (position) {
-        .left => {
-            const half = @max(min_w, target_rect.width / 2.0);
-            moving.rect = nyon_game.engine.Rectangle{
-                .x = target_rect.x,
-                .y = target_rect.y,
-                .width = half,
-                .height = target_rect.height,
-            };
-            target.rect.x = target_rect.x + half;
-            target.rect.width = @max(min_w, target_rect.width - half);
-        },
-        .right => {
-            const half = @max(min_w, target_rect.width / 2.0);
-            moving.rect = nyon_game.engine.Rectangle{
-                .x = target_rect.x + target_rect.width - half,
-                .y = target_rect.y,
-                .width = half,
-                .height = target_rect.height,
-            };
-            target.rect.width = @max(min_w, target_rect.width - half);
-        },
-        .top => {
-            const half = @max(min_h, target_rect.height / 2.0);
-            moving.rect = nyon_game.engine.Rectangle{
-                .x = target_rect.x,
-                .y = target_rect.y,
-                .width = target_rect.width,
-                .height = half,
-            };
-            target.rect.y = target_rect.y + half;
-            target.rect.height = @max(min_h, target_rect.height - half);
-        },
-        .bottom => {
-            const half = @max(min_h, target_rect.height / 2.0);
-            moving.rect = nyon_game.engine.Rectangle{
-                .x = target_rect.x,
-                .y = target_rect.y + target_rect.height - half,
-                .width = target_rect.width,
-                .height = half,
-            };
-            target.rect.height = @max(min_h, target_rect.height - half);
-        },
-    }
-}
-
 fn applyDocking(ui_state: *GameUiState, status_message: *StatusMessage) void {
     if (!ui_state.edit_mode) return;
     if (!ui_state.ctx.input.mouse_released) return;
 
     const active = ui_state.ctx.active_id;
-    const hud_active: u64 = @as(u64, @intFromEnum(ui_mod.PanelId.hud)) + 1;
-    const settings_active: u64 = @as(u64, @intFromEnum(ui_mod.PanelId.settings)) + 1;
+    const hud_active: u64 = panels.getActivePanelId(.hud);
+    const settings_active: u64 = panels.getActivePanelId(.settings);
 
     var moving: ?*ui_mod.PanelConfig = null;
     var target: ?*ui_mod.PanelConfig = null;
@@ -473,27 +388,13 @@ fn applyDocking(ui_state: *GameUiState, status_message: *StatusMessage) void {
     const over_target = mouse.x >= target_rect.x and mouse.y >= target_rect.y and mouse.x <= target_rect.x + target_rect.width and mouse.y <= target_rect.y + target_rect.height;
     if (!over_target) return;
 
-    const rel_x = (mouse.x - target_rect.x) / @max(1.0, target_rect.width);
-    const rel_y = (mouse.y - target_rect.y) / @max(1.0, target_rect.height);
+    const position = panels.detectDockPosition(mouse.x, mouse.y, target_rect, .{}) orelse return;
 
-    const position: ?DockPosition = if (rel_x < 0.25)
-        .left
-    else if (rel_x > 0.75)
-        .right
-    else if (rel_y < 0.25)
-        .top
-    else if (rel_y > 0.75)
-        .bottom
-    else
-        null;
-
-    if (position == null) return;
-
-    splitDockPanels(moving.?, target.?, position.?);
+    panels.splitDockPanels(moving.?, target.?, position);
     ui_state.dirty = true;
 
     var msg_buf: [96:0]u8 = undefined;
-    const pos_str: [:0]const u8 = switch (position.?) {
+    const pos_str: [:0]const u8 = switch (position) {
         .left => "left",
         .right => "right",
         .top => "top",
@@ -517,7 +418,6 @@ pub fn drawUI(
     ui_state.config.sanitize();
 }
 
-/// Draw instructions at the bottom of the screen
 pub fn drawInstructions(screen_width: f32, screen_height: f32) void {
     const instructions = "WASD / Arrows move — R restart — F1 edit UI — F2 settings — Drop files (or nyon_ui.json)";
     const text_width = nyon_game.engine.Text.measure(instructions, UI_INSTRUCTION_FONT_SIZE);
@@ -551,7 +451,6 @@ pub fn drawStatusMessage(status: *const StatusMessage, screen_width: f32) void {
     nyon_game.engine.Text.draw(text, text_x, STATUS_MESSAGE_Y_OFFSET, STATUS_MESSAGE_FONT_SIZE, message_color);
 }
 
-/// Draw win message if all items are collected
 pub fn drawWinMessage(screen_width: f32, screen_height: f32) void {
     const win_text = "YOU WIN!";
     const win_width = nyon_game.engine.Text.measure(win_text, UI_WIN_FONT_SIZE);

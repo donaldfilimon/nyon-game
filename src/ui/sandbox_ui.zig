@@ -7,6 +7,7 @@ const StatusMessage = nyon_game.status_message.StatusMessage;
 const sandbox_mod = @import("../game/sandbox.zig");
 const game_ui_mod = @import("game_ui.zig");
 const engine = nyon_game.engine;
+const panels = ui_mod.panels;
 
 pub const SandboxUiState = game_ui_mod.GameUiState;
 pub const defaultUiScaleFromDpi = game_ui_mod.defaultUiScaleFromDpi;
@@ -20,17 +21,6 @@ const STATUS_MESSAGE_Y_OFFSET: i32 = 8;
 const COLOR_TEXT_GRAY = engine.Color{ .r = 210, .g = 210, .b = 210, .a = 255 };
 const COLOR_STATUS_MESSAGE = engine.Color{ .r = 200, .g = 220, .b = 255, .a = 255 };
 const COLOR_CROSSHAIR = engine.Color{ .r = 255, .g = 255, .b = 255, .a = 200 };
-
-fn clampPanelRect(rect: *engine.Rectangle, screen_width: f32, screen_height: f32) void {
-    if (rect.width > screen_width) rect.width = screen_width;
-    if (rect.height > screen_height) rect.height = screen_height;
-
-    if (rect.x < 0.0) rect.x = 0.0;
-    if (rect.y < 0.0) rect.y = 0.0;
-
-    if (rect.x + rect.width > screen_width) rect.x = screen_width - rect.width;
-    if (rect.y + rect.height > screen_height) rect.y = screen_height - rect.height;
-}
 
 fn drawHudPanel(
     sandbox_state: *const sandbox_mod.SandboxState,
@@ -50,7 +40,7 @@ fn drawHudPanel(
         if (ui_state.ctx.resizeHandle(.hud, &rect, 240.0, 170.0)) ui_state.dirty = true;
     }
 
-    clampPanelRect(&rect, screen_width, screen_height);
+    panels.clampPanelRect(&rect, screen_width, screen_height);
     ui_state.config.hud.rect = rect;
 
     const padding_f: f32 = @floatFromInt(style.padding);
@@ -105,7 +95,7 @@ fn drawSettingsPanel(
         if (ui_state.ctx.resizeHandle(.settings, &rect, 240.0, 190.0)) ui_state.dirty = true;
     }
 
-    clampPanelRect(&rect, screen_width, screen_height);
+    panels.clampPanelRect(&rect, screen_width, screen_height);
     ui_state.config.settings.rect = rect;
 
     const pad_f: f32 = @floatFromInt(style.padding);
@@ -289,71 +279,13 @@ fn drawSettingsPanel(
     }
 }
 
-const DockPosition = enum {
-    left,
-    right,
-    top,
-    bottom,
-};
-
-fn splitDockPanels(moving: *ui_mod.PanelConfig, target: *ui_mod.PanelConfig, position: DockPosition) void {
-    const min_w: f32 = 220.0;
-    const min_h: f32 = 160.0;
-    const target_rect = target.rect;
-
-    switch (position) {
-        .left => {
-            const half = @max(min_w, target_rect.width / 2.0);
-            moving.rect = engine.Rectangle{
-                .x = target_rect.x,
-                .y = target_rect.y,
-                .width = half,
-                .height = target_rect.height,
-            };
-            target.rect.x = target_rect.x + half;
-            target.rect.width = @max(min_w, target_rect.width - half);
-        },
-        .right => {
-            const half = @max(min_w, target_rect.width / 2.0);
-            moving.rect = engine.Rectangle{
-                .x = target_rect.x + target_rect.width - half,
-                .y = target_rect.y,
-                .width = half,
-                .height = target_rect.height,
-            };
-            target.rect.width = @max(min_w, target_rect.width - half);
-        },
-        .top => {
-            const half = @max(min_h, target_rect.height / 2.0);
-            moving.rect = engine.Rectangle{
-                .x = target_rect.x,
-                .y = target_rect.y,
-                .width = target_rect.width,
-                .height = half,
-            };
-            target.rect.y = target_rect.y + half;
-            target.rect.height = @max(min_h, target_rect.height - half);
-        },
-        .bottom => {
-            const half = @max(min_h, target_rect.height / 2.0);
-            moving.rect = engine.Rectangle{
-                .x = target_rect.x,
-                .y = target_rect.y + target_rect.height - half,
-                .width = target_rect.width,
-                .height = half,
-            };
-            target.rect.height = @max(min_h, target_rect.height - half);
-        },
-    }
-}
-
 fn applyDocking(ui_state: *SandboxUiState, status_message: *StatusMessage) void {
     if (!ui_state.edit_mode) return;
     if (!ui_state.ctx.input.mouse_released) return;
 
     const active = ui_state.ctx.active_id;
-    const hud_active: u64 = @as(u64, @intFromEnum(ui_mod.PanelId.hud)) + 1;
-    const settings_active: u64 = @as(u64, @intFromEnum(ui_mod.PanelId.settings)) + 1;
+    const hud_active: u64 = panels.getActivePanelId(.hud);
+    const settings_active: u64 = panels.getActivePanelId(.settings);
 
     var moving: ?*ui_mod.PanelConfig = null;
     var target: ?*ui_mod.PanelConfig = null;
@@ -376,27 +308,13 @@ fn applyDocking(ui_state: *SandboxUiState, status_message: *StatusMessage) void 
     const over_target = mouse.x >= target_rect.x and mouse.y >= target_rect.y and mouse.x <= target_rect.x + target_rect.width and mouse.y <= target_rect.y + target_rect.height;
     if (!over_target) return;
 
-    const rel_x = (mouse.x - target_rect.x) / @max(1.0, target_rect.width);
-    const rel_y = (mouse.y - target_rect.y) / @max(1.0, target_rect.height);
+    const position = panels.detectDockPosition(mouse.x, mouse.y, target_rect, .{}) orelse return;
 
-    const position: ?DockPosition = if (rel_x < 0.25)
-        .left
-    else if (rel_x > 0.75)
-        .right
-    else if (rel_y < 0.25)
-        .top
-    else if (rel_y > 0.75)
-        .bottom
-    else
-        null;
-
-    if (position == null) return;
-
-    splitDockPanels(moving.?, target.?, position.?);
+    panels.splitDockPanels(moving.?, target.?, position);
     ui_state.dirty = true;
 
     var msg_buf: [96:0]u8 = undefined;
-    const pos_str: [:0]const u8 = switch (position.?) {
+    const pos_str: [:0]const u8 = switch (position) {
         .left => "left",
         .right => "right",
         .top => "top",

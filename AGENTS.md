@@ -64,11 +64,20 @@
 
 ## UI & Editor Patterns
 
-- Immediate-mode UI in `src/ui/`; use `FrameInput` struct for mouse/keyboard state.
+- Immediate-mode UI in `src/ui/` with modular structure:
+  - `ui.zig`: Core framework (UiContext, UiStyle, UiConfig, PanelId, re-exports modules)
+  - `scaling.zig`: DPI-aware scaling utilities (`UiScale`, `DpiInfo`, `ResponsiveConfig`)
+  - `panels.zig`: Shared panel utilities (`clampPanelRect`, `splitDockPanels`, `detectDockPosition`)
+  - `widgets.zig`: Reusable widget primitives (`button`, `checkbox`, `sliderFloat`, `sliderInt`)
+  - `sandbox_ui.zig`: Sandbox-specific UI (HUD, Settings, crosshair, instructions)
+  - `game_ui.zig`: Game-specific UI (HUD, Settings, win message, progress bar)
+  - `menus.zig`: Menu screens (Title, World List, Pause, Server Browser)
+  - `status_message.zig`: Lightweight status/notification overlay
 - UI state persists to `saves/nyon_ui.json`; bump version if format changes.
 - Node graph system in `src/nodes/` and `src/geometry_nodes.zig` for procedural content.
 - Property inspector pattern: iterate component fields with reflection-like metadata.
 - Font loading via `FontSet` in `src/font_manager.zig`; handle Windows font paths with fallbacks.
+- Scale range: 0.6 to 2.5 (clamped by `UiScale.clamp()`)
 
 ## Rendering & Asset Patterns
 
