@@ -35,7 +35,7 @@ pub const PostProcessingSystem = struct {
     }
 
     pub fn loadEffect(self: *PostProcessingSystem, effect: EffectType, path: [:0]const u8) !void {
-        const shader = try raylib.loadShader(null, path);
+        const shader = raylib.loadShader(null, path);
         try self.shaders.put(@tagName(effect), shader);
     }
 

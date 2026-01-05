@@ -3,96 +3,40 @@
 [DEBUG build_complete] Build function completed successfully (session: A)
 install
 +- install nyon_game
-   +- compile exe nyon_game Debug native 2 errors
-src\engine.zig:956:43: error: root source file struct 'raylib_stub' has no member named 'isMouseButtonPressed'
-        pub const isButtonPressed = raylib.isMouseButtonPressed;
-                                    ~~~~~~^~~~~~~~~~~~~~~~~~~~~
-src\raylib_stub.zig:1:1: note: struct declared here
-const std = @import("std");
-^~~~~
-referenced by:
-    run: src\application.zig:128:45
-    main: src\main.zig:17:16
-    4 reference(s) hidden; use '-freference-trace=6' to see all references
-src\ui\ui.zig:225:43: error: root source file struct 'fs' has no member named 'cwd'
-        const file = try @import("std").fs.cwd().openFile(path, .{ .mode = .read_only });
-                         ~~~~~~~~~~~~~~~~~^~~~
-C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\fs.zig:1:1: note: struct declared here
-//! File System.
-^~~~~~~~~~~~~~~~
-error: 2 compilation errors
+   +- compile exe nyon_game Debug native 1 errors
+src\game\worlds.zig:1:1: error: file exists in modules 'raygui' and 'nyon_game'
+src\game\worlds.zig:1:1: note: files must belong to only one module
+src\game\worlds.zig:1:1: note: file is the root of module 'raygui'
+src\game\worlds.zig:7:24: note: file is imported here
+const raylib = @import("../raylib_stub.zig");
+                       ^~~~~~~~~~~~~~~~~~~~
+src\root.zig:100:28: note: which is imported here by the root of module 'nyon_game'
+pub const worlds = @import("game/worlds.zig");
+                           ^~~~~~~~~~~~~~~~~
+error: 1 compilation errors
 failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\main.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_game --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\lib\\" --listen=-
 
 install
 +- install nyon_editor
-   +- compile exe nyon_editor Debug native 6 errors
-src\asset.zig:133:28: error: root source file struct 'fs' has no member named 'cwd'
-        const file = std.fs.cwd().openFile(file_path, .{}) catch {
-                     ~~~~~~^~~~
-C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\fs.zig:1:1: note: struct declared here
-//! File System.
-^~~~~~~~~~~~~~~~
-referenced by:
-    undoImpl: src\undo_redo.zig:1155:51
-    createFromJson: src\undo_redo.zig:1058:22
-    7 reference(s) hidden; use '-freference-trace=9' to see all references
-src\physics\world.zig:33:59: error: root source file struct 'physics.types' has no member named 'types'
-fn isHandleValid(self: *const PhysicsWorld, handle: types.types.BodyHandle) bool {
-                                                          ^~~~~
-src\physics\types.zig:1:1: note: struct declared here
-//! Physics System - Rigid Body Dynamics and Collision Detection
-^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-src\post_processing.zig:38:45: error: expected error union type, found 'raylib_stub.Shader'
-        const shader = try raylib.loadShader(null, path);
-                           ~~~~~~~~~~~~~~~~~^~~~~~~~~~~~
-src\raylib_stub.zig:299:27: note: struct declared here
-pub const Shader = extern struct {
-                   ~~~~~~~^~~~~~
-src\post_processing.zig:38:45: note: consider omitting 'try'
-src\undo_redo.zig:746:45: error: expected type 'ecs.entity.EntityId', found 'u32'
-            if (self.ecs_world.getComponent(@as(u32, @intCast(entity_id.id)), nyon.ecs.Transform)) |transform| {
-                                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-src\ecs\entity.zig:20:22: note: struct declared here
-pub const EntityId = struct {
-                     ^~~~~~
-src\ecs\world.zig:132:56: note: parameter type declared here
-    pub fn getComponent(self: *World, entity_id: entity.EntityId, comptime T: type) ?*T {
-                                                 ~~~~~~^~~~~~~~~
-src\undo_redo.zig:820:22: error: expected type '*const fn (*anyopaque) error{CommandExecutionError,InvalidState,JsonParseError,OutOfMemory,SerializationError}!void', found '*const fn (*anyopaque) @typeInfo(@typeInfo(@TypeOf(undo_redo.AddObjectCommand.executeImpl)).@"fn".return_type.?).error_union.error_set!void'
-                    .execute = executeImpl,
-                    ~^~~~~~~~~~~~~~~~~~~~~
-src\undo_redo.zig:820:22: note: pointer type child 'fn (*anyopaque) @typeInfo(@typeInfo(@TypeOf(undo_redo.AddObjectCommand.executeImpl)).@"fn".return_type.?).error_union.error_set!void' cannot cast into pointer type child 'fn (*anyopaque) error{CommandExecutionError,InvalidState,JsonParseError,OutOfMemory,SerializationError}!void'
-src\undo_redo.zig:820:22: note: return type '@typeInfo(@typeInfo(@TypeOf(undo_redo.AddObjectCommand.executeImpl)).@"fn".return_type.?).error_union.error_set!void' cannot cast into return type 'error{CommandExecutionError,InvalidState,JsonParseError,OutOfMemory,SerializationError}!void'
-src\undo_redo.zig:820:22: note: 'error.FileNotFound' not a member of destination error set
-src\undo_redo.zig:820:22: note: 'error.UnsupportedTextureFormat' not a member of destination error set
-src\undo_redo.zig:820:22: note: 'error.TextureLoadFailed' not a member of destination error set
-src\undo_redo.zig:820:22: note: 'error.InvalidAssetData' not a member of destination error set
-src\undo_redo.zig:820:22: note: 'error.MetadataError' not a member of destination error set
-src\undo_redo.zig:820:22: note: 'error.FileTooLarge' not a member of destination error set
-src\undo_redo.zig:820:22: note: 'error.EntityNotAlive' not a member of destination error set
-src\undo_redo.zig:820:22: note: 'error.EntityNotFound' not a member of destination error set
-src\undo_redo.zig:1058:22: error: expected type '*const fn (*anyopaque) error{CommandExecutionError,InvalidState,JsonParseError,OutOfMemory,SerializationError}!void', found '*const fn (*anyopaque) @typeInfo(@typeInfo(@TypeOf(undo_redo.RemoveObjectCommand.undoImpl)).@"fn".return_type.?).error_union.error_set!void'
-                    .undo = undoImpl,
-                    ~^~~~~~~~~~~~~~~
-src\undo_redo.zig:1058:22: note: pointer type child 'fn (*anyopaque) @typeInfo(@typeInfo(@TypeOf(undo_redo.RemoveObjectCommand.undoImpl)).@"fn".return_type.?).error_union.error_set!void' cannot cast into pointer type child 'fn (*anyopaque) error{CommandExecutionError,InvalidState,JsonParseError,OutOfMemory,SerializationError}!void'
-src\undo_redo.zig:1058:22: note: return type '@typeInfo(@typeInfo(@TypeOf(undo_redo.RemoveObjectCommand.undoImpl)).@"fn".return_type.?).error_union.error_set!void' cannot cast into return type 'error{CommandExecutionError,InvalidState,JsonParseError,OutOfMemory,SerializationError}!void'
-src\undo_redo.zig:1058:22: note: 'error.FileNotFound' not a member of destination error set
-src\undo_redo.zig:1058:22: note: 'error.UnsupportedTextureFormat' not a member of destination error set
-src\undo_redo.zig:1058:22: note: 'error.TextureLoadFailed' not a member of destination error set
-src\undo_redo.zig:1058:22: note: 'error.InvalidAssetData' not a member of destination error set
-src\undo_redo.zig:1058:22: note: 'error.MetadataError' not a member of destination error set
-src\undo_redo.zig:1058:22: note: 'error.FileTooLarge' not a member of destination error set
-src\undo_redo.zig:1058:22: note: 'error.EntityNotAlive' not a member of destination error set
-src\undo_redo.zig:1058:22: note: 'error.EntityNotFound' not a member of destination error set
-error: 6 compilation errors
+   +- compile exe nyon_editor Debug native 1 errors
+src\game\worlds.zig:1:1: error: file exists in modules 'raygui' and 'nyon_game'
+src\game\worlds.zig:1:1: note: files must belong to only one module
+src\game\worlds.zig:1:1: note: file is the root of module 'raygui'
+src\game\worlds.zig:7:24: note: file is imported here
+const raylib = @import("../raylib_stub.zig");
+                       ^~~~~~~~~~~~~~~~~~~~
+src\root.zig:100:28: note: which is imported here by the root of module 'nyon_game'
+pub const worlds = @import("game/worlds.zig");
+                           ^~~~~~~~~~~~~~~~~
+error: 1 compilation errors
 failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\editor.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_editor --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\lib\\" --listen=-
 
 Build Summary: 0/5 steps succeeded (2 failed)
 install transitive failure
 +- install nyon_game transitive failure
-|  +- compile exe nyon_game Debug native 2 errors
+|  +- compile exe nyon_game Debug native 1 errors
 +- install nyon_editor transitive failure
-   +- compile exe nyon_editor Debug native 6 errors
+   +- compile exe nyon_editor Debug native 1 errors
 
 error: the following build command failed with exit code 1:
-.zig-cache\o\fc38994fc565b6aa21ba9d9869d2641e\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0xd9c1f516 -Z1783b3bd321fa1b2
+.zig-cache\o\92f2af8c2753723feeadd90abb19e800\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0xe5691df3 -Zeadfa00550e4d31e

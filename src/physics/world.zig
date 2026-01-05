@@ -30,7 +30,7 @@ pub const CollisionPair = struct {
 };
 
 /// Physics body handle for external references with version for safe invalidation
-fn isHandleValid(self: *const PhysicsWorld, handle: types.types.BodyHandle) bool {
+fn isHandleValid(self: *const PhysicsWorld, handle: types.BodyHandle) bool {
     if (handle.index >= self.generations.items.len) return false;
     return self.generations.items[handle.index] == handle.generation;
 }
@@ -184,11 +184,11 @@ pub const PhysicsWorld = struct {
 
         const last_index = self.bodies.items.len - 1;
 
-        self.bodies.swapRemove(handle.index);
-        self.colliders.swapRemove(handle.index);
-        self.generations.swapRemove(handle.index);
-        self.dynamic_aabbs.swapRemove(handle.index);
-        self.static_aabbs.swapRemove(handle.index);
+        _ = self.bodies.swapRemove(handle.index);
+        _ = self.colliders.swapRemove(handle.index);
+        _ = self.generations.swapRemove(handle.index);
+        _ = self.dynamic_aabbs.swapRemove(handle.index);
+        _ = self.static_aabbs.swapRemove(handle.index);
 
         if (handle.index < last_index) {
             self.generations.items[handle.index] +%= 1;

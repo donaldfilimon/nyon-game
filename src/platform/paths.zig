@@ -76,21 +76,21 @@ pub const PathUtils = struct {
 pub const FontPaths = struct {
     pub fn getSystemFontPaths(allocator: std.mem.Allocator) ![][]const u8 {
         const platform = getCurrentPlatform();
-        const fonts = switch (platform) {
-            .windows => [_][]const u8{
+        const fonts: []const []const u8 = switch (platform) {
+            .windows => &[_][]const u8{
                 "C:\\Windows\\Fonts\\segoeui.ttf",
                 "C:\\Windows\\Fonts\\arial.ttf",
                 "C:\\Windows\\Fonts\\tahoma.ttf",
                 "C:\\Windows\\Fonts\\calibri.ttf",
             },
-            .macos => [_][]const u8{
+            .macos => &[_][]const u8{
                 "/System/Library/Fonts/Helvetica.ttc",
                 "/Library/Fonts/Arial.ttf",
             },
-            .linux => [_][]const u8{
+            .linux => &[_][]const u8{
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             },
-            .wasm => [_][]const u8{},
+            .wasm => &[_][]const u8{},
         };
 
         var result = try allocator.alloc([]const u8, fonts.len);

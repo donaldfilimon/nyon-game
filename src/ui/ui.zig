@@ -53,7 +53,7 @@ pub const FontSet = struct {
     }
 
     pub fn loadDefault(self: *FontSet) void {
-        const default_font = raylib.getFontDefault() catch std.mem.zeroes(raylib.Font);
+        const default_font = raylib.getFontDefault();
         self.regular = default_font;
         self.bold = default_font;
         self.mono = default_font;
@@ -222,11 +222,16 @@ pub const UiConfig = struct {
     }
 
     pub fn load(allocator: std.mem.Allocator, path: []const u8) !UiConfig {
-        const file = try @import("std").fs.cwd().openFile(path, .{ .mode = .read_only });
-        defer file.close();
-        const file_bytes = try file.reader().readAllAlloc(allocator, 256 * 1024);
+        const path_z = try allocator.dupeZ(u8, path);
+        defer allocator.free(path_z);
 
-        var parsed: std.json.Parsed(UiConfig) = try std.json.parseFromSlice(UiConfig, allocator, file_bytes, .{
+        const text_ptr = raylib.loadFileText(path_z);
+        if (text_ptr == null) return error.FileNotFound;
+        defer raylib.unloadFileText(text_ptr.?);
+
+        const text = std.mem.span(text_ptr.?);
+
+        var parsed: std.json.Parsed(UiConfig) = try std.json.parseFromSlice(UiConfig, allocator, text, .{
             .ignore_unknown_fields = true,
         });
         defer parsed.deinit();
@@ -237,14 +242,18 @@ pub const UiConfig = struct {
     }
 
     pub fn save(self: *const UiConfig, allocator: std.mem.Allocator, path: []const u8) !void {
-        _ = allocator;
-        var file = try @import("std").fs.cwd().createFile(path, .{ .truncate = true });
-        defer file.close();
+        var list = try std.ArrayList(u8).initCapacity(allocator, 4096);
+        defer list.deinit();
 
-        var buffer: [4096]u8 = undefined;
-        var writer = file.writer(&buffer);
-        try std.json.Stringify.value(self.*, .{ .whitespace = .indent_2 }, &writer.interface);
-        try writer.interface.flush();
+        try std.json.stringify(self.*, .{ .whitespace = .indent_2 }, list.writer());
+        try list.append(0); // Null terminator
+
+        const path_z = try allocator.dupeZ(u8, path);
+        defer allocator.free(path_z);
+
+        if (!raylib.saveFileText(path_z, @ptrCast(list.items.ptr))) {
+            return error.AccessDenied;
+        }
     }
 
     pub fn sanitize(self: *UiConfig) void {

@@ -25,8 +25,9 @@ const Input = engine.Input;
 const KeyboardKey = engine.KeyboardKey;
 const MouseButton = engine.MouseButton;
 
-pub // Constants moved to config/constants.zig to eliminate magic numbers
+// Constants moved to config/constants.zig to eliminate magic numbers
 
+pub const COLOR_BACKGROUND = engine.Color{ .r = 20, .g = 20, .b = 20, .a = 255 };
 const GRID_SIZE: u32 = 256;
 const PRIME1: u32 = 73856093;
 const PRIME2: u32 = 83492791;
@@ -305,7 +306,7 @@ pub const SandboxState = struct {
     fn retryRead(max_attempts: u32, path: []const u8, allocator: std.mem.Allocator, max_size: std.Io.SizeLimit) ![]u8 {
         var attempt: u32 = 0;
         while (attempt < max_attempts) : (attempt += 1) {
-            const result = std.fs.cwd().readFileAlloc(path, allocator, max_size);
+            const result = std.Io.Dir.cwd().readFileAlloc(path, allocator, max_size);
             if (result) |data| {
                 return data;
             } else |err| {
@@ -356,7 +357,7 @@ pub const SandboxState = struct {
     fn retryWrite(max_attempts: u32, path: []const u8, data: []const u8) !void {
         var attempt: u32 = 0;
         while (attempt < max_attempts) : (attempt += 1) {
-            const result = std.fs.cwd().atomicFile(path, .{ .mode = .write_only });
+            const result = std.Io.Dir.cwd().atomicFile(path, .{ .mode = .write_only });
             if (result) |af| {
                 defer af.file_handle.close();
                 const write_result = af.file_handle.writeAll(data);

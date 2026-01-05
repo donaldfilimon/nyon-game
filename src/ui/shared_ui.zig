@@ -274,9 +274,9 @@ pub fn drawStatusMessage(status: *const StatusMessage, screen_width: f32) void {
 
     const alpha_byte = status.alphaU8();
     const message_color = engine.Color{
-        .r = config.Colors.STATUS_MESSAGE.r,
-        .g = config.Colors.STATUS_MESSAGE.g,
-        .b = config.Colors.STATUS_MESSAGE.b,
+        .r = config.Colors.STATUS_MESSAGE{}.r,
+        .g = config.Colors.STATUS_MESSAGE{}.g,
+        .b = config.Colors.STATUS_MESSAGE{}.b,
         .a = alpha_byte,
     };
 

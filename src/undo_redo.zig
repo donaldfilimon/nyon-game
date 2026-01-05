@@ -8,6 +8,7 @@ const config = @import("config/constants.zig");
 /// Supports scene operations, material changes, animation modifications, and custom commands.
 /// Error set for undo/redo operations
 pub const UndoRedoError = error{
+    IndexOutOfBounds,
     OutOfMemory,
     InvalidState,
     SerializationError,
@@ -581,7 +582,7 @@ pub const SceneTransformCommand = struct {
     new_rotation: nyon.Vector3,
     new_scale: nyon.Vector3,
 
-    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, ecs_world: *nyon.ecs.World, scene_index_to_entity: *std.AutoHashMap(usize, nyon.ecs.EntityId), entity_id: usize, description: []const u8) !*SceneTransformCommand {
+    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, ecs_world: *nyon.ecs.World, scene_index_to_entity: *std.AutoHashMap(usize, nyon.ecs.EntityId), entity_id: usize, description: []const u8) UndoRedoError!*SceneTransformCommand {
         const desc_copy = try allocator.dupe(u8, description);
         errdefer allocator.free(desc_copy);
 
@@ -751,7 +752,7 @@ pub const SceneTransformCommand = struct {
 
         // Also sync to ECS
         if (self.scene_index_to_entity.get(self.entity_id)) |entity_id| {
-            if (self.ecs_world.getComponent(@as(u32, @intCast(entity_id.id)), nyon.ecs.Transform)) |transform| {
+            if (self.ecs_world.getComponent(entity_id, nyon.ecs.Transform)) |transform| {
                 transform.position.x = self.new_position.x;
                 transform.position.y = self.new_position.y;
                 transform.position.z = self.new_position.z;
@@ -787,7 +788,7 @@ pub const SceneTransformCommand = struct {
         allocator.destroy(self);
     }
 
-    fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) !*UndoRedoSystem.Command {
+    fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) UndoRedoError!*UndoRedoSystem.Command {
         const self: *SceneTransformCommand = @ptrCast(@alignCast(cmd));
         const cloned = try SceneTransformCommand.create(allocator, self.scene, self.ecs_world, self.scene_index_to_entity, self.entity_id, self.base.description);
         cloned.new_position = self.new_position;
@@ -818,7 +819,7 @@ pub const AddObjectCommand = struct {
     added_index: ?usize,
     entity: ?nyon.ecs.EntityId,
 
-    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, ecs_world: *nyon.ecs.World, physics_system: *nyon.ecs.PhysicsSystem, model_path: []const u8, position: nyon.Vector3, description: []const u8) !*AddObjectCommand {
+    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, ecs_world: *nyon.ecs.World, physics_system: *nyon.ecs.PhysicsSystem, model_path: []const u8, position: nyon.Vector3, description: []const u8) UndoRedoError!*AddObjectCommand {
         const self = try allocator.create(AddObjectCommand);
         self.* = .{
             .base = .{
@@ -971,7 +972,7 @@ pub const AddObjectCommand = struct {
         allocator.destroy(self);
     }
 
-    fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) !*UndoRedoSystem.Command {
+    fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) UndoRedoError!*UndoRedoSystem.Command {
         const self: *AddObjectCommand = @ptrCast(@alignCast(cmd));
         const cloned = try create(allocator, self.scene, self.asset_mgr, self.ecs_world, self.physics_system, self.model_path, self.position, self.base.description);
         return &cloned.base;
@@ -1008,7 +1009,7 @@ pub const RemoveObjectCommand = struct {
     removed_model: ?nyon.raylib.Model,
     entity: ?nyon.ecs.EntityId,
 
-    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, ecs_world: *nyon.ecs.World, physics_system: *nyon.ecs.PhysicsSystem, index: usize, description: []const u8) !*RemoveObjectCommand {
+    pub fn create(allocator: std.mem.Allocator, scene: *nyon.Scene, asset_mgr: *nyon.AssetManager, ecs_world: *nyon.ecs.World, physics_system: *nyon.ecs.PhysicsSystem, index: usize, description: []const u8) UndoRedoError!*RemoveObjectCommand {
         const info = scene.getModelInfo(index) orelse return error.IndexOutOfBounds;
         const model_path = "assets/models/unknown.obj";
 
@@ -1182,7 +1183,7 @@ pub const RemoveObjectCommand = struct {
         allocator.destroy(self);
     }
 
-    fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) !*UndoRedoSystem.Command {
+    fn cloneImpl(cmd: *anyopaque, allocator: std.mem.Allocator) UndoRedoError!*UndoRedoSystem.Command {
         const self: *RemoveObjectCommand = @ptrCast(@alignCast(cmd));
         const cloned = try create(allocator, self.scene, self.asset_mgr, self.ecs_world, self.physics_system, self.index, self.base.description);
         return &cloned.base;

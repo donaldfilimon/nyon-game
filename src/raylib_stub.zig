@@ -55,9 +55,24 @@ pub const MouseButton = enum(c_int) {
 };
 
 pub extern fn isMouseButtonDown(button: MouseButton) bool;
+pub extern fn isMouseButtonPressed(button: MouseButton) bool;
+pub extern fn isMouseButtonReleased(button: MouseButton) bool;
 pub extern fn loadShader(vsFileName: ?[*:0]const u8, fsFileName: ?[*:0]const u8) Shader;
 pub extern fn getModelBoundingBox(model: Model) BoundingBox;
 pub extern fn unloadModel(model: Model) void;
+pub extern fn fileExists(fileName: [*:0]const u8) bool;
+pub extern fn loadFileText(fileName: [*:0]const u8) ?[*:0]u8;
+pub extern fn unloadFileText(text: [*:0]u8) void;
+pub extern fn saveFileText(fileName: [*:0]const u8, text: [*:0]const u8) bool;
+pub extern fn loadRenderTexture(width: c_int, height: c_int) RenderTexture2D;
+pub extern fn unloadRenderTexture(target: RenderTexture2D) void;
+pub extern fn beginDrawing() void;
+pub extern fn endDrawing() void;
+pub extern fn clearBackground(color: Color) void;
+pub extern fn getFrameTime() f32;
+pub extern fn getFontDefault() Font;
+pub extern fn loadFontEx(fileName: [*:0]const u8, fontSize: c_int, fontChars: ?[*]c_int, glyphCount: c_int) Font;
+pub extern fn unloadFont(font: Font) void;
 
 pub const ConfigFlags = packed struct {
     vsync_hint: bool = false,
@@ -86,14 +101,27 @@ pub const Rectangle = extern struct {
 };
 
 pub const Font = extern struct {
-    baseSize: i32,
-    baseHeight: i32,
-    textureCount: i32,
-    padding: i32,
-    atlasSize: i32,
-    recs: [*]Rectangle,
-    chars: [*]f32,
+    baseSize: c_int,
+    glyphCount: c_int,
+    glyphPadding: c_int,
+    texture: Texture2D,
+    recs: ?[*]Rectangle,
+    glyphs: ?*anyopaque, // GlyphInfo
 };
+
+pub extern fn drawText(text: [*:0]const u8, posX: c_int, posY: c_int, fontSize: c_int, color: Color) void;
+pub extern fn unloadSound(sound: Sound) void;
+pub extern fn closeWindow() void;
+pub extern fn unloadMaterial(material: Material) void;
+pub extern fn measureText(text: [*:0]const u8, fontSize: c_int) c_int;
+pub extern fn unloadModelAnimation(anim: ModelAnimation) void;
+pub extern fn unloadTexture(texture: Texture2D) void;
+pub extern fn loadModel(fileName: [*:0]const u8) Model; // Error union handled by wrapper if needed, but extern just returns Model
+pub extern fn closeAudioDevice() void;
+pub extern fn unloadMesh(mesh: Mesh) void;
+pub extern fn unloadShader(shader: Shader) void;
+pub extern fn directoryExists(dirPath: [*:0]const u8) bool;
+pub extern fn makeDirectory(dirPath: [*:0]const u8) bool;
 
 pub const Mesh = extern struct {
     vertexCount: i32,

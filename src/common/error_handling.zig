@@ -31,6 +31,10 @@ pub fn initArrayListSafe(comptime T: type, allocator: std.mem.Allocator, capacit
 
 pub const Cast = struct {
     pub fn toInt(comptime Dest: type, value: anytype) Dest {
+        const T = @TypeOf(value);
+        if (@typeInfo(T) == .float or @typeInfo(T) == .comptime_float) {
+            return @intFromFloat(value);
+        }
         return @intCast(value);
     }
 

@@ -1,9 +1,85 @@
-C:\Users\donald\AppData\Local\zig\p\raylib_zig-5.6.0-dev-KE8REL5MBQAf3p497t52Xw9P7ojndIkVOWPXnLiLLw2P\build.zig:12:108: error: use of undeclared identifier 'Options'
-fn getRaylib(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, options: Options) *std.Build.Step.Compile {
-                                                                                                           ^~~~~~~
-C:\Users\donald\AppData\Local\zig\p\raylib_zig-5.6.0-dev-KE8REL5MBQAf3p497t52Xw9P7ojndIkVOWPXnLiLLw2P\build.zig:55:24: error: use of undeclared identifier 'this'
-        const raylib = this.getModule(b, target, optimize);
-                       ^~~~
-C:\Users\donald\AppData\Local\zig\p\raylib_zig-5.6.0-dev-KE8REL5MBQAf3p497t52Xw9P7ojndIkVOWPXnLiLLw2P\build.zig:69:29: error: use of undeclared identifier 'this'
-    const raylib_artifact = this.getRaylib(b, target, optimize, Options.getOptions(b));
-                            ^~~~
+[DEBUG build_start] Build function started (session: A)
+[DEBUG target_optimize_setup] Target and optimize options set (session: A)
+[DEBUG build_complete] Build function completed successfully (session: A)
+install
++- install nyon_game
+   +- compile exe nyon_game Debug native 4 errors
+src\application.zig:140:52: error: root source file struct 'game.sandbox' has no member named 'COLOR_BACKGROUND'
+            self.engine.clearBackground(sandbox_mod.COLOR_BACKGROUND);
+                                        ~~~~~~~~~~~^~~~~~~~~~~~~~~~~
+src\game\sandbox.zig:1:1: note: struct declared here
+//! 3D sandbox gameplay state and world persistence.
+^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+referenced by:
+    main: src\main.zig:17:16
+    callMain [inlined]: C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\start.zig:724:37
+    callMainWithArgs [inlined]: C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\start.zig:679:20
+    main: C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\start.zig:694:28
+    1 reference(s) hidden; use '-freference-trace=5' to see all references
+src\engine.zig:112:19: error: root source file struct 'raylib_stub' has no member named 'beginDrawing'
+            raylib.beginDrawing();
+            ~~~~~~^~~~~~~~~~~~~
+src\raylib_stub.zig:1:1: note: struct declared here
+const std = @import("std");
+^~~~~
+src\engine.zig:154:22: error: root source file struct 'raylib_stub' has no member named 'getFrameTime'
+        return raylib.getFrameTime();
+               ~~~~~~^~~~~~~~~~~~~
+src\raylib_stub.zig:1:1: note: struct declared here
+const std = @import("std");
+^~~~~
+src\font_manager.zig:51:23: error: root source file struct 'fs' has no member named 'cwd'
+            if (std.fs.cwd().access(path, .{})) |_| {
+                ~~~~~~^~~~
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\fs.zig:1:1: note: struct declared here
+//! File System.
+^~~~~~~~~~~~~~~~
+error: 4 compilation errors
+failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\main.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_game --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\lib\\" --listen=-
+
+install
++- install nyon_editor
+   +- compile exe nyon_editor Debug native 6 errors
+src\asset.zig:133:28: error: root source file struct 'fs' has no member named 'cwd'
+        const file = std.fs.cwd().openFile(file_path, .{}) catch {
+                     ~~~~~~^~~~
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\fs.zig:1:1: note: struct declared here
+//! File System.
+^~~~~~~~~~~~~~~~
+referenced by:
+    undoImpl: src\undo_redo.zig:1163:51
+    createFromJson: src\undo_redo.zig:1066:22
+    7 reference(s) hidden; use '-freference-trace=9' to see all references
+src\editor\main_editor.zig:156:58: error: expected error union type, found 'raylib_stub.RenderTexture2D'
+        const viewport_tex = try raylib.loadRenderTexture(@intCast(@as(i32, @intFromFloat(screen_width))), @intCast(@as(i32, @intFromFloat(screen_height))));
+                                 ~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\raylib_stub.zig:293:36: note: struct declared here
+pub const RenderTexture2D = extern struct {
+                            ~~~~~~~^~~~~~
+src\editor\main_editor.zig:156:58: note: consider omitting 'try'
+src\physics\world.zig:188:34: error: value of type '?physics.colliders.Collider' ignored
+        self.colliders.swapRemove(handle.index);
+        ~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~
+src\physics\world.zig:188:34: note: all non-void values must be used
+src\physics\world.zig:188:34: note: to discard the value, assign it to '_'
+src\undo_redo.zig:792:56: error: unable to resolve inferred error set
+        const cloned = try SceneTransformCommand.create(allocator, self.scene, self.ecs_world, self.scene_index_to_entity, self.entity_id, self.base.description);
+                           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\undo_redo.zig:976:34: error: unable to resolve inferred error set
+        const cloned = try create(allocator, self.scene, self.asset_mgr, self.ecs_world, self.physics_system, self.model_path, self.position, self.base.description);
+                           ~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\undo_redo.zig:1024:22: error: unable to resolve inferred error set
+                    .clone = cloneImpl,
+                    ~^~~~~~~~~~~~~~~~~
+error: 6 compilation errors
+failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\editor.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_editor --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\lib\\" --listen=-
+
+Build Summary: 0/5 steps succeeded (2 failed)
+install transitive failure
++- install nyon_game transitive failure
+|  +- compile exe nyon_game Debug native 4 errors
++- install nyon_editor transitive failure
+   +- compile exe nyon_editor Debug native 6 errors
+
+error: the following build command failed with exit code 1:
+.zig-cache\o\92f2af8c2753723feeadd90abb19e800\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0x3ddce9ae -Z1fbff4d2359d215c

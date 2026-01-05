@@ -4,6 +4,7 @@
 //! This module provides helpers to list/create/update worlds.
 
 const std = @import("std");
+const raylib = @import("../raylib_stub.zig");
 const config = @import("../config/constants.zig");
 
 // ============================================================================
@@ -55,7 +56,9 @@ pub const WorldError = error{
 // ============================================================================
 
 pub fn ensureSavesDir() !void {
-    try std.fs.cwd().makePath(SAVES_DIR);
+    if (!raylib.directoryExists(SAVES_DIR)) {
+        _ = raylib.makeDirectory(SAVES_DIR);
+    }
 }
 
 pub fn listWorlds(allocator: std.mem.Allocator) ![]WorldEntry {

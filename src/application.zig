@@ -159,8 +159,8 @@ pub const Application = struct {
                     if (worlds_mod.getMostRecentWorld(self.allocator)) |entry| {
                         setWorldSession(&self.world_session, WorldSession{
                             .allocator = self.allocator,
-                            .folder = entry.folder,
-                            .name = entry.meta.name,
+                            .folder = try self.allocator.dupe(u8, entry.folder),
+                            .name = try self.allocator.dupe(u8, entry.meta.name),
                         });
                         self.sandbox_state.clearWorld();
                         self.sandbox_state.loadWorld(entry.folder) catch {

@@ -153,7 +153,7 @@ pub const MainEditor = struct {
         post_sys.loadEffect(.chromatic_aberration, "src/shaders/chromatic_aberration.glsl") catch {};
 
         // Create viewport render texture
-        const viewport_tex = try raylib.loadRenderTexture(@intCast(@as(i32, @intFromFloat(screen_width))), @intCast(@as(i32, @intFromFloat(screen_height))));
+        const viewport_tex = raylib.loadRenderTexture(@intCast(@as(i32, @intFromFloat(screen_width))), @intCast(@as(i32, @intFromFloat(screen_height))));
 
         // Editor UI system initialization.
         var dock_sys = docking.DockingSystem.init(allocator, screen_width, screen_height);

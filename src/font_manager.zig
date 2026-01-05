@@ -48,7 +48,10 @@ pub const FontManager = struct {
         }
 
         for (font_paths) |path| {
-            if (std.fs.cwd().access(path, .{})) |_| {
+            const path_z = self.allocator.dupeZ(u8, path) catch continue;
+            defer self.allocator.free(path_z);
+
+            if (raylib.fileExists(path_z)) {
                 const path_copy = self.allocator.dupe(u8, path) catch {
                     std.log.warn("Failed to duplicate font path '{s}', skipping", .{path});
                     continue;
@@ -59,7 +62,7 @@ pub const FontManager = struct {
                     continue;
                 };
                 break;
-            } else |_| {}
+            }
         }
     }
 
