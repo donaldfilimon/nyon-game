@@ -238,6 +238,34 @@ pub const Camera = struct {
         };
     }
 
+    pub fn zoom(self: *Camera, factor: f32) void {
+        _ = self;
+        _ = factor;
+    }
+
+    pub fn orbit(self: *Camera, delta: raylib.Vector2) void {
+        // Simple orbit using delta to adjust yaw/pitch angles
+        const sensitivity: f32 = 0.01;
+        const angle_x = delta.x * sensitivity;
+        const angle_y = delta.y * sensitivity;
+
+        // Rotate position around target
+        const target = self.camera.target;
+        const dx_old = self.camera.position.x - target.x;
+        const dy_old = self.camera.position.y - target.y;
+        const dz_old = self.camera.position.z - target.z;
+        const distance = @sqrt(dx_old * dx_old + dy_old * dy_old + dz_old * dz_old);
+
+        const dx = @cos(angle_y) * @sin(angle_x);
+        const dy = @sin(angle_y);
+        const dz = @cos(angle_y) * @cos(angle_x);
+
+        self.camera.position.x = target.x + dx * distance;
+        self.camera.position.y = target.y + dy * distance;
+        self.camera.position.z = target.z + dz * distance;
+        self.camera.target = target;
+    }
+
     pub fn update(self: *Camera, dt: f32) void {
         if (self.use_smoothing) {
             const pos_diff = raylib.Vector3{

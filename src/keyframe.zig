@@ -399,7 +399,7 @@ pub const KeyframeSystem = struct {
             if (track.evaluate(self.timeline.current_time)) |value| {
                 // Map scene index to entity ID if applicable
                 if (scene_index_to_entity.get(track.target_entity)) |entity_id| {
-                    self.applyPropertyValueToECS(world, @as(u32, @intCast(entity_id)), track.property_name, value);
+                    self.applyPropertyValueToECS(world, @as(u32, @intCast(entity_id.id)), track.property_name, value);
                 } else {
                     // Direct entity ID if track.target_entity is already an entity ID
                     self.applyPropertyValueToECS(world, @as(u32, @intCast(track.target_entity)), track.property_name, value);
@@ -433,7 +433,8 @@ pub const KeyframeSystem = struct {
     fn applyPropertyValueToECS(self: *const KeyframeSystem, world: *nyon.ecs.World, entity_id: u32, property_name: []const u8, value: PropertyValue) void {
         _ = self;
 
-        if (world.getComponent(entity_id, nyon.ecs.Transform)) |transform| {
+        const eid = nyon.ecs.EntityId{ .id = entity_id, .generation = 0 };
+        if (world.getComponent(eid, nyon.ecs.Transform)) |transform| {
             if (std.mem.eql(u8, property_name, "position")) {
                 if (value == .position) {
                     transform.position.x = value.position.x;

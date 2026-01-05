@@ -150,11 +150,18 @@ pub const LODSystem = struct {
     /// Update LOD levels based on camera position
     pub fn updateLOD(self: *LODSystem, camera_position: raylib.Vector3) void {
         for (self.lod_groups.items) |*group| {
-            const distance = camera_position.distance(group.position);
+            const distance = raylib.vec3Distance(camera_position, group.position);
             group.last_distance = distance;
 
             // Determine appropriate LOD level
-            const new_lod = if (distance < self.distances.high_to_medium) .high_detail else if (distance < self.distances.medium_to_low) .medium_detail else if (distance < self.distances.low_to_culled) .low_detail else .culled;
+            const new_lod: LODLevel = if (distance < self.distances.high_to_medium)
+                .high_detail
+            else if (distance < self.distances.medium_to_low)
+                .medium_detail
+            else if (distance < self.distances.low_to_culled)
+                .low_detail
+            else
+                .culled;
 
             group.current_lod = new_lod;
         }
@@ -431,52 +438,57 @@ pub const CullingSystem = struct {
         const view_proj = view_matrix.multiply(proj_matrix);
 
         // Extract frustum planes from view-projection matrix
+        // Matrix layout is: m0-m3  (column 0)
+        //                  m4-m7  (column 1)
+        //                  m8-m11 (column 2)
+        //                  m12-m15(column 3)
+
         // Left plane
         self.frustum_planes[0] = raylib.Vector4{
-            .x = view_proj.m14 + view_proj.m11,
-            .y = view_proj.m24 + view_proj.m21,
-            .z = view_proj.m34 + view_proj.m31,
-            .w = view_proj.m44 + view_proj.m41,
+            .x = view_proj.m3 + view_proj.m0,
+            .y = view_proj.m7 + view_proj.m4,
+            .z = view_proj.m11 + view_proj.m8,
+            .w = view_proj.m15 + view_proj.m12,
         };
 
         // Right plane
         self.frustum_planes[1] = raylib.Vector4{
-            .x = view_proj.m14 - view_proj.m11,
-            .y = view_proj.m24 - view_proj.m21,
-            .z = view_proj.m34 - view_proj.m31,
-            .w = view_proj.m44 - view_proj.m41,
+            .x = view_proj.m3 - view_proj.m0,
+            .y = view_proj.m7 - view_proj.m4,
+            .z = view_proj.m11 - view_proj.m8,
+            .w = view_proj.m15 - view_proj.m12,
         };
 
         // Bottom plane
         self.frustum_planes[2] = raylib.Vector4{
-            .x = view_proj.m14 + view_proj.m12,
-            .y = view_proj.m24 + view_proj.m22,
-            .z = view_proj.m34 + view_proj.m32,
-            .w = view_proj.m44 + view_proj.m42,
+            .x = view_proj.m3 + view_proj.m1,
+            .y = view_proj.m7 + view_proj.m5,
+            .z = view_proj.m11 + view_proj.m9,
+            .w = view_proj.m15 + view_proj.m13,
         };
 
         // Top plane
         self.frustum_planes[3] = raylib.Vector4{
-            .x = view_proj.m14 - view_proj.m12,
-            .y = view_proj.m24 - view_proj.m22,
-            .z = view_proj.m34 - view_proj.m32,
-            .w = view_proj.m44 - view_proj.m42,
+            .x = view_proj.m3 - view_proj.m1,
+            .y = view_proj.m7 - view_proj.m5,
+            .z = view_proj.m11 - view_proj.m9,
+            .w = view_proj.m15 - view_proj.m13,
         };
 
         // Near plane
         self.frustum_planes[4] = raylib.Vector4{
-            .x = view_proj.m13,
-            .y = view_proj.m23,
-            .z = view_proj.m33,
-            .w = view_proj.m43,
+            .x = view_proj.m2,
+            .y = view_proj.m6,
+            .z = view_proj.m10,
+            .w = view_proj.m14,
         };
 
         // Far plane
         self.frustum_planes[5] = raylib.Vector4{
-            .x = view_proj.m14 - view_proj.m13,
-            .y = view_proj.m24 - view_proj.m23,
-            .z = view_proj.m34 - view_proj.m33,
-            .w = view_proj.m44 - view_proj.m43,
+            .x = view_proj.m3 - view_proj.m2,
+            .y = view_proj.m7 - view_proj.m6,
+            .z = view_proj.m11 - view_proj.m10,
+            .w = view_proj.m15 - view_proj.m14,
         };
 
         // Normalize planes

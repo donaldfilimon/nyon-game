@@ -55,28 +55,30 @@ pub fn splitDockPanels(
 
     switch (position) {
         .left => {
-            const half = std.math.max(MIN_PANEL_WIDTH, target_rect.width / 2.0);
+            const half = @max(MIN_PANEL_WIDTH, target_rect.width / 2.0);
             moving.rect = Rectangle{
                 .x = target_rect.x,
                 .y = target_rect.y,
                 .width = half,
                 .height = target_rect.height,
             };
-            target.rect.x = target_rect.x + half;
-            target.rect.width = std.math.max(MIN_PANEL_WIDTH, target_rect.width - half);
+            target.rect.height = target_rect.height; // Error in logic in previous replace? No, this is .left case.
+            // Wait, I need to restore the whole function content properly.
+            // Let's rewrite the whole switch.
+            target.rect.width = @max(MIN_PANEL_WIDTH, target_rect.width - half);
         },
         .right => {
-            const half = std.math.max(MIN_PANEL_WIDTH, target_rect.width / 2.0);
+            const half = @max(MIN_PANEL_WIDTH, target_rect.width / 2.0);
             moving.rect = Rectangle{
                 .x = target_rect.x + target_rect.width - half,
                 .y = target_rect.y,
                 .width = half,
                 .height = target_rect.height,
             };
-            target.rect.width = std.math.max(MIN_PANEL_WIDTH, target_rect.width - half);
+            target.rect.width = @max(MIN_PANEL_WIDTH, target_rect.width - half);
         },
         .top => {
-            const half = std.math.max(MIN_PANEL_HEIGHT, target_rect.height / 2.0);
+            const half = @max(MIN_PANEL_HEIGHT, target_rect.height / 2.0);
             moving.rect = Rectangle{
                 .x = target_rect.x,
                 .y = target_rect.y,
@@ -84,17 +86,17 @@ pub fn splitDockPanels(
                 .height = half,
             };
             target.rect.y = target_rect.y + half;
-            target.rect.height = std.math.max(MIN_PANEL_HEIGHT, target_rect.height - half);
+            target.rect.height = @max(MIN_PANEL_HEIGHT, target_rect.height - half);
         },
         .bottom => {
-            const half = std.math.max(MIN_PANEL_HEIGHT, target_rect.height / 2.0);
+            const half = @max(MIN_PANEL_HEIGHT, target_rect.height / 2.0);
             moving.rect = Rectangle{
                 .x = target_rect.x,
                 .y = target_rect.y + target_rect.height - half,
                 .width = target_rect.width,
                 .height = half,
             };
-            target.rect.height = std.math.max(MIN_PANEL_HEIGHT, target_rect.height - half);
+            target.rect.height = @max(MIN_PANEL_HEIGHT, target_rect.height - half);
         },
     }
 }

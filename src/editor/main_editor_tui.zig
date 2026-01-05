@@ -108,7 +108,7 @@ fn executeCommand(editor: anytype) void {
     defer output_line.deinit(editor.allocator);
     output_line.appendSlice(editor.allocator, "> ") catch return;
     output_line.appendSlice(editor.allocator, command) catch return;
-    const output_cmd = output_line.toOwnedSlice() catch return;
+    const output_cmd = output_line.toOwnedSlice(editor.allocator) catch return;
     editor.tui_output_lines.append(editor.allocator, output_cmd) catch {
         editor.allocator.free(output_cmd);
     };
@@ -130,14 +130,14 @@ fn executeCommand(editor: anytype) void {
         editor.tui_output_lines.clearRetainingCapacity();
         addOutput(editor, "Terminal cleared");
     } else if (std.mem.eql(u8, command, "undo")) {
-        editor.undo_redo_system.undo() catch |err| {
+        _ = editor.undo_redo_system.undo() catch |err| {
             var buf: [64]u8 = undefined;
             addOutput(editor, std.fmt.bufPrint(&buf, "Undo failed: {any}", .{err}) catch "Undo failed");
             return;
         };
         addOutput(editor, "Undone successfully");
     } else if (std.mem.eql(u8, command, "redo")) {
-        editor.undo_redo_system.redo() catch |err| {
+        _ = editor.undo_redo_system.redo() catch |err| {
             var buf: [64]u8 = undefined;
             addOutput(editor, std.fmt.bufPrint(&buf, "Redo failed: {any}", .{err}) catch "Redo failed");
             return;
@@ -159,7 +159,7 @@ fn executeCommand(editor: anytype) void {
             addOutput(editor, std.fmt.bufPrint(&buf, "Failed to create add command: {any}", .{err}) catch "Add failed");
             return;
         };
-        editor.undo_redo_system.executeCommand(&cmd.base) catch |err| {
+        editor.undo_redo_system.execute(&cmd.base) catch |err| {
             var buf: [64]u8 = undefined;
             addOutput(editor, std.fmt.bufPrint(&buf, "Failed to execute add command: {any}", .{err}) catch "Add execution failed");
             return;
@@ -185,7 +185,7 @@ fn executeCommand(editor: anytype) void {
             addOutput(editor, std.fmt.bufPrint(&buf, "Failed to create remove command: {any}", .{err}) catch "Remove failed");
             return;
         };
-        editor.undo_redo_system.executeCommand(&cmd.base) catch |err| {
+        editor.undo_redo_system.execute(&cmd.base) catch |err| {
             var buf: [64]u8 = undefined;
             addOutput(editor, std.fmt.bufPrint(&buf, "Failed to execute remove command: {any}", .{err}) catch "Remove execution failed");
             return;
@@ -217,10 +217,10 @@ fn executeCommand(editor: anytype) void {
             const panel_str = std.fmt.bufPrint(&buf, "#{d} {s} @ [{d},{d},{d},{d}]", .{
                 idx,
                 panel.title,
-                @intFromFloat(panel.rect.x),
-                @intFromFloat(panel.rect.y),
-                @intFromFloat(panel.rect.width),
-                @intFromFloat(panel.rect.height),
+                @as(c_int, @intFromFloat(panel.rect.x)),
+                @as(c_int, @intFromFloat(panel.rect.y)),
+                @as(c_int, @intFromFloat(panel.rect.width)),
+                @as(c_int, @intFromFloat(panel.rect.height)),
             }) catch continue;
             addOutput(editor, panel_str);
         }
@@ -230,11 +230,11 @@ fn executeCommand(editor: anytype) void {
         addOutput(editor, "Use Ctrl+C or close window to exit");
     } else {
         var unknown_msg = std.ArrayList(u8).initCapacity(editor.allocator, command.len + 20) catch return;
-        defer unknown_msg.deinit();
-        unknown_msg.appendSlice("Unknown command: ") catch return;
-        unknown_msg.appendSlice(command) catch return;
-        const unknown_str = unknown_msg.toOwnedSlice() catch return;
-        editor.tui_output_lines.append(unknown_str) catch {
+        defer unknown_msg.deinit(editor.allocator);
+        unknown_msg.appendSlice(editor.allocator, "Unknown command: ") catch return;
+        unknown_msg.appendSlice(editor.allocator, command) catch return;
+        const unknown_str = unknown_msg.toOwnedSlice(editor.allocator) catch return;
+        editor.tui_output_lines.append(editor.allocator, unknown_str) catch {
             editor.allocator.free(unknown_str);
         };
     }
@@ -246,7 +246,7 @@ fn executeCommand(editor: anytype) void {
 
 fn addOutput(editor: anytype, text: []const u8) void {
     const output_line = editor.allocator.dupe(u8, text) catch return;
-    editor.tui_output_lines.append(output_line) catch {
+    editor.tui_output_lines.append(editor.allocator, output_line) catch {
         editor.allocator.free(output_line);
     };
 }

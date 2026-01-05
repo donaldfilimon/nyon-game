@@ -41,6 +41,8 @@ pub const AnimationSystem = struct {
         loop: bool,
         weight: f32, // For blending (0-1)
         fade_time: f32, // For smooth transitions
+        fade_duration: f32 = 0, // Duration of fade transition
+        previous_animation: ?AnimationId = null, // For cross-fade blending
 
         // Skeletal animation data
         bone_transforms: []Transform,

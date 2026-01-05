@@ -92,11 +92,11 @@ pub const Application = struct {
             if (self.sandbox_state.saveWorld(session.folder)) |_| {
                 if (worlds_mod.touchWorld(self.allocator, session.folder, null, null)) |_| {} else |err| {
                     std.log.err("Failed to touch world metadata: {}", .{err});
-                    errors.appendSlice("World metadata update failed. ") catch {};
+                    errors.appendSlice(self.allocator, "World metadata update failed. ") catch {};
                 }
             } else |err| {
                 std.log.err("Failed to save world: {}", .{err});
-                errors.appendSlice("World save failed. ") catch {};
+                errors.appendSlice(self.allocator, "World save failed. ") catch {};
             }
         }
 

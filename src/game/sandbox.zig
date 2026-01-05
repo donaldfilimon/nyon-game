@@ -9,7 +9,7 @@ const config = @import("../config/constants.zig");
 
 const GRID_CELL_SIZE = config.Game.GRID_CELL_SIZE;
 const WORLD_DATA_VERSION = config.Game.WORLD_DATA_VERSION;
-const COLOR_GROUND = config.Colors.GROUND;
+const COLOR_GROUND = config.Colors.GROUND{};
 const HALF_BLOCK = config.Game.HALF_BLOCK;
 const WORLD_DATA_FILE = config.Game.WORLD_DATA_FILE;
 const BLOCK_SIZE = config.Game.BLOCK_SIZE;
@@ -428,7 +428,7 @@ pub const SandboxState = struct {
     pub fn drawWorld(self: *const SandboxState) void {
         engine.Drawing.beginMode3D(self.camera);
 
-        engine.Shapes.drawPlane(vec3(0.0, 0.0, 0.0), Vector2{ .x = 100.0, .y = 100.0 }, COLOR_GROUND);
+        engine.Shapes.drawPlane(vec3(0.0, 0.0, 0.0), Vector2{ .x = 100.0, .y = 100.0 }, engine.Color{ .r = 60, .g = 70, .b = 80, .a = 255 });
         engine.Shapes.drawGrid(100, 1.0);
 
         for (self.world.blocks.items) |block| {
@@ -441,13 +441,15 @@ pub const SandboxState = struct {
         if (self.hovered_block) |index| {
             if (index < self.world.blocks.items.len) {
                 const center = blockCenter(self.world.blocks.items[index].pos);
-                engine.Shapes.drawCubeWires(center, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, COLOR_HIGHLIGHT);
+                const hl = config.Colors.HIGHLIGHT{};
+                engine.Shapes.drawCubeWires(center, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, engine.Color{ .r = hl.r, .g = hl.g, .b = hl.b, .a = hl.a });
             }
         }
 
         if (self.placement_target) |pos| {
             const center = blockCenter(pos);
-            engine.Shapes.drawCubeWires(center, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, COLOR_PREVIEW);
+            const pv = config.Colors.PREVIEW{};
+            engine.Shapes.drawCubeWires(center, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, engine.Color{ .r = pv.r, .g = pv.g, .b = pv.b, .a = pv.a });
         }
 
         engine.Drawing.endMode3D();
@@ -645,7 +647,7 @@ fn rayPlaneIntersection(ray: Ray, plane_y: f32) ?Vector3 {
 fn worldDataPath(folder: []const u8, buffer: *[std.fs.max_path_bytes]u8) ![]const u8 {
     const platform = @import("../platform/paths.zig");
     const sep = platform.PathUtils.Separator;
-    return std.fmt.bufPrint(buffer, "{s}{s}{s}{s}{s}", .{
+    return std.fmt.bufPrint(buffer, "{s}{c}{s}{c}{s}", .{
         worlds_mod.SAVES_DIR,
         sep,
         folder,

@@ -7,17 +7,21 @@ Systematically fixed critical issues identified in the codebase review. Many iss
 ## ✅ Fixes Completed
 
 ### 1. Error Handling Improvements
+
 **Files Fixed:**
+
 - `src/ui/ui.zig:218` - Added logging to `loadOrDefault()` instead of silent error swallowing
 - `src/ui/game_ui.zig:52-56` - Added logging when UI config load fails
 - `src/font_manager.zig:52` - Added logging for font path duplication failures
 
 **Before:**
+
 ```zig
 return UiConfig.load(allocator, path) catch UiConfig{};
 ```
 
 **After:**
+
 ```zig
 return UiConfig.load(allocator, path) catch |err| {
     std.log.warn("Failed to load UI config from '{s}': {}, using defaults", .{ path, err });
@@ -26,14 +30,17 @@ return UiConfig.load(allocator, path) catch |err| {
 ```
 
 ### 2. Timestamp Overflow Protection
+
 **File Fixed:** `src/ui/game_ui.zig:145`
 
 **Before:**
+
 ```zig
 const modified_seconds: i64 = @intCast(@divTrunc(game_state.file_info.modified_ns, std.time.ns_per_s));
 ```
 
 **After:**
+
 ```zig
 // Safely convert nanoseconds to seconds with overflow protection
 // Use @divTrunc which handles large values correctly
@@ -41,14 +48,17 @@ const modified_seconds: i64 = @divTrunc(game_state.file_info.modified_ns, std.ti
 ```
 
 ### 3. Unsafe Cast Protection
+
 **File Fixed:** `src/physics/world.zig:209`
 
 **Before:**
+
 ```zig
 const num_substeps = @min(self.config.max_substeps, @as(u32, @intFromFloat(@ceil(dt / substep_dt))));
 ```
 
 **After:**
+
 ```zig
 // Safely calculate number of substeps with bounds checking
 const substeps_f = @ceil(dt / substep_dt);
@@ -60,6 +70,7 @@ else
 ```
 
 ### 4. Memory Ownership Documentation
+
 **File Fixed:** `src/std_ext/assets.zig:52`
 
 Added documentation clarifying that `load()` returns a copy that the caller must free, while the original remains in the cache.

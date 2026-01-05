@@ -94,7 +94,7 @@ pub fn checkbox(
     const bg_color = if (value.*) ctx.style.accent else ctx.style.panel_bg;
 
     Shapes.drawRectangleRounded(box, radius / @min(box.width, box.height), 4, bg_color);
-    Shapes.drawRectangleRoundedLinesEx(box, radius / std.math.min(box.width, box.height), 4, ctx.style.border_width, ctx.style.panel_border);
+    Shapes.drawRectangleRoundedLinesEx(box, radius / @min(box.width, box.height), 4, ctx.style.border_width, ctx.style.panel_border);
     if (value.*) {
         const mark = Rectangle{
             .x = box.x + 4,
