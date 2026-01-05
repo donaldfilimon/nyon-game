@@ -222,9 +222,7 @@ pub const UiConfig = struct {
     }
 
     pub fn load(allocator: std.mem.Allocator, path: []const u8) !UiConfig {
-        var dir = try std.fs.openDirAbsolute(".", .{ .access_sub_paths = false });
-        defer dir.close();
-        const file = try dir.openFile(path, .{ .mode = .read_only });
+        const file = try @import("std").fs.cwd().openFile(path, .{ .mode = .read_only });
         defer file.close();
         const file_bytes = try file.reader().readAllAlloc(allocator, 256 * 1024);
 
@@ -240,9 +238,7 @@ pub const UiConfig = struct {
 
     pub fn save(self: *const UiConfig, allocator: std.mem.Allocator, path: []const u8) !void {
         _ = allocator;
-        var dir = try std.fs.openDirAbsolute(".", .{ .access_sub_paths = false });
-        defer dir.close();
-        var file = try dir.createFile(path, .{ .truncate = true });
+        var file = try @import("std").fs.cwd().createFile(path, .{ .truncate = true });
         defer file.close();
 
         var buffer: [4096]u8 = undefined;

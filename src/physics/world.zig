@@ -13,7 +13,7 @@ const cfg = @import("../config/constants.zig");
 pub const PhysicsConfig = struct {
     gravity: types.Vector3 = types.Vector3.init(0, -9.81, 0),
     max_substeps: u32 = 10,
-    fixed_timestep: f32 = 1.0 / cfg.Rendering.TARGET_FPS,
+    fixed_timestep: f32 = 1.0 / @as(f32, @floatFromInt(cfg.Rendering.TARGET_FPS)),
     position_iterations: u32 = 8,
     velocity_iterations: u32 = 4,
     broad_phase_enabled: bool = true,
@@ -41,6 +41,8 @@ pub const ConstraintType = enum {
     hinge,
     fixed,
 };
+
+pub const BodyHandle = types.BodyHandle;
 
 /// Physics constraint for joints and connections
 pub const Constraint = struct {

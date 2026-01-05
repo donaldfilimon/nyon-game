@@ -16,7 +16,48 @@ pub const Color = extern struct {
     g: u8,
     b: u8,
     a: u8,
+
+    pub const white = Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+    pub const black = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
+    pub const red = Color{ .r = 255, .g = 0, .b = 0, .a = 255 };
+    pub const green = Color{ .r = 0, .g = 255, .b = 0, .a = 255 };
+    pub const blue = Color{ .r = 0, .g = 0, .b = 255, .a = 255 };
+    pub const yellow = Color{ .r = 253, .g = 249, .b = 0, .a = 255 };
+    pub const gray = Color{ .r = 130, .g = 130, .b = 130, .a = 255 };
 };
+
+pub const Sound = extern struct {
+    stream: AudioStream,
+    frameCount: c_uint,
+};
+
+pub const AudioStream = extern struct {
+    buffer: ?*anyopaque,
+    processor: ?*anyopaque,
+    sampleRate: c_uint,
+    sampleSize: c_uint,
+    channels: c_uint,
+};
+
+pub const BoundingBox = extern struct {
+    min: Vector3,
+    max: Vector3,
+};
+
+pub const MouseButton = enum(c_int) {
+    left = 0,
+    right = 1,
+    middle = 2,
+    side = 3,
+    extra = 4,
+    forward = 5,
+    back = 6,
+};
+
+pub extern fn isMouseButtonDown(button: MouseButton) bool;
+pub extern fn loadShader(vsFileName: ?[*:0]const u8, fsFileName: ?[*:0]const u8) Shader;
+pub extern fn getModelBoundingBox(model: Model) BoundingBox;
+pub extern fn unloadModel(model: Model) void;
 
 pub const ConfigFlags = packed struct {
     vsync_hint: bool = false,
@@ -304,5 +345,8 @@ pub const ModelAnimation = extern struct {
 
 // Enum compatibility fix: accept enum types for extern functions where stub is used
 pub extern fn isKeyDown(key: KeyboardKey) bool;
-pub extern fn isKeyPressed(key: KeyboardKey) bool; // Added missing function typically needed
-pub extern fn isKeyReleased(key: KeyboardKey) bool; // Added missing function typically needed
+pub extern fn isKeyPressed(key: KeyboardKey) bool;
+pub extern fn isKeyReleased(key: KeyboardKey) bool;
+pub extern fn initAudioDevice() void;
+pub extern fn getMousePosition() Vector2;
+pub extern fn isWindowReady() bool;

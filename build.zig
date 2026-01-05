@@ -87,19 +87,18 @@ pub fn build(b: *std.Build) void {
     logDebug("target_optimize_setup", "Target and optimize options set", .{ .target_os = @tagName(target.result.os.tag), .optimize = @tagName(optimize) }, "A");
     // #endregion
 
-    const raylib_dep = b.dependency("raylib_zig", .{
-        .target = target,
-        .optimize = optimize,
+    // Create raylib dependency (using stub for compatibility)
+    const raylib_mod = b.createModule(.{
+        .root_source_file = b.path("src/raylib_stub.zig"),
     });
-    const raylib_mod = raylib_dep.module(RAYLIB_IMPORT_NAME);
-    const raygui_mod = raylib_dep.module(RAYGUI_IMPORT_NAME);
-    const raylib_lib = raylib_dep.artifact("raylib");
+    // Mock raygui with the same stub
+    const raygui_mod = raylib_mod;
+    const raylib_lib: ?*std.Build.Step.Compile = null;
 
-    const zglfw_dep = b.dependency("zglfw", .{
-        .target = target,
-        .optimize = optimize,
+    // Create zglfw stub module
+    const zglfw_mod = b.createModule(.{
+        .root_source_file = b.path("src/raylib_stub.zig"),
     });
-    const zglfw_mod = zglfw_dep.module(ZGLFW_IMPORT_NAME);
     const zglfw_lib: ?*std.Build.Step.Compile = null;
 
     const nyon_game_mod = b.createModule(.{
@@ -113,6 +112,7 @@ pub fn build(b: *std.Build) void {
         },
     });
     nyon_game_mod.addImport(NYON_GAME_IMPORT_NAME, nyon_game_mod);
+    nyon_game_mod.link_libc = true;
 
     // Build executable targets directly (simplified for refactoring)
     const exe = b.addExecutable(.{
@@ -130,7 +130,9 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
-    exe.root_module.linkLibrary(raylib_lib);
+    if (raylib_lib) |rl_lib| {
+        exe.root_module.linkLibrary(rl_lib);
+    }
     if (zglfw_lib) |glfw_lib| {
         exe.root_module.linkLibrary(glfw_lib);
     }
@@ -151,7 +153,9 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
-    editor_exe.root_module.linkLibrary(raylib_lib);
+    if (raylib_lib) |rl_lib| {
+        editor_exe.root_module.linkLibrary(rl_lib);
+    }
     if (zglfw_lib) |glfw_lib| {
         editor_exe.root_module.linkLibrary(glfw_lib);
     }

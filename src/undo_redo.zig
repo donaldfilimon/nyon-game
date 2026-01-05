@@ -13,6 +13,14 @@ pub const UndoRedoError = error{
     SerializationError,
     CommandExecutionError,
     JsonParseError,
+    FileNotFound,
+    UnsupportedTextureFormat,
+    TextureLoadFailed,
+    InvalidAssetData,
+    MetadataError,
+    FileTooLarge,
+    EntityNotAlive,
+    EntityNotFound,
 };
 
 pub const EditorContext = struct {
@@ -98,11 +106,11 @@ pub const UndoRedoSystem = struct {
         commands: std.ArrayList(*Command),
         allocator: std.mem.Allocator,
 
-        pub fn init(allocator: std.mem.Allocator, description: []const u8) !*CompoundCommand {
-            const desc_copy = try allocator.dupe(u8, description);
+        pub fn init(allocator: std.mem.Allocator, description: []const u8) UndoRedoError!*CompoundCommand {
+            const desc_copy = allocator.dupe(u8, description) catch return error.OutOfMemory;
             errdefer allocator.free(desc_copy);
 
-            const compound = try allocator.create(CompoundCommand);
+            const compound = allocator.create(CompoundCommand) catch return error.OutOfMemory;
             errdefer allocator.destroy(compound);
 
             compound.* = .{
@@ -743,7 +751,7 @@ pub const SceneTransformCommand = struct {
 
         // Also sync to ECS
         if (self.scene_index_to_entity.get(self.entity_id)) |entity_id| {
-            if (self.ecs_world.getComponent(@as(u32, @intCast(entity_id)), nyon.ecs.Transform)) |transform| {
+            if (self.ecs_world.getComponent(@as(u32, @intCast(entity_id.id)), nyon.ecs.Transform)) |transform| {
                 transform.position.x = self.new_position.x;
                 transform.position.y = self.new_position.y;
                 transform.position.z = self.new_position.z;
@@ -762,7 +770,7 @@ pub const SceneTransformCommand = struct {
 
         // Also sync to ECS
         if (self.scene_index_to_entity.get(self.entity_id)) |entity_id| {
-            if (self.ecs_world.getComponent(@as(u32, @intCast(entity_id)), nyon.ecs.Transform)) |transform| {
+            if (self.ecs_world.getComponent(entity_id, nyon.ecs.Transform)) |transform| {
                 transform.position.x = self.old_position.x;
                 transform.position.y = self.old_position.y;
                 transform.position.z = self.old_position.z;
@@ -1128,7 +1136,7 @@ pub const RemoveObjectCommand = struct {
 
         var query = self.ecs_world.createQuery();
         defer query.deinit();
-        var transform_query = try query.with(nyon.ecs.Transform).build();
+        var transform_query = try (try query.with(nyon.ecs.Transform)).build();
         defer transform_query.deinit();
         transform_query.updateMatches(self.ecs_world.archetypes.items);
         var iter = transform_query.iter();

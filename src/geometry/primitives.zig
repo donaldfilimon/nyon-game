@@ -5,7 +5,7 @@
 
 const std = @import("std");
 const raylib = @import("raylib");
-const nodes = @import("nodes/node_graph.zig");
+const nodes = @import("../nodes/node_graph.zig");
 
 /// Cube primitive node
 pub const CubeNode = struct {

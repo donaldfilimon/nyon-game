@@ -7,25 +7,25 @@
 const std = @import("std");
 
 const raylib = @import("raylib");
-const config = @import("config/constants.zig");
+const config = @import("../config/constants.zig");
 
-const animation = @import("animation.zig");
-const asset = @import("asset.zig");
-const docking = @import("docking.zig");
-const geometry_nodes = @import("geometry_nodes.zig");
-const keyframe = @import("keyframe.zig");
-const performance = @import("performance.zig");
-const post_processing = @import("post_processing.zig");
-const property_inspector = @import("property_inspector.zig");
-const rendering = @import("rendering.zig");
-const scene = @import("scene.zig");
-const undo_redo = @import("undo_redo.zig");
-const audio = @import("game/audio_system.zig");
-const ecs = @import("ecs/ecs.zig");
-const physics = @import("physics/ecs_integration.zig");
+const animation = @import("../animation.zig");
+const asset = @import("../asset.zig");
+const docking = @import("../docking.zig");
+const geometry_nodes = @import("../geometry_nodes.zig");
+const keyframe = @import("../keyframe.zig");
+const performance = @import("../performance.zig");
+const post_processing = @import("../post_processing.zig");
+const property_inspector = @import("../property_inspector.zig");
+const rendering = @import("../rendering.zig");
+const scene = @import("../scene.zig");
+const undo_redo = @import("../undo_redo.zig");
+const audio = @import("../game/audio_system.zig");
+const ecs = @import("../ecs/ecs.zig");
+const physics = @import("../physics/ecs_integration.zig");
 
-const editor_tui = @import("editor/main_editor_tui.zig");
-const MaterialNodeEditor = @import("editor/material_node_editor.zig").MaterialNodeEditor;
+const editor_tui = @import("main_editor_tui.zig");
+const MaterialNodeEditor = @import("material_node_editor.zig").MaterialNodeEditor;
 
 // ============================================================================
 // Imports and Dependencies
