@@ -1,5 +1,6 @@
 const std = @import("std");
 const raylib = @import("raylib");
+const Memory = @import("config/constants.zig").Memory;
 
 /// 3D Scene management with ray casting capabilities
 ///
@@ -19,12 +20,12 @@ pub const Scene = struct {
     pub fn init(allocator: std.mem.Allocator) Scene {
         return .{
             .allocator = allocator,
-            .models = std.ArrayList(raylib.Model).initCapacity(allocator, 0) catch unreachable,
-            .positions = std.ArrayList(raylib.Vector3).initCapacity(allocator, 0) catch unreachable,
-            .rotations = std.ArrayList(raylib.Vector3).initCapacity(allocator, 0) catch unreachable,
-            .scales = std.ArrayList(raylib.Vector3).initCapacity(allocator, 0) catch unreachable,
-            .bounding_boxes = std.ArrayList(raylib.BoundingBox).initCapacity(allocator, 0) catch unreachable,
-            .transforms = std.ArrayList(raylib.Matrix).initCapacity(allocator, 0) catch unreachable,
+            .models = std.ArrayList(raylib.Model).initCapacity(allocator, 8) catch unreachable,
+            .positions = std.ArrayList(raylib.Vector3).initCapacity(allocator, 8) catch unreachable,
+            .rotations = std.ArrayList(raylib.Vector3).initCapacity(allocator, 8) catch unreachable,
+            .scales = std.ArrayList(raylib.Vector3).initCapacity(allocator, 8) catch unreachable,
+            .bounding_boxes = std.ArrayList(raylib.BoundingBox).initCapacity(allocator, 8) catch unreachable,
+            .transforms = std.ArrayList(raylib.Matrix).initCapacity(allocator, 8) catch unreachable,
         };
     }
 
@@ -186,18 +187,13 @@ pub const Scene = struct {
             }
         }
 
-        // Sort hits by distance (simple bubble sort for now)
-        var i: usize = 0;
-        while (i < hits.items.len) : (i += 1) {
-            var j: usize = 0;
-            while (j < hits.items.len - i - 1) : (j += 1) {
-                if (hits.items[j].distance > hits.items[j + 1].distance) {
-                    const temp = hits.items[j];
-                    hits.items[j] = hits.items[j + 1];
-                    hits.items[j + 1] = temp;
-                }
+        // Sort hits by distance (ascending order)
+        std.sort.sort(RaycastHit, hits.items, {}, struct {
+            fn lessThan(context: void, a: RaycastHit, b: RaycastHit) bool {
+                _ = context;
+                return a.distance < b.distance;
             }
-        }
+        }.lessThan);
 
         return hits.toOwnedSlice(allocator);
     }

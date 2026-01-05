@@ -111,8 +111,8 @@ pub const Sphere = struct {
             .point_b = other.center.sub(normal.mul(other.radius)),
             .normal = normal,
             .penetration = penetration,
-            .body_a = 0, // Set by caller
-            .body_b = 0, // Set by caller
+            .body_a = .{ .index = 0, .generation = 0 },
+            .body_b = .{ .index = 0, .generation = 0 },
         };
     }
 
@@ -131,8 +131,8 @@ pub const Sphere = struct {
             .point_b = self.center.sub(normal.mul(self.radius)),
             .normal = normal,
             .penetration = penetration,
-            .body_a = 0,
-            .body_b = 0,
+            .body_a = .{ .index = 0, .generation = 0 },
+            .body_b = .{ .index = 0, .generation = 0 },
         };
     }
 
@@ -239,8 +239,8 @@ pub const Box = struct {
             .point_b = other.center,
             .normal = normal,
             .penetration = min_overlap,
-            .body_a = 0,
-            .body_b = 0,
+            .body_a = .{ .index = 0, .generation = 0 },
+            .body_b = .{ .index = 0, .generation = 0 },
         };
     }
 

@@ -1,6 +1,7 @@
 const std = @import("std");
 const engine = @import("engine.zig");
 const raylib = @import("raylib");
+const config = @import("config/constants.zig");
 
 /// Simple texture wrapper used by materials.
 pub const Texture = struct {
@@ -198,7 +199,7 @@ pub const MaterialLibrary = struct {
     pub fn init(alloc: *std.mem.Allocator) MaterialLibrary {
         return MaterialLibrary{
             .allocator = alloc,
-            .materials = std.ArrayList(*Material).initCapacity(alloc.*, 0) catch unreachable,
+            .materials = std.ArrayList(*Material).initCapacity(alloc.*, config.Rendering.MAX_MATERIALS) catch unreachable,
         };
     }
 

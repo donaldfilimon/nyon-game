@@ -22,6 +22,13 @@ pub const SafeWrapper = struct {
     }
 };
 
+pub fn initArrayListSafe(comptime T: type, allocator: std.mem.Allocator, capacity: usize) std.ArrayList(T) {
+    return std.ArrayList(T).initCapacity(allocator, capacity) catch |err| {
+        std.log.err("Failed to allocate ArrayList with capacity {}: {}", .{ capacity, err });
+        return std.ArrayList(T).init(allocator);
+    };
+}
+
 pub const Cast = struct {
     pub fn toInt(comptime Dest: type, value: anytype) Dest {
         return @intCast(value);

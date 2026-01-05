@@ -1,6 +1,7 @@
 const std = @import("std");
 const raylib = @import("raylib");
 const nyon = @import("nyon_game");
+const config = @import("config/constants.zig");
 
 /// Keyframe Animation and Timeline System
 ///
@@ -80,7 +81,7 @@ pub const KeyframeSystem = struct {
                 .target_entity = target_entity,
                 .property_type = property_type,
                 .property_name = prop_name_copy,
-                .keyframes = std.ArrayList(Keyframe).initCapacity(allocator, 0) catch unreachable,
+                .keyframes = std.ArrayList(Keyframe).initCapacity(allocator, 8) catch unreachable,
                 .enabled = true,
             };
         }
@@ -260,8 +261,8 @@ pub const KeyframeSystem = struct {
     pub fn init(allocator: std.mem.Allocator) KeyframeSystem {
         return .{
             .allocator = allocator,
-            .tracks = std.ArrayList(AnimationTrack).initCapacity(allocator, 0) catch unreachable,
-            .active_animations = std.ArrayList(ActiveAnimation).initCapacity(allocator, 0) catch unreachable,
+            .tracks = std.ArrayList(AnimationTrack).initCapacity(allocator, 8) catch unreachable,
+            .active_animations = std.ArrayList(ActiveAnimation).initCapacity(allocator, 8) catch unreachable,
             .timeline = .{
                 .current_time = 0,
                 .total_duration = 0,

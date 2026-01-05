@@ -226,7 +226,7 @@ pub const UiConfig = struct {
         defer dir.close();
         const file = try dir.openFile(path, .{ .mode = .read_only });
         defer file.close();
-        const file_bytes = try file.readToEndAlloc(allocator, 256 * 1024);
+        const file_bytes = try file.reader().readAllAlloc(allocator, 256 * 1024);
 
         var parsed: std.json.Parsed(UiConfig) = try std.json.parseFromSlice(UiConfig, allocator, file_bytes, .{
             .ignore_unknown_fields = true,

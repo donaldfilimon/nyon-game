@@ -1,5 +1,6 @@
 const std = @import("std");
 const raylib = @import("raylib");
+const config = @import("config/constants.zig");
 
 // Math types
 pub const Vector3 = raylib.Vector3;
@@ -125,8 +126,8 @@ pub const AnimationSystem = struct {
         return .{
             .allocator = allocator,
             .animation_states = std.AutoHashMap(usize, AnimationState).init(allocator),
-            .animations = std.ArrayList(AnimationClip).initCapacity(allocator, 0) catch unreachable,
-            .blend_trees = std.ArrayList(BlendTree).initCapacity(allocator, 0) catch unreachable,
+            .animations = std.ArrayList(AnimationClip).initCapacity(allocator, 8) catch unreachable,
+            .blend_trees = std.ArrayList(BlendTree).initCapacity(allocator, 8) catch unreachable,
         };
     }
 

@@ -8,6 +8,12 @@ const std = @import("std");
 const Vec3 = @Vector(3, f32);
 const Mat4 = @Vector(16, f32);
 
+/// Physics body handle for external references with version for safe invalidation
+pub const BodyHandle = struct {
+    index: usize,
+    generation: u32,
+};
+
 // ============================================================================
 // Core Physics Types
 // ============================================================================
@@ -247,8 +253,8 @@ pub const ContactManifold = struct {
     point_b: Vector3,
     normal: Vector3,
     penetration: f32,
-    body_a: usize,
-    body_b: usize,
+    body_a: BodyHandle,
+    body_b: BodyHandle,
 };
 
 /// Physics material properties

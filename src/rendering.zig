@@ -1,5 +1,6 @@
 const std = @import("std");
 const raylib = @import("raylib");
+const config = @import("config/constants.zig");
 
 /// Advanced Rendering System with Lighting and Cameras
 ///
@@ -190,9 +191,10 @@ pub const PBRMaterialSystem = struct {
     };
 
     pub fn init(allocator: std.mem.Allocator) PBRMaterialSystem {
+        const error_handling = @import("common/error_handling.zig");
         return PBRMaterialSystem{
             .allocator = allocator,
-            .materials = std.ArrayList(PBRMaterial).initCapacity(allocator, 0) catch unreachable,
+            .materials = error_handling.initArrayListSafe(PBRMaterial, allocator, config.Rendering.MAX_MATERIALS),
         };
     }
 
@@ -277,13 +279,14 @@ pub const RenderingSystem = struct {
     custom_materials: std.ArrayList(CustomMaterial),
 
     pub fn init(allocator: std.mem.Allocator) RenderingSystem {
+        const error_handling = @import("common/error_handling.zig");
         return .{
             .allocator = allocator,
-            .lights = std.ArrayList(Light).initCapacity(allocator, 0) catch unreachable,
-            .cameras = std.ArrayList(Camera).initCapacity(allocator, 0) catch unreachable,
+            .lights = error_handling.initArrayListSafe(Light, allocator, config.Rendering.MAX_LIGHTS),
+            .cameras = error_handling.initArrayListSafe(Camera, allocator, config.Rendering.MAX_CAMERAS),
             .active_camera = null,
             .shaders = std.StringHashMap(raylib.Shader).init(allocator),
-            .custom_materials = std.ArrayList(CustomMaterial).initCapacity(allocator, 0) catch unreachable,
+            .custom_materials = error_handling.initArrayListSafe(CustomMaterial, allocator, config.Rendering.MAX_MATERIALS),
         };
     }
 

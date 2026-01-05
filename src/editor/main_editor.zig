@@ -7,6 +7,7 @@
 const std = @import("std");
 
 const raylib = @import("raylib");
+const config = @import("config/constants.zig");
 
 const animation = @import("animation.zig");
 const asset = @import("asset.zig");
@@ -22,7 +23,6 @@ const undo_redo = @import("undo_redo.zig");
 const audio = @import("game/audio_system.zig");
 const ecs = @import("ecs/ecs.zig");
 const physics = @import("physics/ecs_integration.zig");
-const config = @import("config/constants.zig");
 
 const editor_tui = @import("editor/main_editor_tui.zig");
 const MaterialNodeEditor = @import("editor/material_node_editor.zig").MaterialNodeEditor;
@@ -79,6 +79,9 @@ pub const MainEditor = struct {
 
     /// Mapping from Scene index to ECS EntityId for bidirectional sync
     scene_index_to_entity: std.AutoHashMap(usize, ecs.EntityId),
+
+    /// Mapping from ECS EntityId to Scene index for bidirectional sync
+    entity_to_scene_index: std.AutoHashMap(ecs.EntityId, usize),
 
     /// Animation editor state.
     animation_timeline_visible: bool = false,
@@ -171,13 +174,13 @@ pub const MainEditor = struct {
         errdefer physics_sys.deinit();
 
         // Default camera and light setup.
-        const default_camera_id = try render_sys.addCamera(rendering.Camera.create(
+        const default_camera_id = try render_sys.addCamera(try rendering.Camera.create(
             allocator,
             "Main Camera",
             raylib.Vector3{ .x = 0, .y = 5, .z = 10 },
             raylib.Vector3{ .x = 0, .y = 0, .z = 0 },
             45.0,
-        ) catch unreachable);
+        ));
         render_sys.setActiveCamera(default_camera_id);
         _ = try render_sys.addLight(rendering.Light.createDirectional(
             raylib.Vector3{ .x = 0, .y = 10, .z = 0 },
@@ -191,11 +194,11 @@ pub const MainEditor = struct {
         _ = try dock_sys.createPanel(.scene_outliner, "Scene Outliner", raylib.Rectangle{ .x = 0, .y = screen_height - 200, .width = 300, .height = 200 }, null);
 
         // TUI (terminal UI) buffers.
-        var command_buffer = std.ArrayList(u8).initCapacity(allocator, 0) catch unreachable;
+        var command_buffer = try std.ArrayList(u8).initCapacity(allocator, config.Memory.COMMAND_BUFFER);
         errdefer command_buffer.deinit(allocator);
-        var command_history = std.ArrayList([]const u8).initCapacity(allocator, 0) catch unreachable;
+        var command_history = try std.ArrayList([]const u8).initCapacity(allocator, config.Performance.MAX_HISTORY);
         errdefer command_history.deinit(allocator);
-        var output_lines = std.ArrayList([]const u8).initCapacity(allocator, 0) catch unreachable;
+        var output_lines = try std.ArrayList([]const u8).initCapacity(allocator, config.Performance.MAX_HISTORY);
         errdefer output_lines.deinit(allocator);
         try output_lines.append(allocator, try allocator.dupe(u8, "Nyon Game Engine TUI v1.0"));
         try output_lines.append(allocator, try allocator.dupe(u8, "Type 'help' for available commands"));
@@ -232,6 +235,7 @@ pub const MainEditor = struct {
             .tui_cursor_pos = 0,
             .tui_history_index = -1,
             .scene_index_to_entity = std.AutoHashMap(usize, ecs.EntityId).init(allocator),
+            .entity_to_scene_index = std.AutoHashMap(ecs.EntityId, usize).init(allocator),
         };
     }
 
@@ -259,6 +263,7 @@ pub const MainEditor = struct {
         for (self.tui_output_lines.items) |line| self.allocator.free(line);
         self.tui_output_lines.deinit(self.allocator);
         self.scene_index_to_entity.deinit();
+        self.entity_to_scene_index.deinit();
     }
 
     /// Main update loop: calls the active mode's update, handles mode switches, etc.
@@ -572,73 +577,35 @@ pub const MainEditor = struct {
 
     fn handleSceneEditorInput(self: *MainEditor) !void {
         if (self.selected_scene_object) |obj_id| {
-            if (self.scene_index_to_entity.get(obj_id)) |entity_id| {
-                var transform_changed = false;
-                if (self.world.getComponent(@as(u32, @intCast(entity_id)), ecs.Transform)) |transform| {
-                    var new_pos = transform.position;
-                    if (raylib.isKeyDown(.w)) {
-                        new_pos.z -= 0.1;
-                        transform_changed = true;
+            const movement = self.getKeyboardMovement();
+            if (movement.x != 0 or movement.y != 0 or movement.z != 0) {
+                if (self.scene_index_to_entity.get(obj_id)) |entity_id| {
+                    if (self.world.getComponent(@as(u32, @intCast(entity_id)), ecs.Transform)) |transform| {
+                        transform.position.x += movement.x;
+                        transform.position.y += movement.y;
+                        transform.position.z += movement.z;
+                        self.scene_system.setPosition(obj_id, raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z });
                     }
-                    if (raylib.isKeyDown(.s)) {
-                        new_pos.z += 0.1;
-                        transform_changed = true;
-                    }
-                    if (raylib.isKeyDown(.a)) {
-                        new_pos.x -= 0.1;
-                        transform_changed = true;
-                    }
-                    if (raylib.isKeyDown(.d)) {
-                        new_pos.x += 0.1;
-                        transform_changed = true;
-                    }
-                    if (raylib.isKeyDown(.q)) {
-                        new_pos.y += 0.1;
-                        transform_changed = true;
-                    }
-                    if (raylib.isKeyDown(.e)) {
-                        new_pos.y -= 0.1;
-                        transform_changed = true;
-                    }
-                    if (transform_changed) {
-                        transform.position = new_pos;
-                        self.scene_system.setPosition(obj_id, raylib.Vector3{ .x = new_pos.x, .y = new_pos.y, .z = new_pos.z });
-                    }
-                }
-            } else if (self.scene_system.getModelInfo(obj_id)) |info| {
-                var transform_changed = false;
-                var new_pos = info.position;
-                if (raylib.isKeyDown(.w)) {
-                    new_pos.z -= 0.1;
-                    transform_changed = true;
-                }
-                if (raylib.isKeyDown(.s)) {
-                    new_pos.z += 0.1;
-                    transform_changed = true;
-                }
-                if (raylib.isKeyDown(.a)) {
-                    new_pos.x -= 0.1;
-                    transform_changed = true;
-                }
-                if (raylib.isKeyDown(.d)) {
-                    new_pos.x += 0.1;
-                    transform_changed = true;
-                }
-                if (raylib.isKeyDown(.q)) {
-                    new_pos.y += 0.1;
-                    transform_changed = true;
-                }
-                if (raylib.isKeyDown(.e)) {
-                    new_pos.y -= 0.1;
-                    transform_changed = true;
-                }
-                if (transform_changed) {
+                } else if (self.scene_system.getModelInfo(obj_id)) |info| {
+                    const new_pos = raylib.Vector3{ .x = info.position.x + movement.x, .y = info.position.y + movement.y, .z = info.position.z + movement.z };
                     self.scene_system.setPosition(obj_id, new_pos);
                     self.scene_system.setRotation(obj_id, info.rotation);
                     self.scene_system.setScale(obj_id, info.scale);
                 }
             }
         }
+    }
+
+    fn getKeyboardMovement(self: *MainEditor) raylib.Vector3 {
+        _ = self;
+        var movement = raylib.Vector3{ .x = 0, .y = 0, .z = 0 };
+        if (raylib.isKeyDown(.w)) movement.z -= 0.1;
+        if (raylib.isKeyDown(.s)) movement.z += 0.1;
+        if (raylib.isKeyDown(.a)) movement.x -= 0.1;
+        if (raylib.isKeyDown(.d)) movement.x += 0.1;
+        if (raylib.isKeyDown(.q)) movement.y += 0.1;
+        if (raylib.isKeyDown(.e)) movement.y -= 0.1;
+        return movement;
     }
 
     /// Draw a simple scene UI (object count & selected id) in the viewport.
@@ -920,18 +887,11 @@ pub const MainEditor = struct {
         var iter = sync_q.iter();
         while (iter.next()) |data| {
             const transform = data.get(ecs.Transform).?;
-            var matched = false;
-            for (0..self.scene_system.modelCount()) |i| {
-                if (self.scene_system.getModelInfo(i)) |info| {
-                    if (std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.05) and
-                        std.math.approxEqAbs(f32, info.position.y, transform.position.y, 0.05) and
-                        std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.05))
-                    {
-                        self.scene_system.setPosition(i, raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z });
-                        self.scene_index_to_entity.put(i, data.entity) catch {};
-                        matched = true;
-                        break;
-                    }
+            if (self.entity_to_scene_index.get(data.entity)) |scene_idx| {
+                if (scene_idx < self.scene_system.modelCount()) {
+                    self.scene_system.setPosition(scene_idx, raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z });
+                } else {
+                    self.entity_to_scene_index.remove(data.entity);
                 }
             }
         }
@@ -946,38 +906,21 @@ pub const MainEditor = struct {
         var iter = sync_q.iter();
         while (iter.next()) |data| {
             const transform = data.get(ecs.Transform).?;
-            var matched = false;
-            for (0..self.scene_system.modelCount()) |i| {
-                if (self.scene_system.getModelInfo(i)) |info| {
-                    if (self.scene_index_to_entity.get(i)) |entity_id| {
-                        if (entity_id == data.entity) {
-                            if (!std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.001) or
-                                !std.math.approxEqAbs(f32, info.position.y, transform.position.y, 0.001) or
-                                !std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.001))
-                            {
-                                const transform_ptr = self.world.getComponent(data.entity, ecs.Transform) orelse continue;
-                                transform_ptr.position.x = info.position.x;
-                                transform_ptr.position.y = info.position.y;
-                                transform_ptr.position.z = info.position.z;
-                            }
-                            matched = true;
-                            break;
-                        }
-                    }
-                }
-            }
-            if (!matched) {
-                for (0..self.scene_system.modelCount()) |i| {
-                    if (self.scene_index_to_entity.get(i)) |_| continue;
-                    if (self.scene_system.getModelInfo(i)) |info| {
-                        if (std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.05) and
-                            std.math.approxEqAbs(f32, info.position.y, transform.position.y, 0.05) and
-                            std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.05))
+            if (self.entity_to_scene_index.get(data.entity)) |scene_idx| {
+                if (scene_idx < self.scene_system.modelCount()) {
+                    if (self.scene_system.getModelInfo(scene_idx)) |info| {
+                        if (!std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.001) or
+                            !std.math.approxEqAbs(f32, info.position.y, transform.position.y, 0.001) or
+                            !std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.001))
                         {
-                            self.scene_index_to_entity.put(i, data.entity) catch {};
-                            break;
+                            const transform_ptr = self.world.getComponent(data.entity, ecs.Transform) orelse continue;
+                            transform_ptr.position.x = info.position.x;
+                            transform_ptr.position.y = info.position.y;
+                            transform_ptr.position.z = info.position.z;
                         }
                     }
+                } else {
+                    self.entity_to_scene_index.remove(data.entity);
                 }
             }
         }
@@ -985,6 +928,7 @@ pub const MainEditor = struct {
 
     fn rebuildSceneEntityMapping(self: *MainEditor) void {
         self.scene_index_to_entity.clearRetainingCapacity();
+        self.entity_to_scene_index.clearRetainingCapacity();
         var query = self.world.createQuery();
         defer query.deinit();
         var sync_q = query.with(ecs.Transform).build() catch return;
@@ -995,11 +939,12 @@ pub const MainEditor = struct {
             const transform = data.get(ecs.Transform).?;
             for (0..self.scene_system.modelCount()) |i| {
                 if (self.scene_system.getModelInfo(i)) |info| {
-                    if (std.math.approxEqAbs(f32, info.position.x, transform.position.x, 0.05) and
-                        std.math.approxEqAbs(f32, info.position.y, transform.position.y, 0.05) and
-                        std.math.approxEqAbs(f32, info.position.z, transform.position.z, 0.05))
+                    if (std.math.approxEqAbs(f32, info.position.x, transform.position.x, config.Physics.EPSILON) and
+                        std.math.approxEqAbs(f32, info.position.y, transform.position.y, config.Physics.EPSILON) and
+                        std.math.approxEqAbs(f32, info.position.z, transform.position.z, config.Physics.EPSILON))
                     {
                         self.scene_index_to_entity.put(i, data.entity) catch {};
+                        self.entity_to_scene_index.put(data.entity, i) catch {};
                         break;
                     }
                 }

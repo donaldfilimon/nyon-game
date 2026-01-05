@@ -1,6 +1,7 @@
 const std = @import("std");
 const raylib = @import("raylib");
 const nyon = @import("nyon_game");
+const config = @import("config/constants.zig");
 
 /// Asset-specific error types
 pub const AssetError = error{
@@ -317,33 +318,7 @@ pub const AssetManager = struct {
 
     /// Unload an asset by path
     pub fn unloadAsset(self: *AssetManager, file_path: []const u8) void {
-        // Try to unload from each cache
-        if (self.models.getPtr(file_path)) |entry| {
-            entry.ref_count -= 1;
-            if (entry.ref_count == 0) {
-                raylib.unloadModel(entry.asset);
-                self.allocator.free(entry.file_path);
-                entry.metadata.deinit();
-                _ = self.models.remove(file_path);
-            }
-        } else if (self.textures.getPtr(file_path)) |entry| {
-            entry.ref_count -= 1;
-            if (entry.ref_count == 0) {
-                raylib.unloadTexture(entry.asset);
-                self.allocator.free(entry.file_path);
-                entry.metadata.deinit();
-                _ = self.textures.remove(file_path);
-            }
-        } else if (self.audio.getPtr(file_path)) |entry| {
-            entry.ref_count -= 1;
-            if (entry.ref_count == 0) {
-                raylib.unloadSound(entry.asset);
-                self.allocator.free(entry.file_path);
-                entry.metadata.deinit();
-                _ = self.audio.remove(file_path);
-            }
-        }
-        // Note: Materials and animations are managed by their respective systems
+        _ = self.unloadAssetWithResult(file_path) catch {};
     }
 
     /// Get asset metadata
@@ -423,15 +398,88 @@ pub const AssetManager = struct {
     }
 
     /// Clear unused assets (ref_count == 0)
-    pub fn clearUnusedAssets(self: *AssetManager) void {
-        _ = self; // Not yet implemented
-        // This would be more complex in a full implementation
-        // For now, assets are only unloaded when explicitly requested
+    /// Returns the number of assets that were freed
+    pub fn clearUnusedAssets(self: *AssetManager) usize {
+        var freed: usize = 0;
+
+        var model_keys = std.ArrayList([]const u8).init(self.allocator);
+        defer model_keys.deinit();
+        var model_iter = self.models.iterator();
+        while (model_iter.next()) |entry| {
+            if (entry.value_ptr.ref_count == 0) {
+                model_keys.append(entry.key_ptr.*) catch {};
+            }
+        }
+        for (model_keys.items) |key| {
+            if (self.unloadAssetWithResult(key)) {
+                freed += 1;
+            } else |_| {}
+        }
+
+        var tex_keys = std.ArrayList([]const u8).init(self.allocator);
+        defer tex_keys.deinit();
+        var tex_iter = self.textures.iterator();
+        while (tex_iter.next()) |entry| {
+            if (entry.value_ptr.ref_count == 0) {
+                tex_keys.append(entry.key_ptr.*) catch {};
+            }
+        }
+        for (tex_keys.items) |key| {
+            if (self.unloadAssetWithResult(key)) {
+                freed += 1;
+            } else |_| {}
+        }
+
+        var audio_keys = std.ArrayList([]const u8).init(self.allocator);
+        defer audio_keys.deinit();
+        var audio_iter = self.audio.iterator();
+        while (audio_iter.next()) |entry| {
+            if (entry.value_ptr.ref_count == 0) {
+                audio_keys.append(entry.key_ptr.*) catch {};
+            }
+        }
+        for (audio_keys.items) |key| {
+            if (self.unloadAssetWithResult(key)) {
+                freed += 1;
+            } else |_| {}
+        }
+
+        return freed;
+    }
+
+    /// Unload an asset by path with explicit error return
+    pub fn unloadAssetWithResult(self: *AssetManager, file_path: []const u8) !void {
+        // Try to unload from each cache
+        if (self.models.getPtr(file_path)) |entry| {
+            entry.ref_count -= 1;
+            if (entry.ref_count == 0) {
+                raylib.unloadModel(entry.asset);
+                self.allocator.free(entry.file_path);
+                entry.metadata.deinit();
+                _ = self.models.remove(file_path);
+            }
+        } else if (self.textures.getPtr(file_path)) |entry| {
+            entry.ref_count -= 1;
+            if (entry.ref_count == 0) {
+                raylib.unloadTexture(entry.asset);
+                self.allocator.free(entry.file_path);
+                entry.metadata.deinit();
+                _ = self.textures.remove(file_path);
+            }
+        } else if (self.audio.getPtr(file_path)) |entry| {
+            entry.ref_count -= 1;
+            if (entry.ref_count == 0) {
+                raylib.unloadSound(entry.asset);
+                self.allocator.free(entry.file_path);
+                entry.metadata.deinit();
+                _ = self.audio.remove(file_path);
+            }
+        }
     }
 
     /// Export asset manifest (for debugging/project management)
     pub fn exportManifest(self: *const AssetManager, allocator: std.mem.Allocator) ![]const u8 {
-        var manifest = std.ArrayList(u8).initCapacity(allocator, 0) catch unreachable;
+        var manifest = std.ArrayList(u8).initCapacity(allocator, config.Memory.STRING_BUFFER) catch unreachable;
         defer manifest.deinit(allocator);
 
         try manifest.appendSlice(allocator, "Asset Manifest\n");

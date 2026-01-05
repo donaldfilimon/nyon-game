@@ -1,5 +1,6 @@
 const std = @import("std");
 const raylib = @import("raylib");
+const config = @import("config/constants.zig");
 
 /// Docking UI Framework for the Nyon Game Editor
 ///
@@ -47,7 +48,7 @@ pub const DockingSystem = struct {
     pub fn init(allocator: std.mem.Allocator, screen_width: f32, screen_height: f32) DockingSystem {
         return .{
             .allocator = allocator,
-            .panels = std.ArrayList(Panel).initCapacity(allocator, 0) catch unreachable,
+            .panels = std.ArrayList(Panel).initCapacity(allocator, 8) catch unreachable,
             .drag_state = null,
             .screen_width = screen_width,
             .screen_height = screen_height,
@@ -82,7 +83,7 @@ pub const DockingSystem = struct {
             .is_visible = true,
             .is_docked = false,
             .dock_parent = null,
-            .children = std.ArrayList(PanelId).initCapacity(self.allocator, 0) catch unreachable,
+            .children = std.ArrayList(PanelId).initCapacity(self.allocator, 4) catch unreachable,
             .content_callback = content_callback,
         });
 

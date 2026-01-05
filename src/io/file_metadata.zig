@@ -84,7 +84,7 @@ pub fn get(path: []const u8) GetError!FileMetadata {
     };
 }
 
-fn mapOpenError(err: anyerror) GetError {
+fn mapOpenError(err: std.fs.OpenError) GetError {
     return switch (err) {
         error.FileNotFound => error.FileNotFound,
         error.AccessDenied => error.AccessDenied,
@@ -94,7 +94,7 @@ fn mapOpenError(err: anyerror) GetError {
     };
 }
 
-fn mapStatError(err: anyerror) GetError {
+fn mapStatError(err: std.fs.File.StatError) GetError {
     return switch (err) {
         error.AccessDenied => error.AccessDenied,
         error.PermissionDenied => error.PermissionDenied,

@@ -113,27 +113,18 @@ pub const World = struct {
             return error.ComponentNotFound;
         }
 
-        // Create new component type list without T
-        const config_mod = @import("../config/constants.zig");
-        // Use arena for temporary component type list
-        var arena = std.heap.ArenaAllocator.init(self.allocator);
-        defer arena.deinit();
-        const arena_alloc = arena.allocator();
-
-        var new_comp_types = std.ArrayList(archetype.ComponentType).initCapacity(arena_alloc, config_mod.Memory.ECS_COMPONENT_TYPES_INITIAL) catch unreachable;
-        defer new_comp_types.deinit(arena_alloc);
-
         const remove_type = archetype.ComponentType.init(T);
+        const new_comp_count = current_archetype.component_types.items.len - 1;
+        var new_comp_types = std.ArrayList(archetype.ComponentType).initCapacity(self.allocator, new_comp_count) catch return error.OutOfMemory;
+        errdefer new_comp_types.deinit(self.allocator);
+
         for (current_archetype.component_types.items) |comp_type| {
             if (comp_type.type_id != remove_type.type_id) {
-                new_comp_types.append(arena_alloc, comp_type) catch unreachable;
+                new_comp_types.append(self.allocator, comp_type) catch return error.OutOfMemory;
             }
         }
 
-        // Create new archetype
         const new_archetype = try self.createArchetype(new_comp_types.items);
-
-        // Move entity and data
         try self.moveEntityData(entity_id, current_archetype, new_archetype);
     }
 

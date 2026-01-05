@@ -12,8 +12,6 @@ const FontManager = @import("../font_manager.zig").FontManager;
 const game_state_module = @import("../game/state.zig");
 const config = @import("../config/constants.zig");
 
-
-
 pub const COLOR_BACKGROUND = engine.Color{ .r = 30, .g = 30, .b = 50, .a = 255 };
 const COLOR_GRID = engine.Color{ .r = 40, .g = 40, .b = 60, .a = 255 };
 const COLOR_ITEM = engine.Color{ .r = 255, .g = 215, .b = 0, .a = 255 };

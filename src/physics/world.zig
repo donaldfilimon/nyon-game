@@ -25,12 +25,15 @@ pub const PhysicsConfig = struct {
 
 /// Collision pair for broad phase results
 pub const CollisionPair = struct {
-    a: BodyHandle,
-    b: BodyHandle,
+    a: types.BodyHandle,
+    b: types.BodyHandle,
 };
 
-/// Physics body handle for external references
-pub const BodyHandle = usize;
+/// Physics body handle for external references with version for safe invalidation
+fn isHandleValid(self: *const PhysicsWorld, handle: types.types.BodyHandle) bool {
+    if (handle.index >= self.generations.items.len) return false;
+    return self.generations.items[handle.index] == handle.generation;
+}
 
 /// Physics constraint types
 pub const ConstraintType = enum {
@@ -42,8 +45,8 @@ pub const ConstraintType = enum {
 /// Physics constraint for joints and connections
 pub const Constraint = struct {
     type: ConstraintType,
-    body_a: BodyHandle,
-    body_b: BodyHandle,
+    body_a: types.BodyHandle,
+    body_b: types.BodyHandle,
     local_anchor_a: types.Vector3,
     local_anchor_b: types.Vector3,
     data: union {
@@ -60,7 +63,7 @@ pub const Constraint = struct {
         fixed: void,
     },
 
-    pub fn distance(body_a: BodyHandle, body_b: BodyHandle, anchor_a: types.Vector3, anchor_b: types.Vector3, rest_length: f32) Constraint {
+    pub fn distance(body_a: types.BodyHandle, body_b: types.BodyHandle, anchor_a: types.Vector3, anchor_b: types.Vector3, rest_length: f32) Constraint {
         return .{
             .type = .distance,
             .body_a = body_a,
@@ -83,6 +86,7 @@ pub const PhysicsWorld = struct {
     bodies: std.ArrayList(rigidbody.RigidBody),
     colliders: std.ArrayList(?colliders.Collider),
     constraints: std.ArrayList(Constraint),
+    generations: std.ArrayList(u32),
 
     // Broad phase acceleration structures
     dynamic_aabbs: std.ArrayList(types.AABB),
@@ -110,9 +114,10 @@ pub const PhysicsWorld = struct {
     /// Pre-allocates arrays with configured capacities to reduce reallocations.
     pub fn init(allocator: std.mem.Allocator, config: PhysicsConfig) PhysicsWorld {
         const config_mod = @import("../config/constants.zig");
+        const error_handling = @import("../common/error_handling.zig");
         const GRID_SIZE: usize = 1024;
 
-        var spatial_hash_grid = std.ArrayList(std.ArrayListUnmanaged(usize)).initCapacity(allocator, GRID_SIZE) catch unreachable;
+        var spatial_hash_grid = error_handling.initArrayListSafe(std.ArrayListUnmanaged(usize), allocator, GRID_SIZE);
         spatial_hash_grid.items.len = GRID_SIZE;
         for (0..GRID_SIZE) |i| {
             spatial_hash_grid.items[i] = .{};
@@ -121,15 +126,16 @@ pub const PhysicsWorld = struct {
         return .{
             .allocator = allocator,
             .config = config,
-            .bodies = std.ArrayList(rigidbody.RigidBody).initCapacity(allocator, config_mod.Memory.PHYSICS_BODIES_INITIAL) catch unreachable,
-            .colliders = std.ArrayList(?colliders.Collider).initCapacity(allocator, config_mod.Memory.PHYSICS_COLLIDERS_INITIAL) catch unreachable,
-            .constraints = std.ArrayList(Constraint).initCapacity(allocator, config_mod.Memory.PHYSICS_CONSTRAINTS_INITIAL) catch unreachable,
-            .dynamic_aabbs = std.ArrayList(types.AABB).initCapacity(allocator, config_mod.Memory.PHYSICS_AABBS_INITIAL) catch unreachable,
-            .static_aabbs = std.ArrayList(types.AABB).initCapacity(allocator, config_mod.Memory.PHYSICS_AABBS_INITIAL) catch unreachable,
+            .bodies = error_handling.initArrayListSafe(rigidbody.RigidBody, allocator, config_mod.Memory.PHYSICS_BODIES_INITIAL),
+            .colliders = error_handling.initArrayListSafe(?colliders.Collider, allocator, config_mod.Memory.PHYSICS_COLLIDERS_INITIAL),
+            .constraints = error_handling.initArrayListSafe(Constraint, allocator, config_mod.Memory.PHYSICS_CONSTRAINTS_INITIAL),
+            .generations = error_handling.initArrayListSafe(u32, allocator, config_mod.Memory.PHYSICS_BODIES_INITIAL),
+            .dynamic_aabbs = error_handling.initArrayListSafe(types.AABB, allocator, config_mod.Memory.PHYSICS_AABBS_INITIAL),
+            .static_aabbs = error_handling.initArrayListSafe(types.AABB, allocator, config_mod.Memory.PHYSICS_AABBS_INITIAL),
             .spatial_hash_grid = spatial_hash_grid,
             .spatial_hash_enabled = config.spatial_hash_enabled,
-            .potential_pairs = std.ArrayList(CollisionPair).initCapacity(allocator, config_mod.Memory.PHYSICS_POTENTIAL_PAIRS_INITIAL) catch unreachable,
-            .manifolds = std.ArrayList(types.ContactManifold).initCapacity(allocator, config_mod.Memory.PHYSICS_MANIFOLDS_INITIAL) catch unreachable,
+            .potential_pairs = error_handling.initArrayListSafe(CollisionPair, allocator, config_mod.Memory.PHYSICS_POTENTIAL_PAIRS_INITIAL),
+            .manifolds = error_handling.initArrayListSafe(types.ContactManifold, allocator, config_mod.Memory.PHYSICS_MANIFOLDS_INITIAL),
             .stats = .{},
         };
     }
@@ -140,6 +146,7 @@ pub const PhysicsWorld = struct {
         self.bodies.deinit(self.allocator);
         self.colliders.deinit(self.allocator);
         self.constraints.deinit(self.allocator);
+        self.generations.deinit(self.allocator);
         self.dynamic_aabbs.deinit(self.allocator);
         self.static_aabbs.deinit(self.allocator);
         for (self.spatial_hash_grid.items) |*cell| {
@@ -151,14 +158,16 @@ pub const PhysicsWorld = struct {
     }
 
     /// Create a new rigid body and return its handle.
-    /// The handle is an index into the bodies array; destroying bodies
-    /// after this one will invalidate handles with higher indices.
-    pub fn createBody(self: *PhysicsWorld, body: rigidbody.RigidBody) !BodyHandle {
-        const handle = self.bodies.items.len;
+    /// The handle is safe to use even after other bodies are destroyed.
+    pub fn createBody(self: *PhysicsWorld, body: rigidbody.RigidBody) !types.BodyHandle {
+        const handle = types.BodyHandle{
+            .index = self.bodies.items.len,
+            .generation = 0,
+        };
         try self.bodies.append(self.allocator, body);
-        try self.colliders.append(self.allocator, null); // No collider by default
+        try self.colliders.append(self.allocator, null);
+        try self.generations.append(self.allocator, 0);
 
-        // Initialize AABB arrays
         try self.dynamic_aabbs.append(self.allocator, types.AABB.init(types.Vector3.zero(), types.Vector3.zero()));
         try self.static_aabbs.append(self.allocator, types.AABB.init(types.Vector3.zero(), types.Vector3.zero()));
 
@@ -166,31 +175,29 @@ pub const PhysicsWorld = struct {
     }
 
     /// Destroy a rigid body by handle.
-    /// Note: This invalidates handles for bodies with higher indices
-    /// (swapRemove shifts elements in array). Use handle mapping or
-    /// free list in production systems.
-    pub fn destroyBody(self: *PhysicsWorld, handle: BodyHandle) void {
-        if (handle >= self.bodies.items.len) return;
+    /// Uses swapRemove which is O(1) but invalidates handles for swapped elements.
+    /// The generation system ensures stale handles are detected as invalid.
+    pub fn destroyBody(self: *PhysicsWorld, handle: types.BodyHandle) void {
+        if (!isHandleValid(self, handle)) return;
 
-        // Remove body
-        _ = self.bodies.swapRemove(handle);
+        const last_index = self.bodies.items.len - 1;
 
-        // Remove collider
-        _ = self.colliders.swapRemove(handle);
+        self.bodies.swapRemove(handle.index);
+        self.colliders.swapRemove(handle.index);
+        self.generations.swapRemove(handle.index);
+        self.dynamic_aabbs.swapRemove(handle.index);
+        self.static_aabbs.swapRemove(handle.index);
 
-        // Remove AABBs
-        _ = self.dynamic_aabbs.swapRemove(handle);
-        _ = self.static_aabbs.swapRemove(handle);
-
-        // Note: This invalidates handles for bodies after the removed one
-        // In a production system, you'd use a free list or handle remapping
+        if (handle.index < last_index) {
+            self.generations.items[handle.index] +%= 1;
+        }
     }
 
     /// Attach a collider to a body at given handle.
-    /// Returns error.InvalidBodyHandle if handle is out of bounds.
-    pub fn attachCollider(self: *PhysicsWorld, handle: BodyHandle, collider: colliders.Collider) !void {
-        if (handle >= self.colliders.items.len) return error.InvalidBodyHandle;
-        self.colliders.items[handle] = collider;
+    /// Returns error.Invalidtypes.BodyHandle if handle is invalid or out of bounds.
+    pub fn attachCollider(self: *PhysicsWorld, handle: types.BodyHandle, collider: colliders.Collider) !void {
+        if (!isHandleValid(self, handle)) return error.Invalidtypes.BodyHandle;
+        self.colliders.items[handle.index] = collider;
     }
 
     /// Add a constraint (joint) between two bodies.
@@ -301,6 +308,8 @@ pub const PhysicsWorld = struct {
         const PRIME2: u32 = 83492791;
 
         for (0..self.bodies.items.len) |i| {
+            if (i >= self.generations.items.len) break;
+            const handle_i = types.BodyHandle{ .index = i, .generation = self.generations.items[i] };
             const aabb = &self.dynamic_aabbs.items[i];
             const center_x = (aabb.min.x + aabb.max.x) * 0.5;
             const center_y = (aabb.min.y + aabb.max.y) * 0.5;
@@ -315,18 +324,22 @@ pub const PhysicsWorld = struct {
             const cell = &self.spatial_hash_grid.items[cell_hash];
 
             for (cell.items) |j| {
-                if (j > i) {
+                if (j > i and j < self.generations.items.len) {
                     if (self.dynamic_aabbs.items[i].intersects(self.dynamic_aabbs.items[j])) {
-                        try self.potential_pairs.append(self.allocator, CollisionPair{ .a = i, .b = j });
+                        const handle_j = types.BodyHandle{ .index = j, .generation = self.generations.items[j] };
+                        try self.potential_pairs.append(self.allocator, CollisionPair{ .a = handle_i, .b = handle_j });
                     }
                 }
             }
         }
 
         for (0..self.bodies.items.len) |i| {
+            if (i >= self.generations.items.len) break;
+            const handle_i = types.BodyHandle{ .index = i, .generation = self.generations.items[i] };
             for (0..self.static_aabbs.items.len) |j| {
                 if (self.dynamic_aabbs.items[i].intersects(self.static_aabbs.items[j])) {
-                    try self.potential_pairs.append(self.allocator, CollisionPair{ .a = i, .b = j });
+                    const handle_j = types.BodyHandle{ .index = j, .generation = 0 };
+                    try self.potential_pairs.append(self.allocator, CollisionPair{ .a = handle_i, .b = handle_j });
                 }
             }
         }
@@ -364,20 +377,20 @@ pub const PhysicsWorld = struct {
     fn bruteForceBroadPhase(self: *PhysicsWorld) !void {
         self.potential_pairs.clearRetainingCapacity();
 
-        // Early exit optimization for empty scenes
         if (self.bodies.items.len == 0) return;
 
-        // Skip AABB checks for performance in brute force mode
-        // All pairs are potential collisions
         const body_count = self.bodies.items.len;
         const estimated_pairs = (body_count * (body_count - 1)) / 2;
 
-        // Pre-allocate for known capacity
         try self.potential_pairs.ensureTotalCapacity(self.allocator, estimated_pairs);
 
         for (0..body_count) |i| {
+            if (i >= self.generations.items.len) break;
+            const handle_i = types.BodyHandle{ .index = i, .generation = self.generations.items[i] };
             for (i + 1..body_count) |j| {
-                try self.potential_pairs.append(self.allocator, CollisionPair{ .a = i, .b = j });
+                if (j >= self.generations.items.len) break;
+                const handle_j = types.BodyHandle{ .index = j, .generation = self.generations.items[j] };
+                try self.potential_pairs.append(self.allocator, CollisionPair{ .a = handle_i, .b = handle_j });
             }
         }
     }
@@ -387,8 +400,10 @@ pub const PhysicsWorld = struct {
         self.manifolds.clearRetainingCapacity();
 
         for (self.potential_pairs.items) |pair| {
-            const collider_a = self.colliders.items[pair.a];
-            const collider_b = self.colliders.items[pair.b];
+            if (!isHandleValid(self, pair.a) or !isHandleValid(self, pair.b)) continue;
+
+            const collider_a = self.colliders.items[pair.a.index];
+            const collider_b = self.colliders.items[pair.b.index];
 
             if (collider_a == null or collider_b == null) continue;
 
@@ -446,9 +461,9 @@ pub const PhysicsWorld = struct {
 
     /// Solve a contact constraint
     fn solveContactConstraint(self: *PhysicsWorld, manifold: *types.ContactManifold, dt: f32) !void {
-        _ = dt; // Not used in simplified implementation
-        const body_a = &self.bodies.items[manifold.body_a];
-        const body_b = &self.bodies.items[manifold.body_b];
+        _ = dt;
+        const body_a = self.getBody(manifold.body_a) orelse return;
+        const body_b = self.getBody(manifold.body_b) orelse return;
 
         if (body_a.is_static and body_b.is_static) return;
 
@@ -490,8 +505,8 @@ pub const PhysicsWorld = struct {
 
     /// Solve a contact position constraint
     fn solveContactPositionConstraint(self: *PhysicsWorld, manifold: *types.ContactManifold) !void {
-        const body_a = &self.bodies.items[manifold.body_a];
-        const body_b = &self.bodies.items[manifold.body_b];
+        const body_a = self.getBody(manifold.body_a) orelse return;
+        const body_b = self.getBody(manifold.body_b) orelse return;
 
         if (body_a.is_static and body_b.is_static) return;
 
@@ -511,10 +526,10 @@ pub const PhysicsWorld = struct {
 
     /// Solve a joint constraint
     fn solveJointConstraint(self: *PhysicsWorld, constraint: *Constraint, dt: f32) !void {
-        _ = dt; // Not used in simplified implementation
+        _ = dt;
 
-        const body_a = &self.bodies.items[constraint.body_a];
-        const body_b = &self.bodies.items[constraint.body_b];
+        const body_a = self.getBody(constraint.body_a) orelse return;
+        const body_b = self.getBody(constraint.body_b) orelse return;
 
         switch (constraint.type) {
             .distance => {
@@ -576,16 +591,15 @@ pub const PhysicsWorld = struct {
     /// Perform ray casting against all bodies with colliders.
     /// Returns closest hit (by distance) or null if ray hits nothing.
     /// Result contains both hit information and the body handle that was hit.
-    pub fn raycast(self: *const PhysicsWorld, ray: types.Ray) ?struct { hit: types.RaycastHit, body: BodyHandle } {
-        var closest_hit: ?struct { hit: types.RaycastHit, body: BodyHandle } = null;
+    pub fn raycast(self: *const PhysicsWorld, ray: types.Ray) ?struct { hit: types.RaycastHit, body: types.BodyHandle } {
+        var closest_hit: ?struct { hit: types.RaycastHit, body: types.BodyHandle } = null;
 
-        for (self.bodies.items, self.colliders.items, 0..) |_, collider_opt, i| {
+        for (self.bodies.items, self.colliders.items, self.generations.items, 0..) |_, collider_opt, gen, i| {
             if (collider_opt) |collider| {
-                // Transform ray to local space (simplified)
                 if (collider.raycast(ray)) |hit| {
                     const is_closer = closest_hit == null or hit.distance < closest_hit.?.hit.distance;
                     if (is_closer) {
-                        closest_hit = .{ .hit = hit, .body = i };
+                        closest_hit = .{ .hit = hit, .body = .{ .index = i, .generation = gen } };
                     }
                 }
             }
@@ -595,11 +609,10 @@ pub const PhysicsWorld = struct {
     }
 
     /// Get mutable pointer to rigid body by handle.
-    /// Returns null if handle is out of bounds.
-    /// Use with caution as body data may be invalidated by other operations.
-    pub fn getBody(self: *PhysicsWorld, handle: BodyHandle) ?*rigidbody.RigidBody {
-        if (handle >= self.bodies.items.len) return null;
-        return &self.bodies.items[handle];
+    /// Returns null if handle is invalid (body was destroyed and slot reused).
+    pub fn getBody(self: *PhysicsWorld, handle: types.BodyHandle) ?*rigidbody.RigidBody {
+        if (!isHandleValid(self, handle)) return null;
+        return &self.bodies.items[handle.index];
     }
 
     /// Get current physics statistics for profiling/debugging.

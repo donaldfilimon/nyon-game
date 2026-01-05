@@ -1,6 +1,7 @@
 const std = @import("std");
 const raylib = @import("raylib");
 const nyon = @import("nyon_game");
+const config = @import("config/constants.zig");
 
 /// Performance Optimization System
 ///
@@ -105,7 +106,7 @@ pub const LODSystem = struct {
     pub fn init(allocator: std.mem.Allocator) LODSystem {
         return .{
             .allocator = allocator,
-            .lod_groups = std.ArrayList(LODGroup).initCapacity(allocator, 0) catch unreachable,
+            .lod_groups = std.ArrayList(LODGroup).initCapacity(allocator, config.Performance.MAX_INSTANCES) catch unreachable,
             .distances = LODDistances{},
         };
     }
@@ -132,7 +133,7 @@ pub const LODSystem = struct {
         var group = LODGroup{
             .entity_id = entity_id,
             .position = position,
-            .lod_levels = std.ArrayList(LODGroup.LODGeometry).initCapacity(self.allocator, 0) catch unreachable,
+            .lod_levels = std.ArrayList(LODGroup.LODGeometry).initCapacity(self.allocator, 3) catch unreachable,
             .current_lod = .high_detail,
             .last_distance = 0,
         };
@@ -246,7 +247,7 @@ pub const InstancingSystem = struct {
     pub fn init(allocator: std.mem.Allocator) InstancingSystem {
         return .{
             .allocator = allocator,
-            .instance_groups = std.ArrayList(InstanceGroup).initCapacity(allocator, 0) catch unreachable,
+            .instance_groups = std.ArrayList(InstanceGroup).initCapacity(allocator, config.Performance.MAX_INSTANCES) catch unreachable,
             .max_instances_per_draw = 1024,
         };
     }
@@ -271,8 +272,8 @@ pub const InstancingSystem = struct {
         const group = InstanceGroup{
             .mesh = mesh,
             .material = material,
-            .instances = std.ArrayList(InstanceGroup.InstanceData).initCapacity(self.allocator, 0) catch unreachable,
-            .transforms = std.ArrayList(raylib.Matrix).initCapacity(self.allocator, 0) catch unreachable,
+            .instances = std.ArrayList(InstanceGroup.InstanceData).initCapacity(self.allocator, config.Performance.MAX_INSTANCES) catch unreachable,
+            .transforms = std.ArrayList(raylib.Matrix).initCapacity(self.allocator, config.Performance.MAX_INSTANCES) catch unreachable,
             .instance_buffer = null,
         };
 

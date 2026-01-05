@@ -8,6 +8,7 @@ const std = @import("std");
 const entity = @import("entity.zig");
 const component = @import("component.zig");
 const archetype = @import("archetype.zig");
+const config = @import("../config/constants.zig");
 
 /// Query builder for constructing entity queries
 pub fn queryBuilder(allocator: std.mem.Allocator) QueryBuilder {
@@ -21,10 +22,11 @@ pub const QueryBuilder = struct {
     exclude_types: std.ArrayList(archetype.ComponentType),
 
     pub fn init(allocator: std.mem.Allocator) QueryBuilder {
+        const error_handling = @import("../common/error_handling.zig");
         return .{
             .allocator = allocator,
-            .include_types = std.ArrayList(archetype.ComponentType).initCapacity(allocator, 0) catch unreachable,
-            .exclude_types = std.ArrayList(archetype.ComponentType).initCapacity(allocator, 0) catch unreachable,
+            .include_types = error_handling.initArrayListSafe(archetype.ComponentType, allocator, config.Memory.ECS_COMPONENT_TYPES_INITIAL),
+            .exclude_types = error_handling.initArrayListSafe(archetype.ComponentType, allocator, config.Memory.ECS_COMPONENT_TYPES_INITIAL),
         };
     }
 
@@ -34,14 +36,14 @@ pub const QueryBuilder = struct {
     }
 
     /// Include entities that have this component type
-    pub fn with(self: *QueryBuilder, comptime T: type) *QueryBuilder {
-        self.include_types.append(self.allocator, archetype.ComponentType.init(T)) catch unreachable;
+    pub fn with(self: *QueryBuilder, comptime T: type) !*QueryBuilder {
+        try self.include_types.append(self.allocator, archetype.ComponentType.init(T));
         return self;
     }
 
     /// Exclude entities that have this component type
-    pub fn without(self: *QueryBuilder, comptime T: type) *QueryBuilder {
-        self.exclude_types.append(self.allocator, archetype.ComponentType.init(T)) catch unreachable;
+    pub fn without(self: *QueryBuilder, comptime T: type) !*QueryBuilder {
+        try self.exclude_types.append(self.allocator, archetype.ComponentType.init(T));
         return self;
     }
 
@@ -80,11 +82,12 @@ pub const Query = struct {
 
     /// Initialize a query with include/exclude component types
     pub fn init(allocator: std.mem.Allocator, include_types: []const archetype.ComponentType, exclude_types: []const archetype.ComponentType) !Query {
+        const error_handling = @import("../common/error_handling.zig");
         const query = Query{
             .allocator = allocator,
             .include_types = try allocator.dupe(archetype.ComponentType, include_types),
             .exclude_types = try allocator.dupe(archetype.ComponentType, exclude_types),
-            .matching_archetypes = std.ArrayList(*archetype.Archetype).initCapacity(allocator, 0) catch unreachable,
+            .matching_archetypes = error_handling.initArrayListSafe(*archetype.Archetype, allocator, config.Memory.ECS_ARCHETYPE_INITIAL),
         };
 
         return query;
@@ -126,7 +129,9 @@ pub const Query = struct {
 
         for (archetypes) |arch_ptr| {
             if (self.matchesArchetype(arch_ptr)) {
-                self.matching_archetypes.append(self.allocator, arch_ptr) catch unreachable;
+                self.matching_archetypes.append(self.allocator, arch_ptr) catch |err| {
+                    std.log.warn("Failed to append archetype to query matches: {}", .{err});
+                };
             }
         }
     }
@@ -215,10 +220,11 @@ pub const QueryBatch = struct {
     frame_count: u64 = 0,
 
     pub fn init(allocator: std.mem.Allocator) QueryBatch {
+        const error_handling = @import("../common/error_handling.zig");
         return .{
             .allocator = allocator,
-            .queries = std.ArrayList(*Query).initCapacity(allocator, 0) catch unreachable,
-            .entity_data_buffer = std.ArrayList(EntityData).initCapacity(allocator, 0) catch unreachable,
+            .queries = error_handling.initArrayListSafe(*Query, allocator, config.Memory.ECS_COMPONENT_TYPES_INITIAL),
+            .entity_data_buffer = error_handling.initArrayListSafe(EntityData, allocator, config.Memory.ECS_ARCHETYPE_INITIAL),
         };
     }
 

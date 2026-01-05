@@ -39,11 +39,12 @@ pub const EntityManager = struct {
 
     /// Initialize a new entity manager
     pub fn init(allocator: std.mem.Allocator) EntityManager {
+        const error_handling = @import("../common/error_handling.zig");
         return .{
             .allocator = allocator,
             .next_id = 0,
             .generations = std.AutoHashMap(Entity, EntityGeneration).init(allocator),
-            .free_ids = std.ArrayList(Entity).initCapacity(allocator, 64) catch unreachable,
+            .free_ids = error_handling.initArrayListSafe(Entity, allocator, 64),
         };
     }
 
@@ -168,13 +169,13 @@ test "high churn entity creation" {
     defer em.deinit();
 
     const iterations = 1000;
-    var entities = std.ArrayList(EntityId).initCapacity(std.testing.allocator, 1000) catch unreachable;
+    var entities = try std.ArrayList(EntityId).initCapacity(std.testing.allocator, 1000);
     defer entities.deinit(std.testing.allocator);
 
     // Create many entities
     for (0..iterations) |_| {
         const entity = try em.create();
-        entities.append(std.testing.allocator, entity) catch unreachable;
+        try entities.append(std.testing.allocator, entity);
     }
 
     try std.testing.expect(em.aliveCount() == iterations);

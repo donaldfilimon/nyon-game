@@ -51,6 +51,7 @@ pub const Physics = struct {
     pub const ENEMY_MASS: f32 = 50.0;
     pub const PLAYER_FORCE: f32 = 100.0;
     pub const RESPAWN_Y: f32 = -50.0;
+    pub const EPSILON: f32 = 0.05; // Position comparison tolerance
 };
 
 pub const Game = struct {
@@ -100,6 +101,16 @@ pub const Editor = struct {
     pub const TAB_BAR_HEIGHT: f32 = 40.0;
     pub const TOOLBAR_HEIGHT: f32 = 35.0;
     pub const STATUS_BAR_HEIGHT: f32 = 25.0;
+    pub const PANEL_WIDTH: f32 = 300.0;
+    pub const PANEL_HEIGHT: f32 = 200.0;
+    pub const SCENE_OUTLINER_WIDTH: f32 = 300.0;
+    pub const PROPERTY_INSPECTOR_WIDTH: f32 = 300.0;
+};
+
+pub const Scene = struct {
+    pub const INITIAL_MODEL_CAPACITY: usize = 8;
+    pub const INITIAL_LIGHT_CAPACITY: usize = 16;
+    pub const INITIAL_CAMERA_CAPACITY: usize = 4;
 };
 
 pub const Colors = struct {
@@ -110,6 +121,30 @@ pub const Colors = struct {
     pub const STATUS_MESSAGE = struct { r: u8 = 200, g: u8 = 220, b: u8 = 255, a: u8 = 255 };
     pub const TEXT_MUTED = struct { r: u8 = 200, g: u8 = 200, b: u8 = 200, a: u8 = 255 };
     pub const CROSSHAIR = struct { r: u8 = 255, g: u8 = 255, b: u8 = 255, a: u8 = 200 };
+};
+
+pub const Input = struct {
+    pub const MOVEMENT_SPEED: f32 = 0.1;
+    pub const CAMERA_SPEED: f32 = 5.0;
+    pub const ZOOM_SPEED: f32 = 0.1;
+    pub const MOUSE_SENSITIVITY: f32 = 0.003;
+    pub const SPRINT_MULTIPLIER: f32 = 2.0;
+    pub const VERTICAL_SPEED: f32 = 0.1;
+};
+
+pub const EditorColors = struct {
+    const Color = extern struct { r: u8, g: u8, b: u8, a: u8 };
+
+    pub const PANEL_BACKGROUND = Color{ .r = 35, .g = 35, .b = 45, .a = 255 };
+    pub const PANEL_BORDER = Color{ .r = 60, .g = 60, .b = 70, .a = 255 };
+    pub const BUTTON_HOVER = Color{ .r = 70, .g = 70, .b = 90, .a = 255 };
+    pub const BUTTON_PRESSED = Color{ .r = 50, .g = 50, .b = 70, .a = 255 };
+    pub const TEXT_NORMAL = Color{ .r = 240, .g = 240, .b = 250, .a = 255 };
+    pub const TEXT_MUTED = Color{ .r = 160, .g = 160, .b = 175, .a = 255 };
+    pub const ACCENT = Color{ .r = 100, .g = 180, .b = 255, .a = 255 };
+    pub const ACCENT_HOVER = Color{ .r = 130, .g = 200, .b = 255, .a = 255 };
+    pub const ACCENT_PRESSED = Color{ .r = 80, .g = 160, .b = 235, .a = 255 };
+    pub const SHADOW = Color{ .r = 0, .g = 0, .b = 0, .a = 80 };
 };
 
 test "UI constants valid" {

@@ -1,5 +1,6 @@
 const std = @import("std");
 const raylib = @import("raylib");
+const config = @import("config/constants.zig");
 
 pub const GizmoMode = enum {
     translate,
@@ -26,7 +27,7 @@ pub const TabSystem = struct {
     pub fn init(allocator: std.mem.Allocator) TabSystem {
         return .{
             .allocator = allocator,
-            .tabs = std.ArrayList(Tab).initCapacity(allocator, 0) catch unreachable,
+            .tabs = std.ArrayList(Tab).initCapacity(allocator, 8) catch unreachable,
         };
     }
 

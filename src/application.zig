@@ -38,6 +38,7 @@ pub const Application = struct {
     app_mode: AppMode,
     world_session: ?WorldSession,
     quit_requested: bool,
+    save_error: ?anyerror,
 
     pub fn init(allocator: std.mem.Allocator) !Application {
         // Initialize engine with raylib backend
@@ -70,24 +71,32 @@ pub const Application = struct {
             .app_mode = .title,
             .world_session = null,
             .quit_requested = false,
+            .save_error = null,
         };
     }
 
     pub fn deinit(self: *Application) void {
-        // Save UI config if dirty
+        var errors = std.ArrayList(u8).init(self.allocator);
+        defer errors.deinit();
+
         if (self.ui_state.dirty) {
-            if (self.ui_state.config.save(self.allocator, nyon_game.ui.UiConfig.DEFAULT_PATH)) |_| {} else |err| {
+            if (self.ui_state.config.save(self.allocator, nyon_game.ui.UiConfig.DEFAULT_PATH)) |_| {
+                self.ui_state.dirty = false;
+            } else |err| {
                 std.log.err("Failed to save UI config: {}", .{err});
+                errors.appendSlice("UI config save failed. ") catch {};
             }
         }
 
-        // Save world session data
         if (self.world_session) |session| {
-            if (self.sandbox_state.saveWorld(session.folder)) |_| {} else |err| {
+            if (self.sandbox_state.saveWorld(session.folder)) |_| {
+                if (worlds_mod.touchWorld(self.allocator, session.folder, null, null)) |_| {} else |err| {
+                    std.log.err("Failed to touch world metadata: {}", .{err});
+                    errors.appendSlice("World metadata update failed. ") catch {};
+                }
+            } else |err| {
                 std.log.err("Failed to save world: {}", .{err});
-            }
-            if (worlds_mod.touchWorld(self.allocator, session.folder, null, null)) |_| {} else |err| {
-                std.log.err("Failed to touch world metadata: {}", .{err});
+                errors.appendSlice("World save failed. ") catch {};
             }
         }
 
@@ -96,6 +105,10 @@ pub const Application = struct {
         self.ui_state.deinit();
         self.sandbox_state.deinit();
         self.engine.deinit();
+
+        if (errors.items.len > 0) {
+            std.log.err("Save errors occurred: {s}", .{errors.items});
+        }
     }
 
     pub fn run(self: *Application) !void {

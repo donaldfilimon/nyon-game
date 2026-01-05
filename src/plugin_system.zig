@@ -1,4 +1,5 @@
 const std = @import("std");
+const config = @import("config/constants.zig");
 
 // Plugin system architecture for extensible engine functionality
 pub const PluginSystem = struct {
@@ -49,8 +50,8 @@ pub const PluginSystem = struct {
     pub fn init(allocator: std.mem.Allocator) PluginSystem {
         return PluginSystem{
             .allocator = allocator,
-            .plugins = std.ArrayList(Plugin).initCapacity(allocator, 0) catch unreachable,
-            .plugin_libraries = std.ArrayList(std.DynLib).initCapacity(allocator, 0) catch unreachable,
+            .plugins = std.ArrayList(Plugin).initCapacity(allocator, 8) catch unreachable,
+            .plugin_libraries = std.ArrayList(std.DynLib).initCapacity(allocator, 8) catch unreachable,
         };
     }
 
@@ -186,7 +187,7 @@ pub const PluginSystem = struct {
 
     /// Get UI panels from UI plugins
     pub fn getUIPanels(self: *const PluginSystem, allocator: std.mem.Allocator) ![]*anyopaque {
-        var panels = std.ArrayList(*anyopaque).initCapacity(allocator, 0) catch unreachable;
+        var panels = std.ArrayList(*anyopaque).initCapacity(allocator, 8) catch unreachable;
         defer panels.deinit(allocator);
 
         for (self.plugins.items) |plugin| {
@@ -202,7 +203,7 @@ pub const PluginSystem = struct {
 
     /// Get loaded plugins by type
     pub fn getPluginsByType(self: *const PluginSystem, plugin_type: PluginType, allocator: std.mem.Allocator) ![]*const Plugin {
-        var matching_plugins = std.ArrayList(*const Plugin).initCapacity(allocator, 0) catch unreachable;
+        var matching_plugins = std.ArrayList(*const Plugin).initCapacity(allocator, 8) catch unreachable;
         defer matching_plugins.deinit(allocator);
 
         for (self.plugins.items) |*plugin| {

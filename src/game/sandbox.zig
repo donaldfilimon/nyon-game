@@ -99,7 +99,7 @@ pub const SandboxWorld = struct {
 
         return .{
             .allocator = allocator,
-            .blocks = std.ArrayList(Block).initCapacity(allocator, 0) catch unreachable,
+            .blocks = std.ArrayList(Block).initCapacity(allocator, config.Game.MAX_BLOCKS) catch unreachable,
             .spatial_grid = spatial_grid,
         };
     }
@@ -448,8 +448,10 @@ pub const SandboxState = struct {
         }
 
         if (self.hovered_block) |index| {
-            const center = blockCenter(self.world.blocks.items[index].pos);
-            engine.Shapes.drawCubeWires(center, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, COLOR_HIGHLIGHT);
+            if (index < self.world.blocks.items.len) {
+                const center = blockCenter(self.world.blocks.items[index].pos);
+                engine.Shapes.drawCubeWires(center, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, BLOCK_SIZE + 0.02, COLOR_HIGHLIGHT);
+            }
         }
 
         if (self.placement_target) |pos| {

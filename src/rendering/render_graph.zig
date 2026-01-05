@@ -5,6 +5,7 @@
 //! resource lifetime handling, and optimization opportunities.
 
 const std = @import("std");
+const config = @import("../../config/constants.zig");
 
 // Local color type to avoid external dependencies
 pub const Color = struct {
@@ -243,10 +244,10 @@ pub const RenderGraph = struct {
     pub fn init(allocator: std.mem.Allocator) RenderGraph {
         return .{
             .allocator = allocator,
-            .passes = std.ArrayList(RenderPass).initCapacity(allocator, 0) catch unreachable,
+            .passes = std.ArrayList(RenderPass).initCapacity(allocator, 8) catch unreachable,
             .resources = ResourceRegistry.init(allocator),
-            .pass_dependencies = std.ArrayList(Dependency).initCapacity(allocator, 0) catch unreachable,
-            .execution_order = std.ArrayList(PassId).initCapacity(allocator, 0) catch unreachable,
+            .pass_dependencies = std.ArrayList(Dependency).initCapacity(allocator, 16) catch unreachable,
+            .execution_order = std.ArrayList(PassId).initCapacity(allocator, 16) catch unreachable,
             .frame_arena = std.heap.ArenaAllocator.init(allocator),
         };
     }
@@ -270,7 +271,7 @@ pub const RenderGraph = struct {
         const pass_id = @as(PassId, @intCast(self.passes.items.len));
 
         // Create resource handles for outputs
-        var output_resources = std.ArrayList(ResourceHandle).initCapacity(self.allocator, 0) catch unreachable;
+        var output_resources = std.ArrayList(ResourceHandle).initCapacity(self.allocator, 8) catch unreachable;
         defer output_resources.deinit(self.allocator);
 
         // Handle color attachments

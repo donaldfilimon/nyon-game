@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const raylib = @import("raylib");
+const config = @import("../config/constants.zig");
 
 /// Core node graph system with topological sorting and evaluation
 ///
@@ -154,8 +155,8 @@ pub const NodeGraph = struct {
                 .id = id,
                 .node_type = try allocator.dupe(u8, node_type),
                 .position = .{ .x = 0, .y = 0 },
-                .inputs = std.ArrayList(Node.InputSlot).initCapacity(allocator, 0) catch unreachable,
-                .outputs = std.ArrayList(Node.OutputSlot).initCapacity(allocator, 0) catch unreachable,
+                .inputs = std.ArrayList(Node.InputSlot).initCapacity(allocator, 4) catch unreachable,
+                .outputs = std.ArrayList(Node.OutputSlot).initCapacity(allocator, 4) catch unreachable,
                 .user_data = null,
                 .vtable = vtable,
                 .allocator = allocator,
@@ -213,8 +214,8 @@ pub const NodeGraph = struct {
     pub fn init(allocator: std.mem.Allocator) NodeGraph {
         return .{
             .allocator = allocator,
-            .nodes = std.ArrayList(Node).initCapacity(allocator, 0) catch unreachable,
-            .connections = std.ArrayList(Connection).initCapacity(allocator, 0) catch unreachable,
+            .nodes = std.ArrayList(Node).initCapacity(allocator, 16) catch unreachable,
+            .connections = std.ArrayList(Connection).initCapacity(allocator, 32) catch unreachable,
             .execution_cache = std.AutoHashMap(usize, CacheEntry).init(allocator),
             .next_node_id = 0,
             .cache_counter = 0,
@@ -369,7 +370,7 @@ pub const NodeGraph = struct {
         }
 
         // Gather inputs
-        var inputs = std.ArrayList(Value).initCapacity(self.allocator, 0) catch unreachable;
+        var inputs = std.ArrayList(Value).initCapacity(self.allocator, 8) catch unreachable;
         defer inputs.deinit(self.allocator);
 
         for (node.inputs.items) |input| {
@@ -388,7 +389,7 @@ pub const NodeGraph = struct {
         const outputs = try node.execute(inputs.items, self.allocator);
 
         // Cache the result
-        var cached_outputs = std.ArrayList(Value).initCapacity(self.allocator, 0) catch unreachable;
+        var cached_outputs = std.ArrayList(Value).initCapacity(self.allocator, 8) catch unreachable;
         for (outputs) |output| {
             try cached_outputs.append(self.allocator, try output.clone(self.allocator));
         }
@@ -428,13 +429,13 @@ pub const NodeGraph = struct {
 
     /// Get topological execution order using Kahn's algorithm
     fn getTopologicalOrder(self: *NodeGraph, allocator: std.mem.Allocator) ![]NodeId {
-        var result = std.ArrayList(NodeId).initCapacity(allocator, 0) catch unreachable;
+        var result = std.ArrayList(NodeId).initCapacity(allocator, self.nodes.items.len) catch unreachable;
         errdefer result.deinit(allocator);
 
         var in_degree = std.AutoHashMap(NodeId, usize).init(allocator);
         defer in_degree.deinit();
 
-        var queue = std.ArrayList(NodeId).initCapacity(allocator, 0) catch unreachable;
+        var queue = std.ArrayList(NodeId).initCapacity(allocator, self.nodes.items.len) catch unreachable;
         defer queue.deinit(allocator);
 
         // Initialize in-degrees

@@ -4,6 +4,7 @@
 //! This module provides helpers to list/create/update worlds.
 
 const std = @import("std");
+const config = @import("../config/constants.zig");
 
 // ============================================================================
 // Constants
@@ -64,7 +65,7 @@ pub fn listWorlds(allocator: std.mem.Allocator) ![]WorldEntry {
     defer dir.close();
 
     var it = dir.iterate();
-    var worlds = std.ArrayList(WorldEntry).initCapacity(allocator, 0) catch unreachable;
+    var worlds = std.ArrayList(WorldEntry).initCapacity(allocator, 8) catch unreachable;
     errdefer {
         for (worlds.items) |*entry| entry.deinit();
         worlds.deinit(allocator);

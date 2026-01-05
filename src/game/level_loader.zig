@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const state_mod = @import("state.zig");
+const config = @import("../config/constants.zig");
 
 const JSON_TAG_START_ITEMS = "items";
 const JSON_TAG_PLAYER = "player";
@@ -70,7 +71,7 @@ pub const LevelSaveError = error{
 };
 
 pub fn saveLevel(game_state: *const state_mod.GameState, path: [:0]const u8, allocator: std.mem.Allocator) !void {
-    var json_string = std.ArrayList(u8).initCapacity(allocator, 0) catch unreachable;
+    var json_string = std.ArrayList(u8).initCapacity(allocator, config.Memory.STRING_BUFFER) catch unreachable;
     defer json_string.deinit(allocator);
 
     try json_string.print(allocator, "{{\n", .{});
@@ -119,7 +120,7 @@ pub fn loadLevel(path: [:0]const u8, allocator: std.mem.Allocator) !LevelData {
 fn parseLevelJSON(content: []const u8, allocator: std.mem.Allocator) !LevelData {
     var level_data = try LevelData.init(allocator);
     errdefer level_data.deinit(allocator);
-    var items = std.ArrayList(ItemData).initCapacity(allocator, 0) catch unreachable;
+    var items = std.ArrayList(ItemData).initCapacity(allocator, config.Game.DEFAULT_ITEM_COUNT) catch unreachable;
     defer items.deinit(allocator);
 
     var i: usize = 0;

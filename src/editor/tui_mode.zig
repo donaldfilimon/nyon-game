@@ -5,6 +5,7 @@
 
 const std = @import("std");
 const raylib = @import("raylib");
+const config = @import("../config/constants.zig");
 
 const editor_mod = @import("editor.zig");
 
@@ -28,13 +29,13 @@ pub const TUIMode = struct {
     scroll_offset: f32 = 0,
 
     pub fn init(allocator: std.mem.Allocator) !TUIMode {
-        var command_buffer = std.ArrayList(u8).initCapacity(allocator, 0) catch unreachable;
+        var command_buffer = std.ArrayList(u8).initCapacity(allocator, config.Memory.COMMAND_BUFFER) catch unreachable;
         errdefer command_buffer.deinit(allocator);
 
-        var command_history = std.ArrayList([]const u8).initCapacity(allocator, 0) catch unreachable;
+        var command_history = std.ArrayList([]const u8).initCapacity(allocator, config.Performance.MAX_HISTORY) catch unreachable;
         errdefer command_history.deinit(allocator);
 
-        var output_lines = std.ArrayList([]const u8).initCapacity(allocator, 0) catch unreachable;
+        var output_lines = std.ArrayList([]const u8).initCapacity(allocator, config.Performance.MAX_HISTORY) catch unreachable;
         errdefer output_lines.deinit(allocator);
 
         // Add welcome messages

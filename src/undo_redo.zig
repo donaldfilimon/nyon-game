@@ -1,10 +1,20 @@
 const std = @import("std");
 const nyon = @import("nyon_game");
+const config = @import("config/constants.zig");
 
 /// Undo/Redo System with Command Pattern
 ///
 /// Provides comprehensive undo/redo functionality for the Nyon Game Engine editor.
 /// Supports scene operations, material changes, animation modifications, and custom commands.
+/// Error set for undo/redo operations
+pub const UndoRedoError = error{
+    OutOfMemory,
+    InvalidState,
+    SerializationError,
+    CommandExecutionError,
+    JsonParseError,
+};
+
 pub const EditorContext = struct {
     scene: *nyon.Scene,
     asset_mgr: *nyon.AssetManager,
@@ -43,22 +53,22 @@ pub const UndoRedoSystem = struct {
         vtable: *const VTable,
 
         pub const VTable = struct {
-            execute: *const fn (*anyopaque) anyerror!void,
-            undo: *const fn (*anyopaque) anyerror!void,
+            execute: *const fn (*anyopaque) UndoRedoError!void,
+            undo: *const fn (*anyopaque) UndoRedoError!void,
             deinit: *const fn (*anyopaque, std.mem.Allocator) void,
-            clone: *const fn (*anyopaque, std.mem.Allocator) anyerror!*Command,
+            clone: *const fn (*anyopaque, std.mem.Allocator) UndoRedoError!*Command,
             getMemoryUsage: *const fn (*anyopaque) usize,
             getTypeName: *const fn (*anyopaque) []const u8,
         };
 
         /// Execute the command
-        pub fn execute(self: *Command) !void {
-            try self.vtable.execute(self);
+        pub fn execute(self: *Command) UndoRedoError!void {
+            try self.vtable.execute(self.impl_ptr);
         }
 
         /// Undo the command
-        pub fn undo(self: *Command) !void {
-            try self.vtable.undo(self);
+        pub fn undo(self: *Command) UndoRedoError!void {
+            try self.vtable.undo(self.impl_ptr);
         }
 
         /// Clean up the command
@@ -102,7 +112,7 @@ pub const UndoRedoSystem = struct {
                     .impl_ptr = @ptrCast(compound),
                     .vtable = &vtable,
                 },
-                .commands = std.ArrayList(*Command).initCapacity(allocator, 0) catch unreachable,
+                .commands = std.ArrayList(*Command).initCapacity(allocator, 8) catch unreachable,
                 .allocator = allocator,
             };
 
@@ -286,8 +296,8 @@ pub const UndoRedoSystem = struct {
     pub fn init(allocator: std.mem.Allocator) UndoRedoSystem {
         var self = UndoRedoSystem{
             .allocator = allocator,
-            .undo_stack = std.ArrayList(*Command).initCapacity(allocator, 0) catch unreachable,
-            .redo_stack = std.ArrayList(*Command).initCapacity(allocator, 0) catch unreachable,
+            .undo_stack = std.ArrayList(*Command).initCapacity(allocator, config.Performance.MAX_HISTORY) catch unreachable,
+            .redo_stack = std.ArrayList(*Command).initCapacity(allocator, config.Performance.MAX_HISTORY) catch unreachable,
             .max_history_size = 100,
             .current_compound = null,
             .command_types = std.StringHashMap(CommandType).init(allocator),
@@ -497,7 +507,7 @@ pub const UndoRedoSystem = struct {
         defer arena.deinit();
         const arena_allocator = arena.allocator();
 
-        var undo_array = std.ArrayList(std.json.Value).initCapacity(arena_allocator, 0) catch unreachable;
+        var undo_array = std.ArrayList(std.json.Value).initCapacity(arena_allocator, config.Performance.MAX_HISTORY) catch unreachable;
         for (self.undo_stack.items) |cmd| {
             if (self.getCommandType(cmd)) |cmd_type| {
                 const serialized = try cmd_type.serializeFn(cmd, arena_allocator);
