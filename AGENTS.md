@@ -23,6 +23,7 @@
 - Import order: `std` → external libraries → local modules.
 - Prefer explicit imports over wildcard re-exports.
 - Example:
+
   ```zig
   const std = @import("std");
   const raylib = @import("raylib");
@@ -73,6 +74,7 @@
 - Test error paths, edge cases.
 - Run single file: `zig build test -- <file>`
 - Example:
+
   ```zig
   test "entity creation" {
       var em = EntityManager.init(std.testing.allocator);

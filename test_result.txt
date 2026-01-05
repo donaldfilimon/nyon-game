@@ -2,9 +2,9 @@
 [DEBUG target_optimize_setup] Target and optimize options set (session: A)
 [DEBUG build_complete] Build function completed successfully (session: A)
 Build Summary: 5/5 steps succeeded
-install success
-+- install nyon_game success
-|  +- compile exe nyon_game Debug native success 2s MaxRSS:252M
-+- install nyon_editor success
-   +- compile exe nyon_editor Debug native success 2s MaxRSS:283M
+test success
++- run test success 32ms MaxRSS:4M
+|  +- compile test Debug native cached 25ms MaxRSS:19M
++- run test success 32ms MaxRSS:4M
+   +- compile test Debug native cached 26ms MaxRSS:19M
 

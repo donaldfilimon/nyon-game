@@ -15,53 +15,35 @@ failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalS
 
 install
 +- install nyon_editor
-   +- compile exe nyon_editor Debug native 10 errors
+   +- compile exe nyon_editor Debug native 7 errors
 src\property_inspector.zig:173:36: error: use of undeclared identifier 'entity'
             if (world.getComponent(entity, @import("ecs/component.zig").Collider)) |collider| {
                                    ^~~~~~
 src\property_inspector.zig:335:28: error: unused function parameter
     fn drawVector3Property(self: *PropertyInspector, name: []const u8, value: raylib.Vector3, x: f32, y: f32, width: f32) f32 {
                            ^~~~
-src\editor\main_editor.zig:464:75: error: root source file struct 'raylib_stub' has no member named 'getFPS'
-        const fps_text_z = std.fmt.bufPrintZ(&fps_buf, "FPS: {}", .{raylib.getFPS()}) catch "FPS: ?";
-                                                                    ~~~~~~^~~~~~~
+src\editor\main_editor.zig:692:19: error: root source file struct 'raylib_stub' has no member named 'drawModel'
+            raylib.drawModel(model, raylib.Vector3{ .x = 0, .y = 0, .z = 0 }, 1.0, raylib.Color.white);
+            ~~~~~~^~~~~~~~~~
 src\raylib_stub.zig:1:1: note: struct declared here
 const std = @import("std");
 ^~~~~
 referenced by:
-    render: src\editor\main_editor.zig:338:29
-    main: src\editor.zig:61:26
-    4 reference(s) hidden; use '-freference-trace=6' to see all references
-src\editor\main_editor.zig:690:33: error: root source file struct 'raylib_stub' has no member named 'loadModelFromMesh'
-            const model = raylib.loadModelFromMesh(mesh) catch return;
-                          ~~~~~~^~~~~~~~~~~~~~~~~~
-src\raylib_stub.zig:1:1: note: struct declared here
-const std = @import("std");
-^~~~~
-src\editor\main_editor.zig:839:27: error: root source file struct 'raylib_stub' has no member named 'drawCircle'
-                    raylib.drawCircle(@intFromFloat(key_x), @intFromFloat(track_y + 12), 3, raylib.Color.yellow);
-                    ~~~~~~^~~~~~~~~~~
-src\raylib_stub.zig:1:1: note: struct declared here
-const std = @import("std");
-^~~~~
-src\editor\main_editor.zig:887:27: error: root source file struct 'raylib_stub' has no member named 'getFPS'
-        const fps = raylib.getFPS();
-                    ~~~~~~^~~~~~~
-src\raylib_stub.zig:1:1: note: struct declared here
-const std = @import("std");
-^~~~~
+    renderGeometryNodeEditor: src\editor\main_editor.zig:667:40
+    render: src\editor\main_editor.zig:322:61
+    5 reference(s) hidden; use '-freference-trace=7' to see all references
 src\editor\main_editor_tui.zig:42:21: error: expected type '[*:0]const u8', found '[]u8'
     raylib.drawText(command_text, @intFromFloat(content_rect.x + 25), @intFromFloat(prompt_y), 16, raylib.Color.white);
                     ^~~~~~~~~~~~
 src\raylib_stub.zig:471:23: note: parameter type declared here
 pub fn drawText(text: [*:0]const u8, posX: c_int, posY: c_int, fontSize: c_int, color: Color) void {
                       ^~~~~~~~~~~~~
-src\editor\material_node_editor.zig:147:23: error: root source file struct 'raylib_stub' has no member named 'drawCircle'
-                raylib.drawCircle(@intFromFloat(node.position.x), @intFromFloat(input_y), 4, raylib.Color.yellow);
-                ~~~~~~^~~~~~~~~~~
-src\raylib_stub.zig:1:1: note: struct declared here
-const std = @import("std");
-^~~~~
+src\editor\material_node_editor.zig:150:128: error: struct 'raylib_stub.Color' has no member named 'light_gray'
+                raylib.drawText(input_name_z, @intFromFloat(node.position.x + 10), @intFromFloat(input_y - 6), 12, raylib.Color.light_gray);
+                                                                                                                   ~~~~~~~~~~~~^~~~~~~~~~~
+src\raylib_stub.zig:101:26: note: struct declared here
+pub const Color = extern struct {
+                  ~~~~~~~^~~~~~
 src\property_inspector.zig:307:25: error: expected type '[*:0]const u8', found '[]const u8'
         raylib.drawText(title, @intFromFloat(x + 5), @intFromFloat(y + 5), 14, raylib.Color.white);
                         ^~~~~
@@ -74,7 +56,7 @@ src\property_inspector.zig:371:25: error: expected type '[*:0]const u8', found '
 src\raylib_stub.zig:471:23: note: parameter type declared here
 pub fn drawText(text: [*:0]const u8, posX: c_int, posY: c_int, fontSize: c_int, color: Color) void {
                       ^~~~~~~~~~~~~
-error: 10 compilation errors
+error: 7 compilation errors
 failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\editor.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_editor --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\lib\\" --listen=-
 
 Build Summary: 0/5 steps succeeded (2 failed)
@@ -82,7 +64,7 @@ install transitive failure
 +- install nyon_game transitive failure
 |  +- compile exe nyon_game Debug native 2 errors
 +- install nyon_editor transitive failure
-   +- compile exe nyon_editor Debug native 10 errors
+   +- compile exe nyon_editor Debug native 7 errors
 
 error: the following build command failed with exit code 1:
-.zig-cache\o\de37fdbac9ec7656fa569d7c06b4d76a\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0x5a16a761 -Z672bc40111ee1270 -j1
+.zig-cache\o\3b16da357b4d135e40ddce89d3397520\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0x545a4ce4 -Z7c88e300c458dddb

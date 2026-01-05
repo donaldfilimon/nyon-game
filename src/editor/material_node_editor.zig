@@ -137,21 +137,27 @@ pub const MaterialNodeEditor = struct {
             else
                 raylib.Color{ .r = 70, .g = 70, .b = 180, .a = 255 };
             raylib.drawRectangle(@intFromFloat(node.position.x), @intFromFloat(node.position.y), 180, 25, header_color);
-            raylib.drawText(node.node_type.ptr, @intFromFloat(node.position.x + 10), @intFromFloat(node.position.y + 5), 14, raylib.Color.white);
+            var node_title_buf: [128:0]u8 = undefined;
+            const node_title = std.fmt.bufPrintZ(&node_title_buf, "{s}", .{node.node_type}) catch "Node";
+            raylib.drawText(node_title, @intFromFloat(node.position.x + 10), @intFromFloat(node.position.y + 5), 14, raylib.Color.white);
 
             // Inputs.
             for (node.inputs.items, 0..) |input, idx| {
                 const input_y = node.position.y + 35 + @as(f32, @floatFromInt(idx)) * 18;
                 raylib.drawCircle(@intFromFloat(node.position.x), @intFromFloat(input_y), 4, raylib.Color.yellow);
-                raylib.drawText(input.name.ptr, @intFromFloat(node.position.x + 10), @intFromFloat(input_y - 6), 12, raylib.Color.light_gray);
+                var input_name_buf: [128:0]u8 = undefined;
+                const input_name_z = std.fmt.bufPrintZ(&input_name_buf, "{s}", .{input.name}) catch "Param";
+                raylib.drawText(input_name_z, @intFromFloat(node.position.x + 10), @intFromFloat(input_y - 6), 12, raylib.Color.light_gray);
             }
 
             // Outputs.
             for (node.outputs.items, 0..) |output, idx| {
                 const output_y = node.position.y + 35 + @as(f32, @floatFromInt(idx)) * 18;
                 raylib.drawCircle(@intFromFloat(node.position.x + 180), @intFromFloat(output_y), 4, raylib.Color.green);
-                const text_width = raylib.measureText(output.name.ptr, 12);
-                raylib.drawText(output.name.ptr, @intFromFloat(node.position.x + 170 - @as(f32, @floatFromInt(text_width))), @intFromFloat(output_y - 6), 12, raylib.Color.light_gray);
+                var out_name_buf: [128:0]u8 = undefined;
+                const out_name_z = std.fmt.bufPrintZ(&out_name_buf, "{s}", .{output.name}) catch "Param";
+                const text_width = raylib.measureText(out_name_z, 12);
+                raylib.drawText(out_name_z, @intFromFloat(node.position.x + 170 - @as(f32, @floatFromInt(text_width))), @intFromFloat(output_y - 6), 12, raylib.Color.light_gray);
             }
         }
 
@@ -175,7 +181,7 @@ pub const MaterialNodeEditor = struct {
                         self.createNode(item, self.menu_pos);
                     }
                 }
-                raylib.drawText(item.ptr, @intFromFloat(item_rect.x + 10), @intFromFloat(item_rect.y + 5), 14, raylib.Color.white);
+                raylib.drawText(item, @intFromFloat(item_rect.x + 10), @intFromFloat(item_rect.y + 5), 14, raylib.Color.white);
             }
         }
 

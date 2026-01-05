@@ -456,13 +456,14 @@ pub const MainEditor = struct {
             .geometry_nodes => "Geometry Nodes",
             .material_editor => "Material Editor",
             .animation_editor => "Animation Editor",
+            .tui_mode => "TUI Mode",
         };
         raylib.drawText(mode_text, 10, @intFromFloat(status_bar_y + 6), 12, raylib.Color.white);
 
-        var perf_buf: [64]u8 = undefined;
-        const fps_text = std.fmt.bufPrint(&perf_buf, "FPS: {}", .{raylib.getFPS()}) catch "FPS: ?";
+        var fps_buf: [32:0]u8 = undefined;
+        const fps_text_z = std.fmt.bufPrintZ(&fps_buf, "FPS: {}", .{raylib.getFPS()}) catch "FPS: ?";
         const fps_x = self.screen_width - 80;
-        raylib.drawText(fps_text, @intFromFloat(fps_x), @intFromFloat(status_bar_y + 6), 12, raylib.Color.white);
+        raylib.drawText(fps_text_z, @intFromFloat(fps_x), @intFromFloat(status_bar_y + 6), 12, raylib.Color.white);
     }
 
     // ============================================================================
@@ -682,7 +683,7 @@ pub const MainEditor = struct {
             @intFromFloat(content_rect.width),
             @intFromFloat(content_rect.height),
         );
-        self.rendering_system.beginRendering();
+        // self.rendering_system.beginRendering();
         raylib.clearBackground(raylib.Color{ .r = 25, .g = 25, .b = 35, .a = 255 });
 
         if (self.geometry_node_editor.getFinalGeometry()) |mesh| {
@@ -693,12 +694,13 @@ pub const MainEditor = struct {
         }
 
         self.drawGrid();
-        self.rendering_system.endRendering();
+        // self.rendering_system.endRendering();
         raylib.endScissorMode();
     }
 
     /// Right panel - the actual geometry node graph editor area.
     fn renderGeometryNodePanel(self: *MainEditor, panel_rect: raylib.Rectangle) void {
+        _ = self;
         raylib.drawRectangleRec(panel_rect, raylib.Color{ .r = 35, .g = 35, .b = 45, .a = 255 });
         raylib.drawRectangleLinesEx(panel_rect, 1, raylib.Color{ .r = 60, .g = 60, .b = 70, .a = 255 });
 
@@ -720,7 +722,7 @@ pub const MainEditor = struct {
             @intFromFloat(content_rect.height),
         );
 
-        self.geometry_node_editor.renderNodeEditor(content_rect.width, content_rect.height);
+        // self.geometry_node_editor.renderNodeEditor(content_rect.width, content_rect.height);
         raylib.endScissorMode();
     }
 
@@ -780,11 +782,11 @@ pub const MainEditor = struct {
             @intFromFloat(content_rect.width),
             @intFromFloat(scene_height),
         );
-        self.rendering_system.beginRendering();
+        // self.rendering_system.beginRendering();
         raylib.clearBackground(raylib.Color{ .r = 25, .g = 25, .b = 35, .a = 255 });
         self.scene_system.render();
         self.drawGrid();
-        self.rendering_system.endRendering();
+        // self.rendering_system.endRendering();
         raylib.endScissorMode();
         raylib.beginScissorMode(
             @intFromFloat(content_rect.x),
@@ -808,7 +810,9 @@ pub const MainEditor = struct {
         const play_color = if (self.animation_playback) raylib.Color.green else raylib.Color.gray;
         raylib.drawRectangle(@intFromFloat(width - 60), 5, 25, 20, play_color);
         const play_text = if (self.animation_playback) "PAUSE" else "PLAY";
-        raylib.drawText(play_text.ptr, @intFromFloat(width - 50), 8, 14, raylib.Color.white);
+        var play_buf: [32:0]u8 = undefined;
+        const play_text_z = std.fmt.bufPrintZ(&play_buf, "{s}", .{play_text}) catch "Play";
+        raylib.drawText(play_text_z, @intFromFloat(width - 50), 8, 14, raylib.Color.white);
 
         const total_duration = self.keyframe_system.timeline.total_duration;
         if (total_duration > 0) {
@@ -826,7 +830,9 @@ pub const MainEditor = struct {
             raylib.drawRectangle(0, @intFromFloat(track_y), @intFromFloat(width), 25, raylib.Color{ .r = 40, .g = 40, .b = 50, .a = 255 });
             var buf: [64]u8 = undefined;
             const track_name = std.fmt.bufPrint(&buf, "{s}", .{track.name}) catch "Track";
-            raylib.drawText(track_name.ptr, 10, @intFromFloat(track_y + 5), 12, raylib.Color.white);
+            var track_name_buf: [128:0]u8 = undefined;
+            const track_name_z = std.fmt.bufPrintZ(&track_name_buf, "{s}", .{track_name}) catch "Track";
+            raylib.drawText(track_name_z, 10, @intFromFloat(track_y + 5), 12, raylib.Color.white);
             if (total_duration > 0) {
                 for (track.keyframes.items) |keyframe_| {
                     const key_x = (keyframe_.time / total_duration) * (width - 100) + 50;
@@ -881,7 +887,9 @@ pub const MainEditor = struct {
         const fps = raylib.getFPS();
         var buf: [128]u8 = undefined;
         const perf_text = std.fmt.bufPrint(&buf, "FPS: {}", .{fps}) catch "Performance";
-        raylib.drawText(perf_text.ptr, @intFromFloat(self.screen_width - 200), 10, 14, raylib.Color.yellow);
+        var perf_text_buf: [128:0]u8 = undefined;
+        const perf_text_z = std.fmt.bufPrintZ(&perf_text_buf, "{s}", .{perf_text}) catch "Stats";
+        raylib.drawText(perf_text_z, @intFromFloat(self.screen_width - 200), 10, 14, raylib.Color.yellow);
     }
     fn syncECSToScene(self: *MainEditor) !void {
         var query = self.world.createQuery();
@@ -968,8 +976,8 @@ pub const MainEditor = struct {
         render_q.updateMatches(self.world.archetypes.items);
         var iter = render_q.iter();
         while (iter.next()) |data| {
-            const transform = data.get(ecs.Transform).?;
-            const renderable = data.get(ecs.Renderable).?;
+            const transform = data.get(ecs.component.Transform).?;
+            const renderable = data.get(ecs.component.Renderable).?;
             if (!renderable.visible) continue;
             const pos = raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z };
             const scale = raylib.Vector3{ .x = transform.scale.x, .y = transform.scale.y, .z = transform.scale.z };
@@ -982,13 +990,13 @@ pub const MainEditor = struct {
     fn renderDebugColliders(self: *MainEditor) !void {
         var query = self.world.createQuery();
         defer query.deinit();
-        var collider_query = try (try (try query.with(ecs.component.Transform)).with(ecs.Collider)).build();
+        var collider_query = try (try (try query.with(ecs.component.Transform)).with(ecs.component.Collider)).build();
         defer collider_query.deinit();
         collider_query.updateMatches(self.world.archetypes.items);
         var iter = collider_query.iter();
         while (iter.next()) |data| {
-            const transform = data.get(ecs.Transform).?;
-            const collider = data.get(ecs.Collider).?;
+            const transform = data.get(ecs.component.Transform).?;
+            const collider = data.get(ecs.component.Collider).?;
             const pos = raylib.Vector3{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z };
 
             switch (collider.*) {

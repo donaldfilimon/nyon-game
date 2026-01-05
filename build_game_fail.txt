@@ -1,0 +1,7 @@
+[DEBUG build_start] Build function started (session: A)
+[DEBUG target_optimize_setup] Target and optimize options set (session: A)
+[DEBUG build_complete] Build function completed successfully (session: A)
+no step named 'nyon_game'
+  access the help menu with 'zig build -h'
+error: the following build command failed with exit code 1:
+.zig-cache\o\f7f6a1729a737f5136ee4a94f229b372\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0xa8cff563 -Z331653d2b634db5a nyon_game

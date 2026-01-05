@@ -267,7 +267,9 @@ pub const DockingSystem = struct {
             };
             raylib.drawRectangleRec(header_rect, raylib.Color{ .r = 60, .g = 60, .b = 80, .a = 255 });
             raylib.drawRectangleLinesEx(header_rect, 1, raylib.Color.white);
-            raylib.drawText(panel.title, @intFromFloat(panel.rect.x + 5), @intFromFloat(panel.rect.y - 20), 16, raylib.Color.white);
+            var title_buf: [128:0]u8 = undefined;
+            const title_z = std.fmt.bufPrintZ(&title_buf, "{s}", .{panel.title}) catch "Panel";
+            raylib.drawText(title_z, @intFromFloat(panel.rect.x + 5), @intFromFloat(panel.rect.y - 20), 16, raylib.Color.white);
 
             // Render panel content
             if (panel.content_callback) |callback| {

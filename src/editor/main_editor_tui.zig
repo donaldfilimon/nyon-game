@@ -29,7 +29,9 @@ pub fn render(editor: anytype, content_rect: raylib.Rectangle) void {
     else
         0;
     for (editor.tui_output_lines.items[start_line..]) |line| {
-        raylib.drawText(line, @intFromFloat(content_rect.x + 10), @intFromFloat(y), 16, raylib.Color.white);
+        var line_buf: [256:0]u8 = undefined;
+        const line_z = std.fmt.bufPrintZ(&line_buf, "{s}", .{line}) catch "";
+        raylib.drawText(line_z, @intFromFloat(content_rect.x + 10), @intFromFloat(y), 16, raylib.Color.white);
         y += line_height;
         if (y > content_rect.y + content_rect.height - 60) break;
     }

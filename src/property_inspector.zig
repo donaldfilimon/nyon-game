@@ -85,8 +85,8 @@ pub const PropertyInspector = struct {
 
         if (self.selected_object) |object| {
             switch (object) {
-                .scene_node => |node_id| {
-                    y_offset = self.renderSceneNodeProperties(node_id, content_rect.x, y_offset, content_rect.width);
+                .scene_node => |_| {
+                    y_offset = self.renderSceneNodeProperties(content_rect.x, y_offset, content_rect.width);
                 },
                 .ecs_entity => |entity_id| {
                     y_offset = self.renderECSEntityProperties(entity_id, content_rect.x, y_offset, content_rect.width);
@@ -151,34 +151,35 @@ pub const PropertyInspector = struct {
         current_y = self.drawPropertyHeader(id_str, x, current_y, width);
 
         if (self.ecs_world) |world| {
-            const entity = @as(u32, @intCast(entity_id));
-
+            const eid = @import("ecs/entity.zig").EntityId{ .id = @as(u32, @intCast(entity_id)), .generation = 0 };
             // Transform component
-            if (world.getComponent(entity, @import("ecs/component.zig").Transform)) |transform| {
+            if (world.getComponent(eid, @import("ecs/component.zig").Transform)) |transform| {
                 current_y = self.drawPropertyHeader("Transform", x, current_y, width);
                 current_y = self.drawVector3Property("Position", .{ .x = transform.position.x, .y = transform.position.y, .z = transform.position.z }, x, current_y, width);
                 current_y = self.drawVector3Property("Scale", .{ .x = transform.scale.x, .y = transform.scale.y, .z = transform.scale.z }, x, current_y, width);
             }
 
             // RigidBody component
-            if (world.getComponent(entity, @import("ecs/component.zig").RigidBody)) |rigid_body| {
+            if (world.getComponent(eid, @import("ecs/component.zig").RigidBody)) |rigid_body| {
                 current_y = self.drawPropertyHeader("RigidBody", x, current_y, width);
-                const mass_str = std.fmt.allocPrintZ(self.allocator, "{d:.2}", .{rigid_body.mass}) catch "0.00";
-                defer self.allocator.free(mass_str);
-                current_y = self.drawPropertyHeader(std.fmt.comptimePrint("Mass: {s}", .{mass_str}), x, current_y, width);
+                var mass_buf: [64:0]u8 = undefined;
+                const mass_str = std.fmt.bufPrintZ(&mass_buf, "Mass: {d:.2}", .{rigid_body.mass}) catch "Mass: 0.00";
+                current_y = self.drawPropertyHeader(mass_str, x, current_y, width);
                 const is_kinematic = if (rigid_body.is_kinematic) "Kinematic" else "Dynamic";
                 current_y = self.drawPropertyHeader(is_kinematic, x, current_y, width);
             }
 
             // Collider component
-            if (world.getComponent(entity, @import("ecs/component.zig").Collider)) |collider| {
+            if (world.getComponent(eid, @import("ecs/component.zig").Collider)) |collider| {
                 current_y = self.drawPropertyHeader("Collider", x, current_y, width);
                 const collider_type = @tagName(collider.*);
-                current_y = self.drawPropertyHeader(std.fmt.comptimePrint("Type: {s}", .{collider_type}), x, current_y, width);
+                var type_buf: [32]u8 = undefined;
+                const type_str = std.fmt.bufPrintZ(&type_buf, "Type: {s}", .{collider_type}) catch "Type: ?";
+                current_y = self.drawPropertyHeader(type_str, x, current_y, width);
             }
 
             // Renderable component
-            if (world.getComponent(entity, @import("ecs/component.zig").Renderable)) |renderable| {
+            if (world.getComponent(eid, @import("ecs/component.zig").Renderable)) |renderable| {
                 current_y = self.drawPropertyHeader("Renderable", x, current_y, width);
                 const visible_str = if (renderable.visible) "Visible" else "Hidden";
                 current_y = self.drawPropertyHeader(visible_str, x, current_y, width);
@@ -261,7 +262,7 @@ pub const PropertyInspector = struct {
             if (self.drawEnumProperty("Active Effect", effect_name, x, current_y, width)) {
                 // Cycle effect
                 const current_val = @intFromEnum(active_effect);
-                const next_val = (current_val + 1) % (@typeInfo(@import("post_processing.zig").PostProcessingSystem.EffectType).Enum.fields.len);
+                const next_val = (current_val + 1) % (@typeInfo(@import("post_processing.zig").PostProcessingSystem.EffectType).@"enum".fields.len);
                 ps.active_effect = @enumFromInt(@as(u3, @intCast(next_val)));
             }
         }
@@ -289,7 +290,7 @@ pub const PropertyInspector = struct {
         raylib.drawRectangleLinesEx(value_rect, 1, raylib.Color{ .r = 100, .g = 100, .b = 120, .a = 255 });
 
         // Value text
-        raylib.drawText(value.ptr, @intFromFloat(value_rect.x + 5), @intFromFloat(value_rect.y + 2), 12, raylib.Color.white);
+        raylib.drawText(value, @intFromFloat(value_rect.x + 5), @intFromFloat(value_rect.y + 2), 12, raylib.Color.white);
 
         return is_hovered and raylib.isMouseButtonPressed(.left);
     }
@@ -305,12 +306,14 @@ pub const PropertyInspector = struct {
             .height = 25,
         };
         raylib.drawRectangleRec(header_rect, raylib.Color{ .r = 50, .g = 50, .b = 70, .a = 255 });
-        raylib.drawText(title, @intFromFloat(x + 5), @intFromFloat(y + 5), 14, raylib.Color.white);
+        var title_buf: [128:0]u8 = undefined;
+        const title_z = std.fmt.bufPrintZ(&title_buf, "{s}", .{title}) catch "";
+        raylib.drawText(title_z, @intFromFloat(x + 5), @intFromFloat(y + 5), 14, raylib.Color.white);
 
         return y + 30;
     }
 
-    fn drawFloatProperty(_: *PropertyInspector, name: []const u8, x: f32, y: f32, width: f32) f32 {
+    fn drawFloatProperty(_: *PropertyInspector, name: []const u8, value: f32, x: f32, y: f32, width: f32) f32 {
 
         // Label
         raylib.drawText(name, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);
@@ -327,39 +330,44 @@ pub const PropertyInspector = struct {
 
         // Value text
         // Note: This would need a proper allocator reference
-        const value_text = "2.00"; // placeholder
+        var val_buf: [32:0]u8 = undefined;
+        const value_text = std.fmt.bufPrintZ(&val_buf, "{d:.2}", .{value}) catch "0.00";
         raylib.drawText(value_text, @intFromFloat(value_rect.x + 5), @intFromFloat(value_rect.y + 2), 12, raylib.Color.white);
 
         return y + 25;
     }
 
     fn drawVector3Property(self: *PropertyInspector, name: []const u8, value: raylib.Vector3, x: f32, y: f32, width: f32) f32 {
-
+        _ = self;
+        _ = self;
+        _ = self;
+        var name_buf: [128:0]u8 = undefined;
+        const name_z = std.fmt.bufPrintZ(&name_buf, "{s}", .{name}) catch "";
         // Label
-        raylib.drawText(name, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);
+        raylib.drawText(name_z, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);
 
         // X component
         const x_rect = raylib.Rectangle{ .x = x + width - 180, .y = y + 2, .width = 50, .height = 18 };
         raylib.drawRectangleRec(x_rect, raylib.Color{ .r = 80, .g = 40, .b = 40, .a = 255 });
         raylib.drawText("X", @intFromFloat(x_rect.x + 2), @intFromFloat(x_rect.y + 2), 10, raylib.Color.white);
-        const x_text = std.fmt.allocPrintZ(self.allocator, "{d:.1}", .{value.x}) catch "0.0";
-        defer self.allocator.free(x_text);
+        var x_val_buf: [32:0]u8 = undefined;
+        const x_text = std.fmt.bufPrintZ(&x_val_buf, "{d:.1}", .{value.x}) catch "0.0";
         raylib.drawText(x_text, @intFromFloat(x_rect.x + 15), @intFromFloat(x_rect.y + 2), 10, raylib.Color.white);
 
         // Y component
         const y_rect = raylib.Rectangle{ .x = x + width - 125, .y = y + 2, .width = 50, .height = 18 };
         raylib.drawRectangleRec(y_rect, raylib.Color{ .r = 40, .g = 80, .b = 40, .a = 255 });
         raylib.drawText("Y", @intFromFloat(y_rect.x + 2), @intFromFloat(y_rect.y + 2), 10, raylib.Color.white);
-        const y_text = std.fmt.allocPrintZ(self.allocator, "{d:.1}", .{value.y}) catch "0.0";
-        defer self.allocator.free(y_text);
+        var y_val_buf: [32:0]u8 = undefined;
+        const y_text = std.fmt.bufPrintZ(&y_val_buf, "{d:.1}", .{value.y}) catch "0.0";
         raylib.drawText(y_text, @intFromFloat(y_rect.x + 15), @intFromFloat(y_rect.y + 2), 10, raylib.Color.white);
 
         // Z component
         const z_rect = raylib.Rectangle{ .x = x + width - 70, .y = y + 2, .width = 50, .height = 18 };
         raylib.drawRectangleRec(z_rect, raylib.Color{ .r = 40, .g = 40, .b = 80, .a = 255 });
         raylib.drawText("Z", @intFromFloat(z_rect.x + 2), @intFromFloat(z_rect.y + 2), 10, raylib.Color.white);
-        const z_text = std.fmt.allocPrintZ(self.allocator, "{d:.1}", .{value.z}) catch "0.0";
-        defer self.allocator.free(z_text);
+        var z_val_buf: [32:0]u8 = undefined;
+        const z_text = std.fmt.bufPrintZ(&z_val_buf, "{d:.1}", .{value.z}) catch "0.0";
         raylib.drawText(z_text, @intFromFloat(z_rect.x + 15), @intFromFloat(z_rect.y + 2), 10, raylib.Color.white);
 
         return y + 25;
@@ -368,7 +376,9 @@ pub const PropertyInspector = struct {
     fn drawColorProperty(_: *PropertyInspector, name: []const u8, value: raylib.Color, x: f32, y: f32, width: f32) f32 {
 
         // Label
-        raylib.drawText(name, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);
+        var name_buf: [128:0]u8 = undefined;
+        const name_z = std.fmt.bufPrintZ(&name_buf, "{s}", .{name}) catch "";
+        raylib.drawText(name_z, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);
 
         // Color swatch
         const color_rect = raylib.Rectangle{
