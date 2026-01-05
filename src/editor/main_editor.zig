@@ -580,7 +580,7 @@ pub const MainEditor = struct {
             const movement = self.getKeyboardMovement();
             if (movement.x != 0 or movement.y != 0 or movement.z != 0) {
                 if (self.scene_index_to_entity.get(obj_id)) |entity_id| {
-                    if (self.world.getComponent(@as(u32, @intCast(entity_id)), ecs.Transform)) |transform| {
+                    if (self.world.getComponent(entity_id, ecs.component.Transform)) |transform| {
                         transform.position.x += movement.x;
                         transform.position.y += movement.y;
                         transform.position.z += movement.z;

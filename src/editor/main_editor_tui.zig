@@ -50,9 +50,9 @@ pub fn handleInput(editor: anytype) void {
     const char = raylib.getCharPressed();
     if (char != 0) {
         if (editor.tui_cursor_pos < editor.tui_command_buffer.items.len)
-            editor.tui_command_buffer.insert(editor.tui_cursor_pos, @as(u8, @intCast(char))) catch return
+            editor.tui_command_buffer.insert(editor.allocator, editor.tui_cursor_pos, @as(u8, @intCast(char))) catch return
         else
-            editor.tui_command_buffer.append(@as(u8, @intCast(char))) catch return;
+            editor.tui_command_buffer.append(editor.allocator, @as(u8, @intCast(char))) catch return;
         editor.tui_cursor_pos += 1;
     }
     if (raylib.isKeyPressed(.backspace)) {
@@ -69,7 +69,7 @@ pub fn handleInput(editor: anytype) void {
             editor.tui_history_index += 1;
             const history_cmd = editor.tui_command_history.items[editor.tui_command_history.items.len - 1 - @as(usize, @intCast(editor.tui_history_index))];
             editor.tui_command_buffer.clearRetainingCapacity();
-            editor.tui_command_buffer.appendSlice(history_cmd) catch return;
+            editor.tui_command_buffer.appendSlice(editor.allocator, history_cmd) catch return;
             editor.tui_cursor_pos = history_cmd.len;
         }
     }
@@ -78,7 +78,7 @@ pub fn handleInput(editor: anytype) void {
             editor.tui_history_index -= 1;
             const history_cmd = editor.tui_command_history.items[editor.tui_command_history.items.len - 1 - @as(usize, @intCast(editor.tui_history_index))];
             editor.tui_command_buffer.clearRetainingCapacity();
-            editor.tui_command_buffer.appendSlice(history_cmd) catch return;
+            editor.tui_command_buffer.appendSlice(editor.allocator, history_cmd) catch return;
             editor.tui_cursor_pos = history_cmd.len;
         } else if (editor.tui_history_index == 0) {
             editor.tui_history_index = -1;
@@ -99,17 +99,17 @@ fn executeCommand(editor: anytype) void {
     const command = editor.tui_command_buffer.items;
     if (command.len == 0) return;
     const cmd_copy = editor.allocator.dupe(u8, command) catch return;
-    editor.tui_command_history.append(cmd_copy) catch {
+    editor.tui_command_history.append(editor.allocator, cmd_copy) catch {
         editor.allocator.free(cmd_copy);
         return;
     };
 
     var output_line = std.ArrayList(u8).initCapacity(editor.allocator, command.len + 3) catch return;
-    defer output_line.deinit();
-    output_line.appendSlice("> ") catch return;
-    output_line.appendSlice(command) catch return;
+    defer output_line.deinit(editor.allocator);
+    output_line.appendSlice(editor.allocator, "> ") catch return;
+    output_line.appendSlice(editor.allocator, command) catch return;
     const output_cmd = output_line.toOwnedSlice() catch return;
-    editor.tui_output_lines.append(output_cmd) catch {
+    editor.tui_output_lines.append(editor.allocator, output_cmd) catch {
         editor.allocator.free(output_cmd);
     };
 

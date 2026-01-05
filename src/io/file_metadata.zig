@@ -69,7 +69,7 @@ pub fn get(path: []const u8) GetError!FileMetadata {
         };
     }
 
-    const file = std.fs.cwd().openFile(path, .{}) catch |err| {
+    const file = std.Io.Dir.cwd().openFile(path, .{}) catch |err| {
         return mapOpenError(err);
     };
     defer file.close();

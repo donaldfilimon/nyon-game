@@ -242,16 +242,21 @@ pub const UiConfig = struct {
     }
 
     pub fn save(self: *const UiConfig, allocator: std.mem.Allocator, path: []const u8) !void {
-        var list = try std.ArrayList(u8).initCapacity(allocator, 4096);
-        defer list.deinit();
-
-        try std.json.stringify(self.*, .{ .whitespace = .indent_2 }, list.writer());
-        try list.append(0); // Null terminator
+        var out: std.Io.Writer.Allocating = .init(allocator);
+        defer out.deinit();
+        var write_stream: std.json.Stringify = .{
+            .writer = &out.writer,
+            .options = .{ .whitespace = .indent_2 },
+        };
+        try write_stream.write(self.*);
 
         const path_z = try allocator.dupeZ(u8, path);
         defer allocator.free(path_z);
 
-        if (!raylib.saveFileText(path_z, @ptrCast(list.items.ptr))) {
+        const json_z = try allocator.dupeZ(u8, out.written());
+        defer allocator.free(json_z);
+
+        if (!raylib.saveFileText(path_z, json_z)) {
             return error.AccessDenied;
         }
     }
@@ -332,8 +337,8 @@ pub const UiContext = struct {
         const radius = self.style.corner_radius;
         const bg_color = if (highlight) self.style.accent else self.style.panel_bg;
 
-        Shapes.drawRectangleRounded(rect, radius / std.math.min(rect.width, rect.height), 8, bg_color);
-        Shapes.drawRectangleRoundedLinesEx(rect, radius / std.math.min(rect.width, rect.height), 8, self.style.border_width, self.style.panel_border);
+        Shapes.drawRectangleRounded(rect, radius / @min(rect.width, rect.height), 8, bg_color);
+        Shapes.drawRectangleRoundedLinesEx(rect, radius / @min(rect.width, rect.height), 8, self.style.border_width, self.style.panel_border);
 
         const title_color = if (highlight) self.style.accent_hover else self.style.text;
         const title_y: i32 = @as(i32, @intFromFloat(rect.y)) + @divTrunc(self.style.padding, 2);
@@ -412,7 +417,7 @@ pub const UiContext = struct {
 
         const handle_color = if (hovered or self.active_id == id) self.style.accent_hover else self.style.accent;
         Shapes.drawRectangleRec(handle_rect, handle_color);
-        Shapes.drawRectangleLinesEx(handle_rect, self.style.border_width, self.style.panel_border);
+        Shapes.drawRectangleLinesEx(handle_rect, @intFromFloat(self.style.border_width), self.style.panel_border);
         return changed;
     }
 

@@ -368,22 +368,26 @@ pub const UndoRedoSystem = struct {
 
     /// Undo the last command
     pub fn undo(self: *UndoRedoSystem) !bool {
-        const command = self.undo_stack.popOrNull() orelse return false;
-        try command.undo();
+        if (self.undo_stack.items.len == 0) return false;
+        const command = self.undo_stack.pop();
+        const cmd = command orelse return false;
+        try cmd.vtable.undo(cmd.impl_ptr);
 
         // Move to redo stack
-        try self.redo_stack.append(self.allocator, command);
+        try self.redo_stack.append(self.allocator, cmd);
 
         return true;
     }
 
     /// Redo the last undone command
     pub fn redo(self: *UndoRedoSystem) !bool {
-        const command = self.redo_stack.popOrNull() orelse return false;
-        try command.execute();
+        if (self.redo_stack.items.len == 0) return false;
+        const command = self.redo_stack.pop();
+        const cmd = command.?;
+        try cmd.vtable.execute(cmd.impl_ptr);
 
         // Move back to undo stack
-        try self.undo_stack.append(self.allocator, command);
+        try self.undo_stack.append(self.allocator, cmd);
 
         return true;
     }

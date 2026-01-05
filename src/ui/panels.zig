@@ -106,7 +106,7 @@ pub fn detectDockPosition(
     mouse_x: f32,
     mouse_y: f32,
     target_rect: Rectangle,
-    _: struct { x: f32, y: f32 },
+    _: DockThreshold,
 ) ?DockPosition {
     const tx = target_rect.x + target_rect.width / 2.0;
     const ty = target_rect.y + target_rect.height / 2.0;

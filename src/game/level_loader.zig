@@ -95,14 +95,14 @@ pub fn saveLevel(game_state: *const state_mod.GameState, path: [:0]const u8, all
     try json_string.print(allocator, "  ]\n", .{});
     try json_string.print(allocator, "}}\n", .{});
 
-    const file = try std.fs.cwd().createFile(path, .{});
+    const file = try std.Io.Dir.cwd().createFile(path, .{});
     defer file.close();
 
     try file.writeAll(json_string.items);
 }
 
 pub fn loadLevel(path: [:0]const u8, allocator: std.mem.Allocator) !LevelData {
-    const file = try std.fs.cwd().openFile(path, .{});
+    const file = try std.Io.Dir.cwd().openFile(path, .{});
     defer file.close();
 
     const file_size = try file.getEndPos();

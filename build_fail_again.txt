@@ -1,0 +1,98 @@
+[DEBUG build_start] Build function started (session: A)
+[DEBUG target_optimize_setup] Target and optimize options set (session: A)
+[DEBUG build_complete] Build function completed successfully (session: A)
+install
++- install nyon_game
+   +- compile exe nyon_game Debug native 6 errors
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\Io\Writer.zig:1792:5: error: invalid format string 's' for type 'comptime_int'
+    @compileError("invalid format string '" ++ fmt ++ "' for type '" ++ @typeName(@TypeOf(value)) ++ "'");
+    ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+referenced by:
+    printValue__anon_58423: C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\Io\Writer.zig:1151:40
+    print__anon_55309: C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\Io\Writer.zig:703:25
+    9 reference(s) hidden; use '-freference-trace=11' to see all references
+src\application.zig:95:27: error: member function expected 2 argument(s), found 1
+                    errors.appendSlice("World metadata update failed. ") catch {};
+                    ~~~~~~^~~~~~~~~~~~
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\array_list.zig:973:13: note: function declared here
+        pub fn appendSlice(self: *Self, gpa: Allocator, items: []const T) Allocator.Error!void {
+        ~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\engine.zig:1023:33: error: root source file struct 'raylib_stub' has no member named 'getRayCollisionBox'
+    pub const getRayBox = raylib.getRayCollisionBox;
+                          ~~~~~~^~~~~~~~~~~~~~~~~~~
+src\raylib_stub.zig:1:1: note: struct declared here
+const std = @import("std");
+^~~~~
+src\game\sandbox.zig:431:89: error: expected type 'raylib_stub.Color', found 'type'
+        engine.Shapes.drawPlane(vec3(0.0, 0.0, 0.0), Vector2{ .x = 100.0, .y = 100.0 }, COLOR_GROUND);
+                                                                                        ^~~~~~~~~~~~
+src\raylib_stub.zig:19:26: note: struct declared here
+pub const Color = extern struct {
+                  ~~~~~~~^~~~~~
+src\raylib_stub.zig:411:67: note: parameter type declared here
+pub extern fn drawPlane(centerPos: Vector3, size: Vector2, color: Color) void;
+                                                                  ^~~~~
+src\ui\panels.zig:58:34: error: root source file struct 'math' has no member named 'max'
+            const half = std.math.max(MIN_PANEL_WIDTH, target_rect.width / 2.0);
+                         ~~~~~~~~^~~~
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\math.zig:1:1: note: struct declared here
+const builtin = @import("builtin");
+^~~~~
+src\ui\widgets.zig:97:62: error: root source file struct 'math' has no member named 'min'
+    Shapes.drawRectangleRoundedLinesEx(box, radius / std.math.min(box.width, box.height), 4, ctx.style.border_width, ctx.style.panel_border);
+                                                     ~~~~~~~~^~~~
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\math.zig:1:1: note: struct declared here
+const builtin = @import("builtin");
+^~~~~
+error: 6 compilation errors
+failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\main.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_game --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\lib\\" --listen=-
+
+install
++- install nyon_editor
+   +- compile exe nyon_editor Debug native 5 errors
+src\editor\main_editor.zig:277:32: error: no field or member function named 'updateCameras' in 'performance.PerformanceSystem'
+        self.performance_system.updateCameras(dt);
+        ~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~
+src\performance.zig:10:31: note: struct declared here
+pub const PerformanceSystem = struct {
+                              ^~~~~~
+referenced by:
+    main: src\editor.zig:55:26
+    callMain [inlined]: C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\start.zig:724:37
+    callMainWithArgs [inlined]: C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\start.zig:679:20
+    main: C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\start.zig:694:28
+    1 reference(s) hidden; use '-freference-trace=5' to see all references
+src\editor\main_editor.zig:884:36: error: root source file struct 'ecs.ecs' has no member named 'Transform'
+        var sync_q = query.with(ecs.Transform).build() catch return;
+                                ~~~^~~~~~~~~~
+src\ecs\ecs.zig:1:1: note: struct declared here
+//! Entity Component System (ECS) - Main module re-export
+^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\editor\main_editor.zig:903:36: error: root source file struct 'ecs.ecs' has no member named 'Transform'
+        var sync_q = query.with(ecs.Transform).build() catch return;
+                                ~~~^~~~~~~~~~
+src\ecs\ecs.zig:1:1: note: struct declared here
+//! Entity Component System (ECS) - Main module re-export
+^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\editor\main_editor_tui.zig:111:35: error: member function expected 1 argument(s), found 0
+    const output_cmd = output_line.toOwnedSlice() catch return;
+                       ~~~~~~~~~~~^~~~~~~~~~~~~
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib\std\array_list.zig:655:13: note: function declared here
+        pub fn toOwnedSlice(self: *Self, gpa: Allocator) Allocator.Error!Slice {
+        ~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\game\audio_system.zig:22:13: error: no field or member function named 'with' in '@typeInfo(@typeInfo(@TypeOf(ecs.query.QueryBuilder.with__anon_57012)).@"fn".return_type.?).error_union.error_set!*ecs.query.QueryBuilder'
+            .with(components.Position)
+            ^~~~~
+src\game\audio_system.zig:22:13: note: consider using 'try', 'catch', or 'if'
+error: 5 compilation errors
+failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\editor.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_editor --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1892+53ebfde6b\\lib\\" --listen=-
+
+Build Summary: 0/5 steps succeeded (2 failed)
+install transitive failure
++- install nyon_game transitive failure
+|  +- compile exe nyon_game Debug native 6 errors
++- install nyon_editor transitive failure
+   +- compile exe nyon_editor Debug native 5 errors
+
+error: the following build command failed with exit code 1:
+.zig-cache\o\92f2af8c2753723feeadd90abb19e800\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0xb8b572ab -Z58ade85e73577a5b

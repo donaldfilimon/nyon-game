@@ -60,7 +60,7 @@ pub fn button(
 
     const bg = if (hovered) ctx.style.accent_hover else ctx.style.accent;
     Shapes.drawRectangleRec(rect, bg);
-    Shapes.drawRectangleLinesEx(rect, ctx.style.border_width, ctx.style.panel_border);
+    Shapes.drawRectangleLinesEx(rect, @intFromFloat(ctx.style.border_width), ctx.style.panel_border);
 
     const text_w = Text.measure(label_text, ctx.style.small_font_size);
     const tx: i32 = @intFromFloat(rect.x + (rect.width - @as(f32, @floatFromInt(text_w))) / 2.0);
@@ -93,7 +93,7 @@ pub fn checkbox(
     const radius = ctx.style.corner_radius * 0.5;
     const bg_color = if (value.*) ctx.style.accent else ctx.style.panel_bg;
 
-    Shapes.drawRectangleRounded(box, radius / std.math.min(box.width, box.height), 4, bg_color);
+    Shapes.drawRectangleRounded(box, radius / @min(box.width, box.height), 4, bg_color);
     Shapes.drawRectangleRoundedLinesEx(box, radius / std.math.min(box.width, box.height), 4, ctx.style.border_width, ctx.style.panel_border);
     if (value.*) {
         const mark = Rectangle{

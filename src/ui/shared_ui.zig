@@ -127,7 +127,7 @@ pub fn drawSettingsPanel(
     if (ui_state.ctx.sliderFloat(opacity_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Panel Opacity", &opacity_f, 60.0, 255.0)) {
         const rounded = std.math.round(opacity_f);
         const clamped = if (rounded < 0.0) 0.0 else if (rounded > 255.0) 255.0 else rounded;
-        ui_state.config.opacity = common.Cast.toInt(i32, clamped);
+        ui_state.config.opacity = @intFromFloat(clamped);
         ui_state.dirty = true;
     }
     y += row_h + 18;
@@ -273,10 +273,11 @@ pub fn drawStatusMessage(status: *const StatusMessage, screen_width: f32) void {
     const text_x: i32 = common.Cast.toInt(i32, (screen_width - common.Cast.toFloat(f32, text_width)) / 2.0);
 
     const alpha_byte = status.alphaU8();
+    const status_color_def = config.Colors.STATUS_MESSAGE{};
     const message_color = engine.Color{
-        .r = config.Colors.STATUS_MESSAGE{}.r,
-        .g = config.Colors.STATUS_MESSAGE{}.g,
-        .b = config.Colors.STATUS_MESSAGE{}.b,
+        .r = status_color_def.r,
+        .g = status_color_def.g,
+        .b = status_color_def.b,
         .a = alpha_byte,
     };
 
@@ -314,7 +315,7 @@ pub fn applyDocking(ui_state: *GameUiState, status_message: *StatusMessage) void
     const over_target = mouse.x >= target_rect.x and mouse.y >= target_rect.y and mouse.x <= target_rect.x + target_rect.width and mouse.y <= target_rect.y + target_rect.height;
     if (!over_target) return;
 
-    const position = panels.detectDockPosition(mouse.x, mouse.y, target_rect, .{}) orelse return;
+    const position = panels.detectDockPosition(mouse.x, mouse.y, target_rect, panels.DockThreshold{}) orelse return;
 
     panels.splitDockPanels(moving.?, target.?, position);
     ui_state.dirty = true;

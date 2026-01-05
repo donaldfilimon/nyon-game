@@ -96,6 +96,15 @@ pub const Quaternion = struct {
         return .{ .x = 0, .y = 0, .z = 0, .w = 1 };
     }
 
+    pub fn normalize(q: Quaternion) Quaternion {
+        const len = @sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+        if (len > 0) {
+            const inv = 1.0 / len;
+            return .{ .x = q.x * inv, .y = q.y * inv, .z = q.z * inv, .w = q.w * inv };
+        }
+        return identity();
+    }
+
     pub fn fromEuler(pitch: f32, yaw: f32, roll: f32) Quaternion {
         const cr = @cos(roll * 0.5);
         const sr = @sin(roll * 0.5);

@@ -13,8 +13,8 @@ pub const defaultUiScaleFromDpi = game_ui_mod.defaultUiScaleFromDpi;
 
 const shared_ui = @import("shared_ui.zig");
 
-const COLOR_TEXT_GRAY = engine.Color{ .r = config.Colors.TEXT_MUTED.r, .g = config.Colors.TEXT_MUTED.g, .b = config.Colors.TEXT_MUTED.b, .a = config.Colors.TEXT_MUTED.a };
-const COLOR_CROSSHAIR = engine.Color{ .r = config.Colors.CROSSHAIR.r, .g = config.Colors.CROSSHAIR.g, .b = config.Colors.CROSSHAIR.b, .a = config.Colors.CROSSHAIR.a };
+const COLOR_TEXT_GRAY = engine.Color{ .r = (config.Colors.TEXT_MUTED{}).r, .g = (config.Colors.TEXT_MUTED{}).g, .b = (config.Colors.TEXT_MUTED{}).b, .a = (config.Colors.TEXT_MUTED{}).a };
+const COLOR_CROSSHAIR = engine.Color{ .r = (config.Colors.CROSSHAIR{}).r, .g = (config.Colors.CROSSHAIR{}).g, .b = (config.Colors.CROSSHAIR{}).b, .a = (config.Colors.CROSSHAIR{}).a };
 
 fn drawHudPanel(
     sandbox_state: *const sandbox_mod.SandboxState,

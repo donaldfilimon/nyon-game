@@ -23,7 +23,7 @@ pub const JsonSerializer = struct {
         const json = try self.serialize(value);
         defer self.allocator.free(json);
 
-        const file = try std.fs.cwd().createFile(path, .{}) catch {
+        const file = try std.Io.Dir.cwd().createFile(path, .{}) catch {
             return error.FileCreationFailed;
         };
         defer file.close();
@@ -32,7 +32,7 @@ pub const JsonSerializer = struct {
     }
 
     pub fn deserializeFromFile(self: *const JsonSerializer, comptime T: type, path: []const u8) !T {
-        const file = try std.fs.cwd().openFile(path, .{}) catch {
+        const file = try std.Io.Dir.cwd().openFile(path, .{}) catch {
             return error.FileNotFound;
         };
         defer file.close();
@@ -122,7 +122,7 @@ pub const SaveManager = struct {
 
     pub fn init(allocator: std.mem.Allocator, saves_dir: []const u8) !SaveManager {
         const dir = try allocator.dupe(u8, saves_dir);
-        try std.fs.cwd().makePath(dir);
+        try std.Io.Dir.cwd().makePath(dir);
         return SaveManager{
             .allocator = allocator,
             .saves_dir = dir,
@@ -137,7 +137,7 @@ pub const SaveManager = struct {
         var path: [std.fs.MAX_PATH_BYTES]u8 = undefined;
         const full_path = try std.fs.path.join(&path, &[_][]const u8{ self.saves_dir, name });
 
-        const file = try std.fs.cwd().createFile(full_path, .{}) catch {
+        const file = try std.Io.Dir.cwd().createFile(full_path, .{}) catch {
             return error.FileCreationFailed;
         };
         defer file.close();
@@ -157,7 +157,7 @@ pub const SaveManager = struct {
         var path: [std.fs.MAX_PATH_BYTES]u8 = undefined;
         const full_path = try std.fs.path.join(&path, &[_][]const u8{ self.saves_dir, name });
 
-        const file = try std.fs.cwd().openFile(full_path, .{}) catch {
+        const file = try std.Io.Dir.cwd().openFile(full_path, .{}) catch {
             return error.FileNotFound;
         };
         defer file.close();
@@ -187,7 +187,7 @@ pub const SaveManager = struct {
         var result = std.ArrayList([]const u8).init(allocator);
         errdefer result.deinit();
 
-        const dir = try std.fs.cwd().openDir(self.saves_dir, .{});
+        const dir = try std.Io.Dir.cwd().openDir(self.saves_dir, .{});
         defer dir.close();
 
         var iter = dir.iterate();

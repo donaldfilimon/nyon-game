@@ -39,7 +39,7 @@ pub fn saveProject(project: Project, path: []const u8, a: std.mem.Allocator) !vo
         .{ project.name, project.root, project.version },
     );
     defer a.free(content);
-    var file = try std.fs.cwd().createFile(path, .{ .truncate = true });
+    var file = try std.Io.Dir.cwd().createFile(path, .{ .truncate = true });
     defer file.close();
     try file.writeAll(content);
 }
@@ -47,7 +47,7 @@ pub fn saveProject(project: Project, path: []const u8, a: std.mem.Allocator) !vo
 /// Loads a project from the given zon file path. Returns an error if
 /// the file doesn't exist or fails to parse.
 pub fn loadProject(path: []const u8, a: std.mem.Allocator) !Project {
-    var file = try std.fs.cwd().openFile(path, .{});
+    var file = try std.Io.Dir.cwd().openFile(path, .{});
     defer file.close();
     const buf = try file.reader().readAllAlloc(a, 1 << 20);
     defer a.free(buf);

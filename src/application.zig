@@ -76,15 +76,15 @@ pub const Application = struct {
     }
 
     pub fn deinit(self: *Application) void {
-        var errors = std.ArrayList(u8).init(self.allocator);
-        defer errors.deinit();
+        var errors = std.ArrayList(u8).initCapacity(self.allocator, 0) catch return;
+        defer errors.deinit(self.allocator);
 
         if (self.ui_state.dirty) {
             if (self.ui_state.config.save(self.allocator, nyon_game.ui.UiConfig.DEFAULT_PATH)) |_| {
                 self.ui_state.dirty = false;
             } else |err| {
                 std.log.err("Failed to save UI config: {}", .{err});
-                errors.appendSlice("UI config save failed. ") catch {};
+                errors.appendSlice(self.allocator, "UI config save failed. ") catch {};
             }
         }
 

@@ -11,6 +11,11 @@ pub const Vector3 = extern struct {
     z: f32,
 };
 
+pub const Ray = extern struct {
+    position: Vector3,
+    direction: Vector3,
+};
+
 pub const Color = extern struct {
     r: u8,
     g: u8,
@@ -69,6 +74,16 @@ pub extern fn unloadRenderTexture(target: RenderTexture2D) void;
 pub extern fn beginDrawing() void;
 pub extern fn endDrawing() void;
 pub extern fn clearBackground(color: Color) void;
+pub const FilePathList = extern struct {
+    capacity: c_uint,
+    count: c_uint,
+    paths: [*][*:0]u8,
+};
+
+pub extern fn loadDirectoryFiles(dirPath: [*:0]const u8) FilePathList;
+pub extern fn unloadDirectoryFiles(files: FilePathList) void;
+pub extern fn loadFileData(fileName: [*:0]const u8, dataSize: *c_int) ?[*]u8;
+pub extern fn unloadFileData(data: [*]u8) void;
 pub extern fn getFrameTime() f32;
 pub extern fn getFontDefault() Font;
 pub extern fn loadFontEx(fileName: [*:0]const u8, fontSize: c_int, fontChars: ?[*]c_int, glyphCount: c_int) Font;
@@ -113,6 +128,9 @@ pub extern fn drawText(text: [*:0]const u8, posX: c_int, posY: c_int, fontSize: 
 pub extern fn unloadSound(sound: Sound) void;
 pub extern fn closeWindow() void;
 pub extern fn unloadMaterial(material: Material) void;
+pub extern fn drawRectangleRec(rec: Rectangle, color: Color) void;
+pub extern fn drawRectangleLinesEx(rec: Rectangle, lineThick: c_int, color: Color) void;
+pub extern fn isWindowResized() bool;
 pub extern fn measureText(text: [*:0]const u8, fontSize: c_int) c_int;
 pub extern fn unloadModelAnimation(anim: ModelAnimation) void;
 pub extern fn unloadTexture(texture: Texture2D) void;
@@ -376,5 +394,21 @@ pub extern fn isKeyDown(key: KeyboardKey) bool;
 pub extern fn isKeyPressed(key: KeyboardKey) bool;
 pub extern fn isKeyReleased(key: KeyboardKey) bool;
 pub extern fn initAudioDevice() void;
+pub extern fn getCharPressed() c_int;
 pub extern fn getMousePosition() Vector2;
 pub extern fn isWindowReady() bool;
+pub extern fn enableCursor() void;
+pub extern fn disableCursor() void;
+pub extern fn beginMode3D(camera: Camera3D) void;
+pub extern fn endMode3D() void;
+pub extern fn drawLine(startPosX: c_int, startPosY: c_int, endPosX: c_int, endPosY: c_int, color: Color) void;
+pub extern fn drawCircleV(center: Vector2, radius: f32, color: Color) void;
+pub extern fn drawRectangleRounded(rec: Rectangle, roundness: f32, segments: c_int, color: Color) void;
+pub extern fn beginScissorMode(x: c_int, y: c_int, width: c_int, height: c_int) void;
+pub extern fn endScissorMode() void;
+pub extern fn drawLine3D(startPos: Vector3, endPos: Vector3, color: Color) void;
+pub extern fn getTime() f64;
+pub extern fn drawPlane(centerPos: Vector3, size: Vector2, color: Color) void;
+pub extern fn getScreenToWorldRay(mousePosition: Vector2, camera: Camera3D) Ray;
+pub extern fn getMouseDelta() Vector2;
+pub extern fn drawRectangleRoundedLinesEx(rec: Rectangle, roundness: f32, segments: c_int, lineThick: f32, color: Color) void;

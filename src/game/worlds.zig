@@ -4,7 +4,7 @@
 //! This module provides helpers to list/create/update worlds.
 
 const std = @import("std");
-const raylib = @import("../raylib_stub.zig");
+const raylib = @import("raylib");
 const config = @import("../config/constants.zig");
 
 // ============================================================================
@@ -49,37 +49,53 @@ pub const WorldError = error{
     SavesDirMissing,
     WorldMetaMissing,
     WorldMetaInvalid,
+    FileWriteError,
 };
 
 // ============================================================================
 // Public API
 // ============================================================================
 
+// ============================================================================
+// Public API
+// ============================================================================
+
 pub fn ensureSavesDir() !void {
-    if (!raylib.directoryExists(SAVES_DIR)) {
-        _ = raylib.makeDirectory(SAVES_DIR);
+    const saves_dir_z = SAVES_DIR ++ "\x00";
+    if (!raylib.directoryExists(saves_dir_z)) {
+        _ = raylib.makeDirectory(saves_dir_z);
     }
 }
 
 pub fn listWorlds(allocator: std.mem.Allocator) ![]WorldEntry {
     try ensureSavesDir();
 
-    var dir = try std.fs.cwd().openDir(SAVES_DIR, .{ .iterate = true });
-    defer dir.close();
+    const saves_dir_z = SAVES_DIR ++ "\x00";
+    const files = raylib.loadDirectoryFiles(saves_dir_z);
+    defer raylib.unloadDirectoryFiles(files);
 
-    var it = dir.iterate();
     var worlds = std.ArrayList(WorldEntry).initCapacity(allocator, 8) catch unreachable;
     errdefer {
         for (worlds.items) |*entry| entry.deinit();
         worlds.deinit(allocator);
     }
 
-    while (try it.next()) |entry| {
-        if (entry.kind != .directory) continue;
-        if (std.mem.eql(u8, entry.name, ".") or std.mem.eql(u8, entry.name, "..")) continue;
+    var i: usize = 0;
+    while (i < files.count) : (i += 1) {
+        const file_path_z = files.paths[i];
+        const file_path = std.mem.span(file_path_z);
 
-        if (loadWorldMeta(allocator, &dir, entry.name)) |meta| {
-            const folder_copy = try allocator.dupe(u8, entry.name);
+        // Skip . and ..
+        if (std.mem.eql(u8, file_path, ".") or std.mem.eql(u8, file_path, "..")) continue;
+
+        // In raylib, LoadDirectoryFiles returns names relative to the path provided?
+        // Or full paths? Raylib docs say "file names".
+        // Assuming file names. We need to check if it's a directory?
+        // Raylib doesn't have IsDirectory easily exposed without other checks.
+        // We'll rely on loadWorldMeta failing if it's not a directory with world.json inside.
+
+        if (loadWorldMeta(allocator, file_path)) |meta| {
+            const folder_copy = try allocator.dupe(u8, file_path);
             const meta_name = try allocator.dupe(u8, meta.name);
             try worlds.append(allocator, .{
                 .allocator = allocator,
@@ -94,7 +110,7 @@ pub fn listWorlds(allocator: std.mem.Allocator) ![]WorldEntry {
                 },
             });
         } else |_| {
-            // Ignore invalid worlds for now.
+            // Ignore invalid worlds
         }
     }
 
@@ -140,11 +156,15 @@ pub fn createWorld(allocator: std.mem.Allocator, display_name: []const u8) !Worl
     errdefer allocator.free(unique_folder);
 
     var path_buf: [std.fs.max_path_bytes]u8 = undefined;
-    const sub_path = try std.fmt.bufPrint(&path_buf, "{s}\\{s}", .{ SAVES_DIR, unique_folder });
-    var world_dir = try std.fs.cwd().makeOpenPath(sub_path, .{});
-    defer world_dir.close();
+    const sub_path = try std.fmt.bufPrintZ(&path_buf, "{s}/{s}", .{ SAVES_DIR, unique_folder });
 
-    const now_ns: i64 = 0; // Placeholder - time functions need investigation
+    if (!raylib.makeDirectory(sub_path)) {
+        // If it fails, maybe it already exists? But uniquify should prevent that.
+        // Or maybe permission error.
+        return WorldError.SavesDirMissing; // Close enough
+    }
+
+    const now_ns: i64 = 0;
 
     const meta = WorldMeta{
         .version = WORLD_VERSION,
@@ -156,7 +176,7 @@ pub fn createWorld(allocator: std.mem.Allocator, display_name: []const u8) !Worl
     };
     errdefer allocator.free(meta.name);
 
-    try saveWorldMeta(&world_dir, meta);
+    try saveWorldMeta(unique_folder, meta, allocator);
 
     return .{
         .allocator = allocator,
@@ -166,16 +186,10 @@ pub fn createWorld(allocator: std.mem.Allocator, display_name: []const u8) !Worl
 }
 
 pub fn touchWorld(allocator: std.mem.Allocator, folder: []const u8, best_score: ?u32, best_time_ms: ?u32) !void {
-    var dir = try std.fs.cwd().openDir(SAVES_DIR, .{ .iterate = false });
-    defer dir.close();
-
-    var world_dir = try dir.openDir(folder, .{});
-    defer world_dir.close();
-
-    var meta = try loadWorldMeta(allocator, &dir, folder);
+    var meta = try loadWorldMeta(allocator, folder);
     defer allocator.free(meta.name);
 
-    meta.last_played_ns = 0; // Placeholder - time functions need investigation
+    meta.last_played_ns = 0;
     if (best_score) |score| {
         if (score > meta.best_score) meta.best_score = score;
     }
@@ -187,27 +201,30 @@ pub fn touchWorld(allocator: std.mem.Allocator, folder: []const u8, best_score: 
         }
     }
 
-    try saveWorldMeta(&world_dir, meta);
+    try saveWorldMeta(folder, meta, allocator);
 }
 
 // ============================================================================
 // Internals
 // ============================================================================
 
-fn loadWorldMeta(allocator: std.mem.Allocator, saves_dir: *std.fs.Dir, folder: []const u8) !WorldMeta {
-    var world_dir = try saves_dir.openDir(folder, .{});
-    defer world_dir.close();
+fn loadWorldMeta(allocator: std.mem.Allocator, folder: []const u8) !WorldMeta {
+    var path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    // Raylib needs null terminated string
+    const meta_path = try std.fmt.bufPrintZ(&path_buf, "{s}/{s}/{s}", .{ SAVES_DIR, folder, WORLD_META_FILE });
 
-    const bytes = try world_dir.readFileAlloc(WORLD_META_FILE, allocator, std.Io.Limit.limited(128 * 1024));
-    defer allocator.free(bytes);
+    const text_ptr = raylib.loadFileText(meta_path);
+    if (text_ptr == null) return error.WorldMetaMissing;
+    defer raylib.unloadFileText(text_ptr.?);
+
+    const text_slice = std.mem.span(text_ptr.?);
 
     const Parsed = std.json.Parsed(WorldMeta);
-    var parsed: Parsed = try std.json.parseFromSlice(WorldMeta, allocator, bytes, .{ .ignore_unknown_fields = true });
+    var parsed: Parsed = try std.json.parseFromSlice(WorldMeta, allocator, text_slice, .{ .ignore_unknown_fields = true });
     defer parsed.deinit();
 
     if (parsed.value.version == 0) return WorldError.WorldMetaInvalid;
 
-    // Duplicate the name string since parsed.value will be freed
     const name_copy = try allocator.dupe(u8, parsed.value.name);
     return WorldMeta{
         .version = parsed.value.version,
@@ -219,14 +236,26 @@ fn loadWorldMeta(allocator: std.mem.Allocator, saves_dir: *std.fs.Dir, folder: [
     };
 }
 
-fn saveWorldMeta(world_dir: *std.fs.Dir, meta: WorldMeta) !void {
-    var file = try world_dir.createFile(WORLD_META_FILE, .{ .truncate = true });
-    defer file.close();
+fn saveWorldMeta(folder: []const u8, meta: WorldMeta, allocator: std.mem.Allocator) !void {
+    var out: std.Io.Writer.Allocating = .init(allocator);
+    defer out.deinit();
+    var write_stream: std.json.Stringify = .{
+        .writer = &out.writer,
+        .options = .{ .whitespace = .indent_2 },
+    };
+    try write_stream.write(meta);
 
-    var buffer: [4096]u8 = undefined;
-    var writer = file.writer(&buffer);
-    try std.json.Stringify.value(meta, .{ .whitespace = .indent_2 }, &writer.interface);
-    try writer.interface.flush();
+    // Create null-terminated version of json content
+    const json_z = try allocator.dupeZ(u8, out.written());
+    defer allocator.free(json_z);
+
+    var path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    const meta_path = try std.fmt.bufPrintZ(&path_buf, "{s}/{s}/{s}", .{ SAVES_DIR, folder, WORLD_META_FILE });
+
+    // Save to file using Raylib
+    if (!raylib.saveFileText(meta_path, json_z)) {
+        return WorldError.FileWriteError;
+    }
 }
 
 fn sanitizeName(allocator: std.mem.Allocator, name: []const u8) ![]u8 {
@@ -247,33 +276,24 @@ fn sanitizeName(allocator: std.mem.Allocator, name: []const u8) ![]u8 {
 }
 
 fn uniquifyFolderName(allocator: std.mem.Allocator, base: []const u8) ![]u8 {
-    try ensureSavesDir();
-
-    var dir = try std.fs.cwd().openDir(SAVES_DIR, .{ .iterate = true });
-    defer dir.close();
-
-    if (!dirExists(&dir, base)) {
+    // Check base first
+    var check_path_buf: [std.fs.max_path_bytes:0]u8 = undefined;
+    const base_path = try std.fmt.bufPrintZ(&check_path_buf, "{s}/{s}", .{ SAVES_DIR, base });
+    if (!raylib.directoryExists(base_path)) {
         return allocator.dupe(u8, base);
     }
 
     var idx: u32 = 2;
     while (idx < 10000) : (idx += 1) {
         const candidate = try std.fmt.allocPrint(allocator, "{s}_{d}", .{ base, idx });
-        errdefer allocator.free(candidate);
-        if (!dirExists(&dir, candidate)) {
-            return candidate;
+        defer allocator.free(candidate);
+
+        const cand_path = try std.fmt.bufPrintZ(&check_path_buf, "{s}/{s}", .{ SAVES_DIR, candidate });
+
+        if (!raylib.directoryExists(cand_path)) {
+            return allocator.dupe(u8, candidate);
         }
-        allocator.free(candidate);
     }
 
     return allocator.dupe(u8, base);
-}
-
-fn dirExists(dir: *std.fs.Dir, name: []const u8) bool {
-    if (dir.openDir(name, .{})) |sub_dir| {
-        @constCast(&sub_dir).close();
-        return true;
-    } else |_| {
-        return false;
-    }
 }

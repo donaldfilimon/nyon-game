@@ -4,12 +4,12 @@
 install
 +- install nyon_editor
    +- compile exe nyon_editor Debug native 1 errors
-src\raylib_stub.zig:72:15: error: duplicate struct member name 'getFrameTime'
-pub extern fn getFrameTime() f32;
-              ^~~~~~~~~~~~
-src\raylib_stub.zig:384:15: note: duplicate name here
-pub extern fn getFrameTime() f32;
-              ^~~~~~~~~~~~
+src\raylib_stub.zig:19:11: error: duplicate struct member name 'Camera3D'
+pub const Camera3D = extern struct {
+          ^~~~~~~~
+src\raylib_stub.zig:172:11: note: duplicate name here
+pub const Camera3D = extern struct {
+          ^~~~~~~~
 src\raylib_stub.zig:1:1: note: struct declared here
 const std = @import("std");
 ^~~~~
@@ -19,12 +19,12 @@ failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalS
 install
 +- install nyon_game
    +- compile exe nyon_game Debug native 1 errors
-src\raylib_stub.zig:72:15: error: duplicate struct member name 'getFrameTime'
-pub extern fn getFrameTime() f32;
-              ^~~~~~~~~~~~
-src\raylib_stub.zig:384:15: note: duplicate name here
-pub extern fn getFrameTime() f32;
-              ^~~~~~~~~~~~
+src\raylib_stub.zig:19:11: error: duplicate struct member name 'Camera3D'
+pub const Camera3D = extern struct {
+          ^~~~~~~~
+src\raylib_stub.zig:172:11: note: duplicate name here
+pub const Camera3D = extern struct {
+          ^~~~~~~~
 src\raylib_stub.zig:1:1: note: struct declared here
 const std = @import("std");
 ^~~~~
@@ -39,4 +39,4 @@ install transitive failure
    +- compile exe nyon_editor Debug native 1 errors
 
 error: the following build command failed with exit code 1:
-.zig-cache\o\92f2af8c2753723feeadd90abb19e800\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0x55470b8e -Z0a3ba03dd03bb34f
+.zig-cache\o\92f2af8c2753723feeadd90abb19e800\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1892+53ebfde6b\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0x9af07b1e -Z922811de6522f12d

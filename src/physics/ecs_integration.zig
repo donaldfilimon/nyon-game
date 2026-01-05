@@ -156,9 +156,8 @@ pub const PhysicsSystem = struct {
         var query = ecs_world.createQuery();
         defer query.deinit();
 
-        var pos_query = try query
-            .with(ecs.Transform)
-            .build();
+        var builder = try query.with(ecs.component.Transform);
+        var pos_query = try builder.build();
         defer pos_query.deinit();
 
         pos_query.updateMatches(ecs_world.archetypes.items);
@@ -166,7 +165,7 @@ pub const PhysicsSystem = struct {
         var iter = pos_query.iter();
         while (iter.next()) |entity_data| {
             const entity = entity_data.entity;
-            const transform = entity_data.get(ecs.Transform) orelse continue;
+            const transform = entity_data.get(ecs.component.Transform) orelse continue;
 
             // Update physics body position if entity has one
             if (self.entity_to_body.get(entity)) |body_handle| {
@@ -187,10 +186,11 @@ pub const PhysicsSystem = struct {
     /// Sync physics body results back to ECS transforms
     fn syncPhysicsToECS(self: *PhysicsSystem, ecs_world: *ecs.World) !void {
         // Iterate through all physics bodies and update their ECS transforms
-        for (self.world.bodies.items, 0..) |body, body_handle| {
-            if (self.body_to_entity.get(body_handle)) |entity| {
+        for (self.world.bodies.items, 0..) |body, body_idx| {
+            const handle = physics.types.BodyHandle{ .index = body_idx, .generation = self.world.generations.items[body_idx] };
+            if (self.body_to_entity.get(handle)) |entity| {
                 // Update ECS transform
-                if (ecs_world.getComponent(entity, ecs.Transform)) |transform| {
+                if (ecs_world.getComponent(entity, ecs.component.Transform)) |transform| {
                     transform.position.x = body.position.x;
                     transform.position.y = body.position.y;
                     transform.position.z = body.position.z;
@@ -220,8 +220,8 @@ pub fn physicsUpdateSystem(ecs_world: *ecs.World, physics_system: *PhysicsSystem
     defer query.deinit();
 
     var rigidbody_query = try query
-        .with(ecs.Transform)
-        .with(ecs.RigidBody)
+        .with(ecs.component.Transform)
+        .with(ecs.component.RigidBody)
         .build();
     defer rigidbody_query.deinit();
 
@@ -230,7 +230,7 @@ pub fn physicsUpdateSystem(ecs_world: *ecs.World, physics_system: *PhysicsSystem
     var iter = rigidbody_query.iter();
     while (iter.next()) |entity_data| {
         const entity = entity_data.entity;
-        const transform = entity_data.get(ecs.Transform) orelse continue;
+        const transform = entity_data.get(ecs.component.Transform) orelse continue;
 
         // Apply custom forces based on entity properties
         // For example, wind force for entities above certain height
@@ -252,8 +252,8 @@ pub fn collisionResponseSystem(ecs_world: *ecs.World, physics_system: *const Phy
     // (This is a simplified example)
 
     var collision_query = try query
-        .with(ecs.Transform)
-        .with(ecs.RigidBody)
+        .with(ecs.component.Transform)
+        .with(ecs.component.RigidBody)
         .build();
     defer collision_query.deinit();
 
@@ -262,7 +262,7 @@ pub fn collisionResponseSystem(ecs_world: *ecs.World, physics_system: *const Phy
     var iter = collision_query.iter();
     while (iter.next()) |entity_data| {
         const entity = entity_data.entity;
-        const transform = entity_data.get(ecs.Transform) orelse continue;
+        const transform = entity_data.get(ecs.component.Transform) orelse continue;
 
         // Example: Destroy entities that fall below a certain point
         if (transform.position.y < -50.0) {
@@ -288,9 +288,9 @@ pub fn characterControllerSystem(ecs_world: *ecs.World, physics_system: *Physics
     defer query.deinit();
 
     var character_query = try query
-        .with(ecs.Transform)
-        .with(ecs.RigidBody)
-        .with(ecs.InputReceiver) // Custom component for player characters
+        .with(ecs.component.Transform)
+        .with(ecs.component.RigidBody)
+        .with(ecs.component.InputReceiver) // Custom component for player characters
         .build();
     defer character_query.deinit();
 

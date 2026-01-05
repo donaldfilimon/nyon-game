@@ -38,7 +38,7 @@ pub const AssetLoader = struct {
         const full = try std.fs.path.join(&full_path, &[_][]const u8{ self.base_path, path });
 
         // Read file
-        const file = try std.fs.cwd().openFile(full, .{});
+        const file = try std.Io.Dir.cwd().openFile(full, .{});
         defer file.close();
 
         const stat = try file.stat();
@@ -83,7 +83,7 @@ pub const AssetMetadata = struct {
     hash: [32]u8,
 
     pub fn fromFile(allocator: std.mem.Allocator, path: []const u8) !AssetMetadata {
-        const file = try std.fs.cwd().openFile(path, .{});
+        const file = try std.Io.Dir.cwd().openFile(path, .{});
         defer file.close();
 
         const stat = try file.stat();
@@ -128,7 +128,7 @@ pub const AssetWatcher = struct {
     }
 
     pub fn watch(self: *AssetWatcher, path: []const u8) !void {
-        const file = try std.fs.cwd().openFile(path, .{});
+        const file = try std.Io.Dir.cwd().openFile(path, .{});
         defer file.close();
 
         const stat = try file.stat();
@@ -137,7 +137,7 @@ pub const AssetWatcher = struct {
     }
 
     pub fn checkChanged(self: *AssetWatcher, path: []const u8) !bool {
-        const file = try std.fs.cwd().openFile(path, .{}) catch return false;
+        const file = try std.Io.Dir.cwd().openFile(path, .{}) catch return false;
         defer file.close();
 
         const stat = try file.stat();
