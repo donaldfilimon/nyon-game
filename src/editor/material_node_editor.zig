@@ -181,7 +181,9 @@ pub const MaterialNodeEditor = struct {
                         self.createNode(item, self.menu_pos);
                     }
                 }
-                raylib.drawText(item, @intFromFloat(item_rect.x + 10), @intFromFloat(item_rect.y + 5), 14, raylib.Color.white);
+                var item_buf: [128:0]u8 = undefined;
+                const item_z = std.fmt.bufPrintZ(&item_buf, "{s}", .{item}) catch "Item";
+                raylib.drawText(item_z, @intFromFloat(item_rect.x + 10), @intFromFloat(item_rect.y + 5), 14, raylib.Color.white);
             }
         }
 

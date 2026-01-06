@@ -273,7 +273,9 @@ pub const PropertyInspector = struct {
 
     fn drawEnumProperty(_: *PropertyInspector, name: []const u8, value: []const u8, x: f32, y: f32, width: f32) bool {
         // Label
-        raylib.drawText(name, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);
+        var name_buf: [128:0]u8 = undefined;
+        const name_z = std.fmt.bufPrintZ(&name_buf, "{s}", .{name}) catch "";
+        raylib.drawText(name_z, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);
 
         // Value background
         const value_rect = raylib.Rectangle{
@@ -290,7 +292,10 @@ pub const PropertyInspector = struct {
         raylib.drawRectangleLinesEx(value_rect, 1, raylib.Color{ .r = 100, .g = 100, .b = 120, .a = 255 });
 
         // Value text
-        raylib.drawText(value, @intFromFloat(value_rect.x + 5), @intFromFloat(value_rect.y + 2), 12, raylib.Color.white);
+        // Value text
+        var val_buf: [128:0]u8 = undefined;
+        const val_z = std.fmt.bufPrintZ(&val_buf, "{s}", .{value}) catch "";
+        raylib.drawText(val_z, @intFromFloat(value_rect.x + 5), @intFromFloat(value_rect.y + 2), 12, raylib.Color.white);
 
         return is_hovered and raylib.isMouseButtonPressed(.left);
     }
@@ -338,8 +343,6 @@ pub const PropertyInspector = struct {
     }
 
     fn drawVector3Property(self: *PropertyInspector, name: []const u8, value: raylib.Vector3, x: f32, y: f32, width: f32) f32 {
-        _ = self;
-        _ = self;
         _ = self;
         var name_buf: [128:0]u8 = undefined;
         const name_z = std.fmt.bufPrintZ(&name_buf, "{s}", .{name}) catch "";
@@ -396,7 +399,9 @@ pub const PropertyInspector = struct {
     fn drawTextureProperty(_: *PropertyInspector, name: []const u8, x: f32, y: f32, width: f32) f32 {
 
         // Label
-        raylib.drawText(name, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);
+        var name_buf: [128:0]u8 = undefined;
+        const name_z = std.fmt.bufPrintZ(&name_buf, "{s}", .{name}) catch "";
+        raylib.drawText(name_z, @intFromFloat(x + 5), @intFromFloat(y + 5), 12, raylib.Color.gray);
 
         // Texture slot
         const tex_rect = raylib.Rectangle{

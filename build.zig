@@ -101,6 +101,13 @@ pub fn build(b: *std.Build) void {
     });
     const zglfw_lib: ?*std.Build.Step.Compile = null;
 
+    // Create sysgpu vendor module
+    const sysgpu_mod = b.createModule(.{
+        .root_source_file = b.path("src/vendor/sysgpu/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const nyon_game_mod = b.createModule(.{
         .root_source_file = b.path(ROOT_MODULE_PATH),
         .target = target,
@@ -109,6 +116,7 @@ pub fn build(b: *std.Build) void {
             .{ .name = RAYLIB_IMPORT_NAME, .module = raylib_mod },
             .{ .name = RAYGUI_IMPORT_NAME, .module = raygui_mod },
             .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw_mod },
+            .{ .name = "sysgpu", .module = sysgpu_mod },
         },
     });
     nyon_game_mod.addImport(NYON_GAME_IMPORT_NAME, nyon_game_mod);

@@ -629,11 +629,11 @@ pub const MainEditor = struct {
         var ui_y: f32 = self.tab_bar_height + 10;
         var buf: [64]u8 = undefined;
         const text = std.fmt.bufPrint(&buf, "Objects: {}", .{self.scene_system.modelCount()}) catch "Objects: ?";
-        raylib.drawText(text[0..text.len :0], 10, @intFromFloat(ui_y), 16, raylib.Color.white);
+        raylib.drawText(text, 10, @intFromFloat(ui_y), 16, raylib.Color.white);
         ui_y += 20;
         if (self.selected_scene_object) |id| {
             const sel_text = std.fmt.bufPrint(&buf, "Selected: Object {}", .{id}) catch "Selected: ?";
-            raylib.drawText(sel_text[0..sel_text.len :0], 10, @intFromFloat(ui_y), 16, raylib.Color.yellow);
+            raylib.drawText(sel_text, 10, @intFromFloat(ui_y), 16, raylib.Color.yellow);
         }
     }
 

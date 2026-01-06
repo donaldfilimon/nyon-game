@@ -1,0 +1,41 @@
+[DEBUG build_start] Build function started (session: A)
+[DEBUG target_optimize_setup] Target and optimize options set (session: A)
+[DEBUG build_complete] Build function completed successfully (session: A)
+install
++- install nyon_game
+   +- compile exe nyon_game Debug native 3 errors
+src\engine.zig:77:41: error: struct 'engine.webgpu_backend.WebGpuBackend' has no member named 'deinit'
+            webgpu_backend.WebGpuBackend.deinit(@ptrCast(self));
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~
+src\engine\webgpu_backend.zig:7:27: note: struct declared here
+pub const WebGpuBackend = struct {
+                          ^~~~~~
+referenced by:
+    deinit: src\application.zig:107:27
+    main: src\main.zig:15:21
+    4 reference(s) hidden; use '-freference-trace=6' to see all references
+src\engine\webgpu_backend.zig:9:22: error: root source file struct 'main' has no member named 'Instance'
+    instance: *sysgpu.Instance,
+               ~~~~~~^~~~~~~~~
+src\vendor\sysgpu\main.zig:1:1: note: struct declared here
+const std = @import("std");
+^~~~~
+src\vendor\sysgpu\sysgpu\interface.zig:24:140: error: union 'builtin.CallingConvention' has no member named 'Inline'
+    assertDecl(T, "deviceCreateRenderPipeline", fn (device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) callconv(.Inline) *sysgpu.RenderPipeline);
+                                                                                                                                          ~^~~~~~
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\lib\std\builtin.zig:125:31: note: union declared here
+pub const CallingConvention = union(enum(u8)) {
+                              ^~~~~
+src\vendor\sysgpu\main.zig:19:34: note: called at comptime here
+pub const Impl = sysgpu.Interface(struct {
+                 ~~~~~~~~~~~~~~~~^
+error: 3 compilation errors
+failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\main.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep sysgpu --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -ODebug "-Msysgpu=C:\\Users\\donald\\nyon-game\\src\\vendor\\sysgpu\\main.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_game --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\\lib\\" --listen=-
+
+Build Summary: 2/5 steps succeeded (1 failed)
+install transitive failure
++- install nyon_game transitive failure
+   +- compile exe nyon_game Debug native 3 errors
+
+error: the following build command failed with exit code 1:
+.zig-cache\o\fa049ec306d795993228eaa6a48708ec\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0x5175bea8 -Zc7bf3b9898eb259e

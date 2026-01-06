@@ -38,8 +38,9 @@ pub fn render(editor: anytype, content_rect: raylib.Rectangle) void {
     // Draw the command prompt and cursor.
     const prompt_y = content_rect.y + content_rect.height - 40;
     raylib.drawText(">", @intFromFloat(content_rect.x + 10), @intFromFloat(prompt_y), 16, raylib.Color.green);
-    const command_text = editor.tui_command_buffer.items;
-    raylib.drawText(command_text, @intFromFloat(content_rect.x + 25), @intFromFloat(prompt_y), 16, raylib.Color.white);
+    var cmd_buf: [1024:0]u8 = undefined;
+    const command_text_z = std.fmt.bufPrintZ(&cmd_buf, "{s}", .{editor.tui_command_buffer.items}) catch "";
+    raylib.drawText(command_text_z, @intFromFloat(content_rect.x + 25), @intFromFloat(prompt_y), 16, raylib.Color.white);
     if (raylib.getTime() - @floor(raylib.getTime()) < 0.5) {
         const cursor_x = content_rect.x + 25 + @as(f32, @floatFromInt(editor.tui_cursor_pos)) * 8.5;
         raylib.drawLine(@intFromFloat(cursor_x), @intFromFloat(prompt_y), @intFromFloat(cursor_x), @intFromFloat(prompt_y + 16), raylib.Color.white);
