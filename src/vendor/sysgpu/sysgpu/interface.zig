@@ -21,8 +21,8 @@ pub const Impl = blk: {
 /// Verifies that a sysgpu.Interface implementation exposes the expected function declarations.
 pub fn Interface(comptime T: type) type {
     // sysgpu.Device
-    assertDecl(T, "deviceCreateRenderPipeline", fn (device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) ?*sysgpu.RenderPipeline);
-    assertDecl(T, "deviceCreateRenderPipelineAsync", fn (device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor, callback: sysgpu.CreateRenderPipelineAsyncCallback, userdata: ?*anyopaque) void);
+    assertDecl(T, "deviceCreateRenderPipeline", fn (device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) callconv(.@"inline") ?*sysgpu.RenderPipeline);
+    assertDecl(T, "deviceCreateRenderPipelineAsync", fn (device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor, callback: sysgpu.CreateRenderPipelineAsyncCallback, userdata: ?*anyopaque) callconv(.@"inline") void);
     assertDecl(T, "deviceCreatePipelineLayout", fn (device: *sysgpu.Device, pipeline_layout_descriptor: *const sysgpu.PipelineLayout.Descriptor) ?*sysgpu.PipelineLayout);
 
     // sysgpu.PipelineLayout

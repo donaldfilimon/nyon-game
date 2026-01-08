@@ -1,0 +1,147 @@
+install
++- install nyon_game
+   +- compile exe nyon_game Debug native 21 errors
+src\raylib_stub.zig:140:9: error: use of undeclared identifier 'raylib_c_uint'
+    id: raylib_c_uint,
+        ^~~~~~~~~~~~~
+src\raylib_stub.zig:150:9: error: use of undeclared identifier 'raylib_c_uint'
+    id: raylib_c_uint,
+        ^~~~~~~~~~~~~
+src\raylib_stub.zig:163:35: error: use of undeclared identifier 'raylib_c_int'
+pub const CameraProjection = enum(raylib_c_int) {
+                                  ^~~~~~~~~~~~
+src\raylib_stub.zig:170:16: error: use of undeclared identifier 'raylib_c_int'
+    meshCount: raylib_c_int,
+               ^~~~~~~~~~~~
+src\raylib_stub.zig:181:18: error: use of undeclared identifier 'raylib_c_int'
+    vertexCount: raylib_c_int,
+                 ^~~~~~~~~~~~
+src\raylib_stub.zig:205:9: error: use of undeclared identifier 'raylib_c_uint'
+    id: raylib_c_uint,
+        ^~~~~~~~~~~~~
+src\raylib_stub.zig:217:13: error: use of undeclared identifier 'raylib_c_int'
+    parent: raylib_c_int,
+            ^~~~~~~~~~~~
+src\raylib_stub.zig:232:16: error: use of undeclared identifier 'raylib_c_int'
+    boneCount: raylib_c_int,
+               ^~~~~~~~~~~~
+src\raylib_stub.zig:240:15: error: use of undeclared identifier 'raylib_c_int'
+    baseSize: raylib_c_int,
+              ^~~~~~~~~~~~
+src\raylib_stub.zig:249:12: error: use of undeclared identifier 'raylib_c_int'
+    value: raylib_c_int,
+           ^~~~~~~~~~~~
+src\raylib_stub.zig:258:12: error: use of undeclared identifier 'raylib_c_int'
+    width: raylib_c_int,
+           ^~~~~~~~~~~~
+src\raylib_stub.zig:270:17: error: use of undeclared identifier 'raylib_c_uint'
+    frameCount: raylib_c_uint,
+                ^~~~~~~~~~~~~
+src\raylib_stub.zig:275:17: error: use of undeclared identifier 'raylib_c_uint'
+    frameCount: raylib_c_uint,
+                ^~~~~~~~~~~~~
+src\raylib_stub.zig:284:17: error: use of undeclared identifier 'raylib_c_uint'
+    sampleRate: raylib_c_uint,
+                ^~~~~~~~~~~~~
+src\raylib_stub.zig:293:30: error: use of undeclared identifier 'raylib_c_int'
+pub const KeyboardKey = enum(raylib_c_int) {
+                             ^~~~~~~~~~~~
+src\raylib_stub.zig:385:30: error: use of undeclared identifier 'raylib_c_int'
+pub const MouseButton = enum(raylib_c_int) {
+                             ^~~~~~~~~~~~
+src\raylib_stub.zig:428:15: error: use of undeclared identifier 'raylib_c_uint'
+    capacity: raylib_c_uint,
+              ^~~~~~~~~~~~~
+src\raylib_stub.zig:465:25: error: use of undeclared identifier 'raylib_c_int'
+pub fn getScreenWidth() raylib_c_int {
+                        ^~~~~~~~~~~~
+src\raylib_stub.zig:469:26: error: use of undeclared identifier 'raylib_c_int'
+pub fn getScreenHeight() raylib_c_int {
+                         ^~~~~~~~~~~~
+src\raylib_stub.zig:486:51: error: use of undeclared identifier 'raylib_c_int'
+pub fn measureText(text: [*:0]const u8, fontSize: raylib_c_int) raylib_c_int {
+                                                  ^~~~~~~~~~~~
+src\raylib_stub.zig:703:56: error: use of undeclared identifier 'raylib_c_int'
+pub fn loadFileData(fileName: [:0]const u8, dataSize: *raylib_c_int) ?[*]u8 {
+                                                       ^~~~~~~~~~~~
+error: 21 compilation errors
+failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.2040+c475f1fcd\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\main.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep sysgpu --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -ODebug "-Msysgpu=C:\\Users\\donald\\nyon-game\\src\\vendor\\sysgpu\\main.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_game --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.2040+c475f1fcd\\lib\\" --listen=-
+
+install
++- install nyon_editor
+   +- compile exe nyon_editor Debug native 21 errors
+src\raylib_stub.zig:140:9: error: use of undeclared identifier 'raylib_c_uint'
+    id: raylib_c_uint,
+        ^~~~~~~~~~~~~
+src\raylib_stub.zig:150:9: error: use of undeclared identifier 'raylib_c_uint'
+    id: raylib_c_uint,
+        ^~~~~~~~~~~~~
+src\raylib_stub.zig:163:35: error: use of undeclared identifier 'raylib_c_int'
+pub const CameraProjection = enum(raylib_c_int) {
+                                  ^~~~~~~~~~~~
+src\raylib_stub.zig:170:16: error: use of undeclared identifier 'raylib_c_int'
+    meshCount: raylib_c_int,
+               ^~~~~~~~~~~~
+src\raylib_stub.zig:181:18: error: use of undeclared identifier 'raylib_c_int'
+    vertexCount: raylib_c_int,
+                 ^~~~~~~~~~~~
+src\raylib_stub.zig:205:9: error: use of undeclared identifier 'raylib_c_uint'
+    id: raylib_c_uint,
+        ^~~~~~~~~~~~~
+src\raylib_stub.zig:217:13: error: use of undeclared identifier 'raylib_c_int'
+    parent: raylib_c_int,
+            ^~~~~~~~~~~~
+src\raylib_stub.zig:232:16: error: use of undeclared identifier 'raylib_c_int'
+    boneCount: raylib_c_int,
+               ^~~~~~~~~~~~
+src\raylib_stub.zig:240:15: error: use of undeclared identifier 'raylib_c_int'
+    baseSize: raylib_c_int,
+              ^~~~~~~~~~~~
+src\raylib_stub.zig:249:12: error: use of undeclared identifier 'raylib_c_int'
+    value: raylib_c_int,
+           ^~~~~~~~~~~~
+src\raylib_stub.zig:258:12: error: use of undeclared identifier 'raylib_c_int'
+    width: raylib_c_int,
+           ^~~~~~~~~~~~
+src\raylib_stub.zig:270:17: error: use of undeclared identifier 'raylib_c_uint'
+    frameCount: raylib_c_uint,
+                ^~~~~~~~~~~~~
+src\raylib_stub.zig:275:17: error: use of undeclared identifier 'raylib_c_uint'
+    frameCount: raylib_c_uint,
+                ^~~~~~~~~~~~~
+src\raylib_stub.zig:284:17: error: use of undeclared identifier 'raylib_c_uint'
+    sampleRate: raylib_c_uint,
+                ^~~~~~~~~~~~~
+src\raylib_stub.zig:293:30: error: use of undeclared identifier 'raylib_c_int'
+pub const KeyboardKey = enum(raylib_c_int) {
+                             ^~~~~~~~~~~~
+src\raylib_stub.zig:385:30: error: use of undeclared identifier 'raylib_c_int'
+pub const MouseButton = enum(raylib_c_int) {
+                             ^~~~~~~~~~~~
+src\raylib_stub.zig:428:15: error: use of undeclared identifier 'raylib_c_uint'
+    capacity: raylib_c_uint,
+              ^~~~~~~~~~~~~
+src\raylib_stub.zig:465:25: error: use of undeclared identifier 'raylib_c_int'
+pub fn getScreenWidth() raylib_c_int {
+                        ^~~~~~~~~~~~
+src\raylib_stub.zig:469:26: error: use of undeclared identifier 'raylib_c_int'
+pub fn getScreenHeight() raylib_c_int {
+                         ^~~~~~~~~~~~
+src\raylib_stub.zig:486:51: error: use of undeclared identifier 'raylib_c_int'
+pub fn measureText(text: [*:0]const u8, fontSize: raylib_c_int) raylib_c_int {
+                                                  ^~~~~~~~~~~~
+src\raylib_stub.zig:703:56: error: use of undeclared identifier 'raylib_c_int'
+pub fn loadFileData(fileName: [:0]const u8, dataSize: *raylib_c_int) ?[*]u8 {
+                                                       ^~~~~~~~~~~~
+error: 21 compilation errors
+failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.2040+c475f1fcd\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\editor.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep sysgpu --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -ODebug "-Msysgpu=C:\\Users\\donald\\nyon-game\\src\\vendor\\sysgpu\\main.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_editor --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.2040+c475f1fcd\\lib\\" --listen=-
+
+Build Summary: 0/5 steps succeeded (2 failed)
+install transitive failure
++- install nyon_game transitive failure
+|  +- compile exe nyon_game Debug native 21 errors
++- install nyon_editor transitive failure
+   +- compile exe nyon_editor Debug native 21 errors
+
+error: the following build command failed with exit code 1:
+.zig-cache\o\19780eee83ff7dbd4a759dee82a00389\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2040+c475f1fcd\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2040+c475f1fcd\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0xbe6e9a05 -Z4cc641c5661a11ff

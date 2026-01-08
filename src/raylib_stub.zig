@@ -5,6 +5,11 @@ const std = @import("std");
 
 // ============================================================================
 // Basic Types (matching raylib-zig exactly)
+// C type aliases for raylib compatibility
+pub const raylib_c_int = i32;
+pub const raylib_c_uint = u32;
+pub const raylib_c_ushort = u16;
+
 // ============================================================================
 
 pub const Vector2 = extern struct {
@@ -900,6 +905,26 @@ pub fn makeDirectory(dirPath: [:0]const u8) bool {
 }
 
 // ============================================================================
+// Vector3 Math Functions
+// ============================================================================
+
+pub fn vec3Distance(v1: Vector3, v2: Vector3) f32 {
+    const dx = v2.x - v1.x;
+    const dy = v2.y - v1.y;
+    const dz = v2.z - v1.z;
+    return @sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+// ============================================================================
+// Camera Functions
+// ============================================================================
+
+pub fn getCameraMatrix(camera: Camera3D) Matrix {
+    _ = camera;
+    return Matrix.identity();
+}
+
+// ============================================================================
 // Color Constants (matching raylib-zig)
 // ============================================================================
 
@@ -915,7 +940,3 @@ pub const LIGHT_GRAY = Color{ .r = 200, .g = 200, .b = 200, .a = 255 };
 pub const GRAY = Color{ .r = 130, .g = 130, .b = 130, .a = 255 };
 pub const DARK_GRAY = Color{ .r = 80, .g = 80, .b = 80, .a = 255 };
 pub const RAY_WHITE = WHITE;
-
-// ============================================================================
-// Type Aliases for C compatibility (internal use only)
-// ============================================================================

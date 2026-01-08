@@ -5,6 +5,7 @@ const raylib = @import("raylib");
 pub const Backend = types.Backend;
 
 pub fn shouldClose(backend: Backend, raylib_initialized: bool) bool {
+    _ = backend;
     if (raylib_initialized) {
         return raylib.windowShouldClose();
     }
@@ -29,6 +30,7 @@ pub fn getTime(raylib_initialized: bool) types.EngineError!f64 {
 }
 
 pub fn getWindowSize(backend: Backend, raylib_initialized: bool, config: types.Config) struct { width: u32, height: u32 } {
+    _ = backend;
     if (raylib_initialized) {
         return .{
             .width = @intCast(raylib.getScreenWidth()),

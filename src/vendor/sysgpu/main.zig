@@ -545,7 +545,7 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(render_pipeline);
     }
 
-    pub inline fn deviceCreateRenderPipelineAsync(device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor, callback: sysgpu.CreateRenderPipelineAsyncCallback, userdata: ?*anyopaque) void {
+    pub fn deviceCreateRenderPipelineAsync(device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor, callback: sysgpu.CreateRenderPipelineAsyncCallback, userdata: ?*anyopaque) void {
         _ = device;
         _ = descriptor;
         _ = callback;
