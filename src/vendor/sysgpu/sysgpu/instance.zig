@@ -32,7 +32,7 @@ pub const Instance = opaque {
             status: RequestAdapterStatus,
             adapter: ?*Adapter,
             message: ?[*:0]const u8,
-        ) callconv(.Inline) void,
+        ) void,
     ) void {
         const Context = @TypeOf(context);
         const Helper = struct {
@@ -41,7 +41,7 @@ pub const Instance = opaque {
                 adapter: ?*Adapter,
                 message: ?[*:0]const u8,
                 userdata: ?*anyopaque,
-            ) callconv(.C) void {
+            ) callconv(.c) void {
                 callback(
                     if (Context == void) {} else @as(Context, @ptrCast(@alignCast(userdata))),
                     status,

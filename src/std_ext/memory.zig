@@ -30,7 +30,7 @@ pub const FrameAllocator = struct {
 /// Utility functions
 pub const util = struct {
     pub fn memCopy(dst: []u8, src: []const u8) void {
-        std.mem.copy(u8, dst, src);
+        @memcpy(dst, src);
     }
 
     pub fn memSet(ptr: []u8, value: u8) void {

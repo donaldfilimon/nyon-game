@@ -24,43 +24,49 @@ The Nyon Game Engine is built on a modular, multi-backend architecture designed 
 ## System Layers
 
 ### 1. Platform Layer
+
 **Location**: `src/` (implicit via platform APIs)
 
 - **Cross-platform abstractions**: Window management, file I/O, input handling
 - **Platform detection**: Browser vs desktop (via `is_browser` in `src/engine/types.zig`)
-- **Dependencies**: 
-  - Desktop: raylib, GLFW
-  - Web: WebGPU via sysgpu
-  - Universal: std library
+- **Dependencies**:
+    - Desktop: raylib, GLFW
+    - Web: WebGPU via sysgpu
+    - Universal: std library
 
 ### 2. Engine Core
+
 **Location**: `src/engine.zig`
 
 - **Unified API**: Single entry point for all game code
-- **Backend Selection**: 
-  - `.auto`: Automatic (WebGPU on browser, raylib on desktop)
-  - `.raylib`, `.glfw`, `.webgpu`: Force specific backend
+- **Backend Selection**:
+    - `.auto`: Automatic (WebGPU on browser, raylib on desktop)
+    - `.raylib`, `.glfw`, `.webgpu`: Force specific backend
 - **Key Functions**:
-  - `init()`: Initialize selected backend
-  - `deinit()`: Clean up all resources
-  - `beginDrawing()`, `endDrawing()`: Render frame management
-  - `shouldClose()`: Window state
+    - `init()`: Initialize selected backend
+    - `deinit()`: Clean up all resources
+    - `beginDrawing()`, `endDrawing()`: Render frame management
+    - `shouldClose()`: Window state
 - **Re-exports**: All raylib types and functions available via `Engine.*`
 
 ### 3. Rendering System
+
 **Components**:
+
 - `src/rendering.zig`: PBR rendering, material system
 - `src/rendering/render_graph.zig`: Shader-based render pipeline with frame arenas
 - `src/material.zig`: PBR material creation and management
 - `src/shader/`: Shader compilation and management
 
 **Features**:
+
 - Physically Based Rendering (PBR)
 - Shader-based render graph
 - Automatic resource management
 - Post-processing pipeline support
 
 ### 4. Physics System
+
 **Location**: `src/physics/`
 
 - **World**: Physics world simulation (`physics/world.zig`)
@@ -69,6 +75,7 @@ The Nyon Game Engine is built on a modular, multi-backend architecture designed 
 - **Spatial Hashing**: Fast broad-phase collision detection
 
 ### 5. Entity Component System (ECS)
+
 **Location**: `src/ecs/`
 
 - **Archetype-based**: Optimized for cache locality
@@ -78,12 +85,14 @@ The Nyon Game Engine is built on a modular, multi-backend architecture designed 
 - **ObjectPool**: Frequent allocation optimization
 
 **Component Types**:
+
 - Position, Velocity, Acceleration
 - Transform, Rotation, Scale
 - Physics: Collider, RigidBody
 - Rendering: Model, Material, Texture
 
 ### 6. UI System
+
 **Location**: `src/ui/`
 
 - **Framework**: Immediate-mode GUI with raygui wrapper
@@ -94,6 +103,7 @@ The Nyon Game Engine is built on a modular, multi-backend architecture designed 
 - **DPI Scaling**: Automatic scaling support (0.6 - 2.5x)
 
 **Widget Types**:
+
 - Basic: Button, Label, CheckBox, Slider, ProgressBar
 - Input: TextBox, Spinner, ComboBox, ValueBox
 - Lists: ListView, DropdownBox, ToggleGroup
@@ -102,19 +112,21 @@ The Nyon Game Engine is built on a modular, multi-backend architecture designed 
 - Dialogs: MessageBox, TextInputBox, File dialogs
 
 ### 7. Asset Management
+
 **Location**: `src/asset.zig`
 
 - **AssetManager**: Centralized asset loading and caching
 - **Reference Counting**: Automatic cleanup when ref_count reaches 0
 - **Metadata System**: Per-asset custom metadata storage
 - **Asset Types**:
-  - Models (3D meshes)
-  - Textures (images)
-  - Materials (PBR)
-  - Audio (sounds, music)
+    - Models (3D meshes)
+    - Textures (images)
+    - Materials (PBR)
+    - Audio (sounds, music)
 - **Caching**: Hash-based lookup, automatic cleanup
 
 ### 8. Audio System
+
 **Location**: `src/audio/`
 
 - **AudioLoader**: Multi-format audio loading (WAV, OGG, MP3)
@@ -123,6 +135,7 @@ The Nyon Game Engine is built on a modular, multi-backend architecture designed 
 - **Sound Effects**: Short audio clip playback
 
 ### 9. Game Systems
+
 **Location**: `src/game/`
 
 - **Sandbox**: Main game loop and world management (`src/game/sandbox.zig`)
@@ -131,12 +144,14 @@ The Nyon Game Engine is built on a modular, multi-backend architecture designed 
 - **Undo/Redo**: Command pattern for game state changes
 
 **Save System**:
+
 - Format: JSON with NYON header
 - Versioning: `WORLD_DATA_VERSION`
 - Location: `saves/` directory
 - Retry logic: 3 attempts with exponential backoff
 
 ### 10. Editor System
+
 **Location**: `src/editor/`
 
 - **Scene Editor**: Level design and entity placement
@@ -169,24 +184,26 @@ Display (Window/Frontbuffer)
 ## Memory Management
 
 ### Allocation Strategy
+
 1. **Frame Temporary**: `std.heap.ArenaAllocator`
-   - Reset each frame
-   - Used for: Rendering, temporary calculations
-   - Location: `frame_arena` in `RenderGraph`
+    - Reset each frame
+    - Used for: Rendering, temporary calculations
+    - Location: `frame_arena` in `RenderGraph`
 
 2. **Long-lived**: `std.heap.ArenaAllocator` with retain
-   - Persists across frames
-   - Used for: Game state, assets
+    - Persists across frames
+    - Used for: Game state, assets
 
 3. **Object Pools**: `src/common/object_pool.zig`
-   - Pre-allocated pools for frequent allocations
-   - Used for: Entities, particles
+    - Pre-allocated pools for frequent allocations
+    - Used for: Entities, particles
 
 4. **Asset Caching**: Reference-counted assets
-   - Automatic cleanup at ref_count = 0
-   - `unloadAsset()` function handles cleanup
+    - Automatic cleanup at ref_count = 0
+    - `unloadAsset()` function handles cleanup
 
 ### Memory Safety
+
 - **Bounds Checking**: `src/common/error_handling.zig` with `Cast` utilities
 - **Leak Detection**: `LeakyDetector` for debug builds
 - **RAII**: `defer` pattern for all allocations
@@ -196,6 +213,7 @@ Display (Window/Frontbuffer)
 **Location**: `src/config/constants.zig`
 
 ### Configuration Categories
+
 - **UI**: DPI scaling, font sizes, touch targets, colors
 - **Rendering**: Screen resolution, texture sizes, limits
 - **Physics**: Gravity, forces, masses
@@ -207,17 +225,20 @@ Display (Window/Frontbuffer)
 ## Performance Optimization
 
 ### Rendering
+
 - **Batch Rendering**: Group draw calls by material/shader
 - **Level of Detail (LOD)**: Distance-based model simplification
 - **Culling**: Frustum and occlusion culling
 - **Instancing**: GPU instancing for repeated objects
 
 ### ECS
+
 - **Archetype-based queries**: Cache-friendly component access
 - **Query caching**: Reuse query results
 - **Component separation**: Minimize cache line invalidation
 
 ### Physics
+
 - **Spatial Hashing**: O(1) broad-phase collision
 - **Broad phase → Narrow phase**: Two-stage collision detection
 - **Sleeping**: Disable processing for stationary objects
@@ -225,6 +246,7 @@ Display (Window/Frontbuffer)
 ## Zig 0.16 Migration Status
 
 ### Completed Migrations
+
 - ✅ **Build System**: Updated `build.zig.zon` to stable Zig 0.16.0
 - ✅ **Error Handling**: Replaced `@panic()` with proper error propagation in `src/vendor/sysgpu/main.zig`
 - ✅ **JSON API**: Updated `std.json.parseFromSlice` and `std.json.stringify` calls
@@ -233,6 +255,7 @@ Display (Window/Frontbuffer)
 - ✅ **Error Propagation**: Replaced `catch unreachable` with proper error returns
 
 ### Deferred Tasks
+
 - ⏸ **@intCast Safety**: Comprehensive pass to replace with Cast utility (requires extensive testing)
 - ⏸ **@ptrCast in Engine**: Requires backend architecture refactor (FFI pattern is intentional)
 - ⏸ **Raygui Integration**: Actual bindings require raylib/raygui library (stubs provide safe defaults)
@@ -240,6 +263,7 @@ Display (Window/Frontbuffer)
 ## Build Commands
 
 ### Core Commands
+
 - `zig build`: Compile the sandbox executable
 - `zig build run`: Launch the sandbox demo
 - `zig build run-editor`: Build and start the editor UI
@@ -250,12 +274,14 @@ Display (Window/Frontbuffer)
 - `zig fmt --check`: Check if code is formatted without modifying files
 
 ### Platform-Specific Commands
+
 - Desktop: `zig build run` (raylib backend)
 - Web: `zig build wasm` (WebGPU backend)
 
 ## Dependencies
 
 ### External Libraries
+
 - **raylib**: Cross-platform game development library
 - **raygui**: Immediate-mode GUI library
 - **GLFW**: Window and input management (desktop)
@@ -263,6 +289,7 @@ Display (Window/Frontbuffer)
 - **std**: Zig standard library
 
 ### Internal Modules
+
 - `src/common/`: Shared utilities (memory, error handling)
 - `src/ecs/`: Entity-component system
 - `src/physics/`: Physics simulation
@@ -277,35 +304,39 @@ Display (Window/Frontbuffer)
 
 - **Main Thread**: All rendering, input processing, and game logic
 - **Worker Threads**: Used internally by:
-  - File I/O operations
-  - Asset loading
-  - Physics simulation (optional)
-- **Thread-Safe Collections**: 
-  - Atomic operations where needed
-  - Lock-free algorithms where possible
-  - Message passing for cross-thread communication
+    - File I/O operations
+    - Asset loading
+    - Physics simulation (optional)
+- **Thread-Safe Collections**:
+    - Atomic operations where needed
+    - Lock-free algorithms where possible
+    - Message passing for cross-thread communication
 
 ## Known Issues
 
 ### Vendor Code Issues
+
 - `src/vendor/sysgpu/`: Auto-generated code has Zig 0.16 compatibility issues
-  - Error: Function signature mismatch in `deviceCreateRenderPipeline`
-  - Status: Requires upstream sysgpu update
-  - Impact: Does not affect raylib backend usage
+    - Error: Function signature mismatch in `deviceCreateRenderPipeline`
+    - Status: Requires upstream sysgpu update
+    - Impact: Does not affect raylib backend usage
 
 ### Build System
+
 - Windows path handling requires attention to backslashes in generated code
 - C allocator usage patterns need documentation (intentional for libc integration)
 
 ## Development Workflow
 
 ### Before Commit
+
 1. `zig fmt`: Format all code
 2. `zig build`: Verify compilation
 3. `zig build test`: Run test suite
 4. Review changes for breaking API modifications
 
 ### Debugging
+
 - Use `std.log` with appropriate levels (err/warn/info/debug)
 - Enable `LeakyDetector` for tracking allocations in debug builds
 - Use `zig build -ODebug` for better error messages
@@ -358,6 +389,7 @@ src/
 ## Performance Targets
 
 ### Frame Time Budgets (60 FPS target)
+
 - **Rendering**: ≤ 8.33ms
 - **Physics**: ≤ 4.0ms
 - **Game Logic**: ≤ 2.0ms
@@ -365,6 +397,7 @@ src/
 - **Audio**: Asynchronous (no frame time)
 
 ### Memory Budgets
+
 - **Frame Temporary**: Reset each frame, ~1-5MB
 - **Game State**: 10-50MB (depends on world size)
 - **Assets**: Cached with LRU eviction, ~50-200MB
@@ -373,10 +406,12 @@ src/
 ## Version History
 
 ### Zig 0.16 Migration (Current)
+
 - Updated build configuration
 - Fixed JSON API calls throughout codebase
 - Improved error handling and propagation
 - Enhanced memory safety
 
 ### Previous Versions
+
 - Various incremental updates for Zig 0.13-0.15 compatibility

@@ -13,18 +13,18 @@ pub const PhysicsIntegration = struct {
     entity_world: *ecs.ECSWorld,
 
     /// Map from entity ID to physics body ID
-    entity_to_body: std.HashMap(usize, physics.world.BodyHandle, std.hash_map.AutoContext(usize), std.hash_map.default_max_load_percentage),
+    entity_to_body: std.AutoHashMap(usize, physics.world.BodyHandle),
 
     /// Map from physics body ID to entity ID
-    body_to_entity: std.HashMap(physics.world.BodyHandle, usize, std.hash_map.AutoContext(physics.world.BodyHandle), std.hash_map.default_max_load_percentage),
+    body_to_entity: std.AutoHashMap(physics.world.BodyHandle, usize),
 
     pub fn init(allocator: std.mem.Allocator, physics_world: *physics.PhysicsWorld, entity_world: *ecs.ECSWorld) !PhysicsIntegration {
         return PhysicsIntegration{
             .allocator = allocator,
             .physics_world = physics_world,
             .entity_world = entity_world,
-            .entity_to_body = std.HashMap(usize, physics.world.BodyHandle, std.hash_map.AutoContext(usize), std.hash_map.default_max_load_percentage).init(allocator),
-            .body_to_entity = std.HashMap(physics.world.BodyHandle, usize, std.hash_map.AutoContext(physics.world.BodyHandle), std.hash_map.default_max_load_percentage).init(allocator),
+            .entity_to_body = std.AutoHashMap(usize, physics.world.BodyHandle).init(allocator),
+            .body_to_entity = std.AutoHashMap(physics.world.BodyHandle, usize).init(allocator),
         };
     }
 

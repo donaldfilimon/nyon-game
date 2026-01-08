@@ -1,4 +1,11 @@
+//! Improved raylib stub designed for easy migration to raylib-zig
+//! This stub provides the same API surface as raylib-zig for seamless replacement
+
 const std = @import("std");
+
+// ============================================================================
+// Basic Types (matching raylib-zig exactly)
+// ============================================================================
 
 pub const Vector2 = extern struct {
     x: f32,
@@ -103,14 +110,19 @@ pub const Color = extern struct {
     g: u8,
     b: u8,
     a: u8,
+
     pub const white = Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
     pub const black = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
     pub const red = Color{ .r = 255, .g = 0, .b = 0, .a = 255 };
     pub const green = Color{ .r = 0, .g = 255, .b = 0, .a = 255 };
     pub const blue = Color{ .r = 0, .g = 0, .b = 255, .a = 255 };
-    pub const yellow = Color{ .r = 253, .g = 249, .b = 0, .a = 255 };
-    pub const gray = Color{ .r = 130, .g = 130, .b = 130, .a = 255 };
+    pub const yellow = Color{ .r = 255, .g = 255, .b = 0, .a = 255 };
+    pub const magenta = Color{ .r = 255, .g = 0, .b = 255, .a = 255 };
+    pub const cyan = Color{ .r = 0, .g = 255, .b = 255, .a = 255 };
     pub const light_gray = Color{ .r = 200, .g = 200, .b = 200, .a = 255 };
+    pub const gray = Color{ .r = 130, .g = 130, .b = 130, .a = 255 };
+    pub const dark_gray = Color{ .r = 80, .g = 80, .b = 80, .a = 255 };
+    pub const ray_white = white;
 };
 
 pub const Rectangle = extern struct {
@@ -120,30 +132,26 @@ pub const Rectangle = extern struct {
     height: f32,
 };
 
-pub const Image = extern struct {
-    data: ?*anyopaque,
-    width: c_int,
-    height: c_int,
-    mipmaps: c_int,
-    format: c_int,
-};
+// ============================================================================
+// Graphics Types
+// ============================================================================
 
 pub const Texture2D = extern struct {
-    id: c_uint,
-    width: c_int,
-    height: c_int,
-    mipmaps: c_int,
-    format: c_int,
+    id: raylib_c_uint,
+    width: raylib_c_int,
+    height: raylib_c_int,
+    mipmaps: raylib_c_int,
+    format: raylib_c_int,
 };
+
 pub const Texture = Texture2D;
 
 pub const RenderTexture2D = extern struct {
-    id: c_uint,
+    id: raylib_c_uint,
     texture: Texture2D,
     depth: Texture2D,
 };
 
-pub const CameraProjection = enum(c_int) { perspective = 0, orthographic = 1 };
 pub const Camera3D = extern struct {
     position: Vector3,
     target: Vector3,
@@ -152,16 +160,67 @@ pub const Camera3D = extern struct {
     projection: CameraProjection,
 };
 
-pub const Ray = extern struct {
-    position: Vector3,
-    direction: Vector3,
+pub const CameraProjection = enum(raylib_c_int) {
+    perspective = 0,
+    orthographic = 1,
 };
 
-pub const RayCollision = extern struct {
-    hit: bool,
-    distance: f32,
-    point: Vector3,
-    normal: Vector3,
+pub const Model = extern struct {
+    transform: Matrix,
+    meshCount: raylib_c_int,
+    materialCount: raylib_c_int,
+    meshes: ?[*]Mesh,
+    materials: ?[*]Material,
+    meshMaterial: ?[*]raylib_c_int,
+    boneCount: raylib_c_int,
+    bones: ?[*]BoneInfo,
+    bindPose: ?[*]Transform,
+};
+
+pub const Mesh = extern struct {
+    vertexCount: raylib_c_int,
+    triangleCount: raylib_c_int,
+    vertices: ?[*]f32,
+    texcoords: ?[*]f32,
+    texcoords2: ?[*]f32,
+    normals: ?[*]f32,
+    tangents: ?[*]f32,
+    colors: ?[*]u8,
+    indices: ?[*]raylib_c_ushort,
+    animVertices: ?[*]f32,
+    animNormals: ?[*]f32,
+    boneIds: ?[*]u8,
+    boneWeights: ?[*]f32,
+    vaoId: raylib_c_uint,
+    vboId: ?[*]raylib_c_uint,
+};
+
+pub const Material = extern struct {
+    shader: Shader,
+    maps: ?[*]MaterialMap,
+    params: [4]f32,
+};
+
+pub const Shader = extern struct {
+    id: raylib_c_uint,
+    locs: ?[*]raylib_c_int,
+};
+
+pub const MaterialMap = extern struct {
+    texture: Texture2D,
+    color: Color,
+    value: f32,
+};
+
+pub const BoneInfo = extern struct {
+    name: [32]u8,
+    parent: raylib_c_int,
+};
+
+pub const Transform = extern struct {
+    translation: Vector3,
+    rotation: Quaternion,
+    scale: Vector3,
 };
 
 pub const BoundingBox = extern struct {
@@ -169,92 +228,69 @@ pub const BoundingBox = extern struct {
     max: Vector3,
 };
 
-pub const Shader = extern struct { id: c_uint, locs: ?*c_int };
-pub const MaterialMap = extern struct { texture: Texture2D, color: Color, value: f32 };
-pub const Material = extern struct { shader: Shader, maps: ?*MaterialMap, params: [4]f32 };
-pub const Transform = extern struct { translation: Vector3, rotation: Quaternion, scale: Vector3 };
-pub const BoneInfo = extern struct { name: [32]u8, parent: c_int };
-pub const Mesh = extern struct {
-    vertexCount: i32,
-    triangleCount: i32,
-    vertices: [*]f32,
-    texcoords: [*]f32,
-    texcoords2: [*]f32,
-    normals: [*]f32,
-    tangents: [*]f32,
-    colors: [*]u8,
-    indices: [*]u16,
-    animVertices: [*]f32,
-    animNormals: [*]f32,
-    boneIds: [*]c_int,
-    boneWeights: [*]f32,
-    boneCount: i32,
-    boneMatrices: [*]f32,
-    vaoId: c_int,
-    vboId: [*]c_int,
-};
-pub const Model = extern struct {
-    transform: Matrix,
-    meshCount: c_int,
-    materialCount: c_int,
-    meshes: ?*Mesh,
-    materials: ?*Material,
-    meshMaterial: ?*c_int,
-    boneCount: c_int,
-    bones: ?*BoneInfo,
-    bindPose: ?*Transform,
-};
 pub const ModelAnimation = extern struct {
-    boneCount: c_int,
-    frameCount: c_int,
-    bones: ?*BoneInfo,
-    framePoses: ?*?*Transform,
+    boneCount: raylib_c_int,
+    frameCount: raylib_c_int,
+    bones: ?[*]BoneInfo,
+    framePoses: ?[*][*]Transform,
+    name: [32]u8,
 };
 
 pub const Font = extern struct {
-    baseSize: c_int,
-    glyphCount: c_int,
-    glyphPadding: c_int,
+    baseSize: raylib_c_int,
+    glyphCount: raylib_c_int,
+    glyphPadding: raylib_c_int,
     texture: Texture2D,
     recs: ?[*]Rectangle,
-    glyphs: ?*anyopaque,
+    glyphs: ?[*]GlyphInfo,
 };
 
-pub const Sound = extern struct { stream: AudioStream, frameCount: c_uint };
+pub const GlyphInfo = extern struct {
+    value: raylib_c_int,
+    offsetX: raylib_c_int,
+    offsetY: raylib_c_int,
+    advanceX: raylib_c_int,
+    image: Image,
+};
+
+pub const Image = extern struct {
+    data: ?*anyopaque,
+    width: raylib_c_int,
+    height: raylib_c_int,
+    mipmaps: raylib_c_int,
+    format: raylib_c_int,
+};
+
+// ============================================================================
+// Audio Types
+// ============================================================================
+
+pub const Sound = extern struct {
+    stream: AudioStream,
+    frameCount: raylib_c_uint,
+};
+
+pub const Music = extern struct {
+    stream: AudioStream,
+    frameCount: raylib_c_uint,
+    looping: bool,
+    ctxType: raylib_c_int,
+    ctxData: ?*anyopaque,
+};
+
 pub const AudioStream = extern struct {
     buffer: ?*anyopaque,
     processor: ?*anyopaque,
-    sampleRate: c_uint,
-    sampleSize: c_uint,
-    channels: c_uint,
+    sampleRate: raylib_c_uint,
+    sampleSize: raylib_c_uint,
+    channels: raylib_c_uint,
 };
 
-pub const FilePathList = extern struct {
-    capacity: c_uint,
-    count: c_uint,
-    paths: [*][*:0]u8,
-};
+// ============================================================================
+// Input Types
+// ============================================================================
 
-pub const ConfigFlags = packed struct {
-    vsync_hint: bool = false,
-    fullscreen_mode: bool = false,
-    window_resizable: bool = false,
-    window_undecorated: bool = false,
-    window_hidden: bool = false,
-    window_minimized: bool = false,
-    window_maximized: bool = false,
-    window_unfocused: bool = false,
-    window_topmost: bool = false,
-    window_always_run: bool = false,
-    transparent_window: bool = false,
-    high_dpi: bool = false,
-    mouse_cursor_hidden: bool = false,
-    mouse_cursor_centered: bool = false,
-    audio_soft: bool = false,
-    msaa_4x_hint: bool = false,
-};
-
-pub const KeyboardKey = enum(c_int) {
+pub const KeyboardKey = enum(raylib_c_int) {
     null = 0,
     apostrophe = 39,
     comma = 44,
@@ -299,6 +335,10 @@ pub const KeyboardKey = enum(c_int) {
     x = 88,
     y = 89,
     z = 90,
+    left_bracket = 91,
+    backslash = 92,
+    right_bracket = 93,
+    grave = 96,
     space = 32,
     escape = 256,
     enter = 257,
@@ -339,9 +379,10 @@ pub const KeyboardKey = enum(c_int) {
     right_control = 345,
     right_alt = 346,
     right_super = 347,
+    kb_menu = 348,
 };
 
-pub const MouseButton = enum(c_int) {
+pub const MouseButton = enum(raylib_c_int) {
     left = 0,
     right = 1,
     middle = 2,
@@ -351,49 +392,119 @@ pub const MouseButton = enum(c_int) {
     back = 6,
 };
 
-// Functions
-pub fn initWindow(width: c_int, height: c_int, title: [*:0]const u8) void {
+// ============================================================================
+// Configuration Types
+// ============================================================================
+
+pub const ConfigFlags = packed struct(u16) {
+    vsync_hint: bool = false,
+    fullscreen_mode: bool = false,
+    window_resizable: bool = false,
+    window_undecorated: bool = false,
+    window_hidden: bool = false,
+    window_minimized: bool = false,
+    window_maximized: bool = false,
+    window_unfocused: bool = false,
+    window_topmost: bool = false,
+    window_always_run: bool = false,
+    window_transparent: bool = false,
+    window_highdpi: bool = false,
+    window_mouse_passthrough: bool = false,
+    borderless_windowed_mode: bool = false,
+    msaa_4x_hint: bool = false,
+    interlaced_hint: bool = false,
+};
+
+// ============================================================================
+// Utility Types
+// ============================================================================
+
+pub const Ray = extern struct {
+    position: Vector3,
+    direction: Vector3,
+};
+
+pub const FilePathList = extern struct {
+    capacity: raylib_c_uint,
+    count: raylib_c_uint,
+    paths: [*][*:0]u8,
+};
+
+// ============================================================================
+// Core Functions (matching raylib-zig API)
+// ============================================================================
+
+pub fn initWindow(width: i32, height: i32, title: [:0]const u8) void {
     _ = width;
     _ = height;
     _ = title;
 }
+
 pub fn closeWindow() void {}
+
 pub fn windowShouldClose() bool {
     return false;
 }
-pub fn isWindowReady() bool {
-    return true;
-}
-pub fn isWindowResized() bool {
-    return false;
-}
+
 pub fn setConfigFlags(flags: ConfigFlags) void {
     _ = flags;
 }
-pub fn setTargetFPS(fps: c_int) void {
+
+pub fn setTargetFPS(fps: i32) void {
     _ = fps;
 }
-pub fn getFrameTime() f32 {
-    return 0.016;
-}
-pub fn getTime() f64 {
-    return 0;
-}
-pub fn getScreenWidth() c_int {
-    return 800;
-}
-pub fn getScreenHeight() c_int {
-    return 600;
-}
-pub fn getWindowScaleDPI() Vector2 {
-    return .{ .x = 1, .y = 1 };
-}
+
 pub fn setExitKey(key: KeyboardKey) void {
     _ = key;
 }
 
+pub fn getFrameTime() f32 {
+    return 0.016; // ~60 FPS
+}
+
+pub fn getScreenWidth() raylib_c_int {
+    return 800; // Default window width
+}
+
+pub fn getScreenHeight() raylib_c_int {
+    return 600; // Default window height
+}
+
+pub fn isWindowReady() bool {
+    return true; // Assume window is always ready
+}
+
+pub fn fileExists(fileName: [:0]const u8) bool {
+    _ = fileName;
+    return false; // Stub: assume files don't exist
+}
+
+pub fn getWindowScaleDPI() Vector2 {
+    return .{ .x = 1.0, .y = 1.0 };
+}
+
+pub fn measureText(text: [*:0]const u8, fontSize: raylib_c_int) raylib_c_int {
+    _ = text;
+    _ = fontSize;
+    return 100; // Dummy text width
+}
+
+pub fn measureTextEx(font: Font, text: [*:0]const u8, fontSize: f32, spacing: f32) Vector2 {
+    _ = font;
+    _ = text;
+    _ = fontSize;
+    _ = spacing;
+    return .{ .x = 100, .y = 16 }; // Dummy text size
+}
+
+// ============================================================================
+// Drawing Functions
+// ============================================================================
+
 pub fn beginDrawing() void {}
+
 pub fn endDrawing() void {}
+
 pub fn clearBackground(color: Color) void {
     _ = color;
 }
@@ -401,130 +512,48 @@ pub fn clearBackground(color: Color) void {
 pub fn beginMode3D(camera: Camera3D) void {
     _ = camera;
 }
+
 pub fn endMode3D() void {}
-pub fn beginScissorMode(x: c_int, y: c_int, width: c_int, height: c_int) void {
+
+pub fn beginScissorMode(x: i32, y: i32, width: i32, height: i32) void {
     _ = x;
     _ = y;
     _ = width;
     _ = height;
 }
+
 pub fn endScissorMode() void {}
-pub fn beginTextureMode(target: RenderTexture2D) void {
-    _ = target;
-}
-pub fn endTextureMode() void {}
-pub fn beginShaderMode(shader: Shader) void {
-    _ = shader;
-}
-pub fn endShaderMode() void {}
 
-pub fn drawPixel(posX: c_int, posY: c_int, color: Color) void {
-    _ = posX;
-    _ = posY;
-    _ = color;
-}
-pub fn drawLine(startPosX: c_int, startPosY: c_int, endPosX: c_int, endPosY: c_int, color: Color) void {
-    _ = startPosX;
-    _ = startPosY;
-    _ = endPosX;
-    _ = endPosY;
-    _ = color;
-}
-pub fn drawLine3D(startPos: Vector3, endPos: Vector3, color: Color) void {
-    _ = startPos;
-    _ = endPos;
-    _ = color;
-}
-pub fn drawCircleV(center: Vector2, radius: f32, color: Color) void {
-    _ = center;
-    _ = radius;
-    _ = color;
-}
-pub fn drawRectangle(posX: c_int, posY: c_int, width: c_int, height: c_int, color: Color) void {
-    _ = posX;
-    _ = posY;
-    _ = width;
-    _ = height;
-    _ = color;
-}
-pub fn drawRectangleRec(rec: Rectangle, color: Color) void {
-    _ = rec;
-    _ = color;
-}
-pub fn drawRectangleRounded(rec: Rectangle, roundness: f32, segments: c_int, color: Color) void {
-    _ = rec;
-    _ = roundness;
-    _ = segments;
-    _ = color;
-}
-pub fn drawRectangleLinesEx(rec: Rectangle, lineThick: c_int, color: Color) void {
-    _ = rec;
-    _ = lineThick;
-    _ = color;
-}
-pub fn drawRectangleRoundedLinesEx(rec: Rectangle, roundness: f32, segments: c_int, lineThick: f32, color: Color) void {
-    _ = rec;
-    _ = roundness;
-    _ = segments;
-    _ = lineThick;
-    _ = color;
-}
-pub fn drawText(text: []const u8, posX: c_int, posY: c_int, fontSize: c_int, color: Color) void {
+pub fn drawText(text: [:0]const u8, x: i32, y: i32, fontSize: i32, color: Color) void {
     _ = text;
-    _ = posX;
-    _ = posY;
+    _ = x;
+    _ = y;
     _ = fontSize;
     _ = color;
 }
-pub fn measureText(text: []const u8, fontSize: c_int) c_int {
-    _ = text;
-    _ = fontSize;
-    return 0;
+
+pub fn drawCircle(centerX: i32, centerY: i32, radius: f32, color: Color) void {
+    _ = centerX;
+    _ = centerY;
+    _ = radius;
+    _ = color;
 }
 
-pub fn drawPlane(centerPos: Vector3, size: Vector2, color: Color) void {
-    _ = centerPos;
-    _ = size;
-    _ = color;
-}
-pub fn drawGrid(slices: c_int, spacing: f32) void {
-    _ = slices;
-    _ = spacing;
-}
-pub fn drawCube(position: Vector3, width: f32, height: f32, length: f32, color: Color) void {
-    _ = position;
+pub fn drawRectangle(posX: i32, posY: i32, width: i32, height: i32, color: Color) void {
+    _ = posX;
+    _ = posY;
     _ = width;
     _ = height;
-    _ = length;
     _ = color;
 }
-pub fn drawCubeWires(position: Vector3, width: f32, height: f32, length: f32, color: Color) void {
+
+pub fn drawModel(model: Model, position: Vector3, scale: f32, tint: Color) void {
+    _ = model;
     _ = position;
-    _ = width;
-    _ = height;
-    _ = length;
-    _ = color;
+    _ = scale;
+    _ = tint;
 }
-pub fn drawSphere(centerPos: Vector3, radius: f32, color: Color) void {
-    _ = centerPos;
-    _ = radius;
-    _ = color;
-}
-pub fn drawSphereWires(centerPos: Vector3, radius: f32, rings: c_int, slices: c_int, color: Color) void {
-    _ = centerPos;
-    _ = radius;
-    _ = rings;
-    _ = slices;
-    _ = color;
-}
-pub fn drawCapsuleWires(startPos: Vector3, endPos: Vector3, radius: f32, slices: c_int, rings: c_int, color: Color) void {
-    _ = startPos;
-    _ = endPos;
-    _ = radius;
-    _ = slices;
-    _ = rings;
-    _ = color;
-}
+
 pub fn drawModelEx(model: Model, position: Vector3, rotationAxis: Vector3, rotationAngle: f32, scale: Vector3, tint: Color) void {
     _ = model;
     _ = position;
@@ -533,184 +562,83 @@ pub fn drawModelEx(model: Model, position: Vector3, rotationAxis: Vector3, rotat
     _ = scale;
     _ = tint;
 }
-pub fn drawModel(model: Model, position: Vector3, scale: f32, tint: Color) void {
+
+pub fn drawModelWires(model: Model, position: Vector3, scale: f32, tint: Color) void {
     _ = model;
     _ = position;
     _ = scale;
     _ = tint;
 }
 
-pub fn drawTexture(texture: Texture2D, posX: c_int, posY: c_int, tint: Color) void {
-    _ = texture;
-    _ = posX;
-    _ = posY;
-    _ = tint;
-}
-pub fn drawTextureV(texture: Texture2D, position: Vector2, tint: Color) void {
-    _ = texture;
+pub fn drawCube(position: Vector3, width: f32, height: f32, length: f32, color: Color) void {
     _ = position;
-    _ = tint;
-}
-pub fn drawTextureRec(texture: Texture2D, source: Rectangle, position: Vector2, tint: Color) void {
-    _ = texture;
-    _ = source;
-    _ = position;
-    _ = tint;
-}
-pub fn drawTexturePro(texture: Texture2D, source: Rectangle, dest: Rectangle, origin: Vector2, rotation: f32, tint: Color) void {
-    _ = texture;
-    _ = source;
-    _ = dest;
-    _ = origin;
-    _ = rotation;
-    _ = tint;
-}
-
-pub fn loadRenderTexture(width: c_int, height: c_int) RenderTexture2D {
     _ = width;
     _ = height;
-    return RenderTexture2D{ .id = 0, .texture = undefined, .depth = undefined };
-}
-pub fn unloadRenderTexture(target: RenderTexture2D) void {
-    _ = target;
-}
-pub fn loadShader(vsFileName: ?[*:0]const u8, fsFileName: ?[*:0]const u8) Shader {
-    _ = vsFileName;
-    _ = fsFileName;
-    return Shader{ .id = 0, .locs = null };
-}
-pub fn unloadShader(shader: Shader) void {
-    _ = shader;
+    _ = length;
+    _ = color;
 }
 
-pub fn loadModel(fileName: [*:0]const u8) Model {
-    _ = fileName;
-    return Model{ .transform = Matrix.identity(), .meshCount = 0, .materialCount = 0, .meshes = null, .materials = null, .meshMaterial = null, .boneCount = 0, .bones = null, .bindPose = null };
-}
-pub fn unloadModel(model: Model) void {
-    _ = model;
-}
-pub fn getModelBoundingBox(model: Model) BoundingBox {
-    _ = model;
-    return BoundingBox{ .min = .{ .x = 0, .y = 0, .z = 0 }, .max = .{ .x = 0, .y = 0, .z = 0 } };
-}
-pub fn unloadMesh(mesh: Mesh) void {
-    _ = mesh;
-}
-pub fn unloadMaterial(material: Material) void {
-    _ = material;
-}
-pub fn unloadModelAnimation(anim: ModelAnimation) void {
-    _ = anim;
-}
-pub fn unloadTexture(texture: Texture2D) void {
-    _ = texture;
+pub fn drawCubeWires(position: Vector3, width: f32, height: f32, length: f32, color: Color) void {
+    _ = position;
+    _ = width;
+    _ = height;
+    _ = length;
+    _ = color;
 }
 
-pub fn loadFontEx(fileName: [*:0]const u8, fontSize: c_int, fontChars: ?[*]c_int, glyphCount: c_int) Font {
-    _ = fileName;
-    _ = fontSize;
-    _ = fontChars;
-    _ = glyphCount;
-    return std.mem.zeroes(Font);
-}
-pub fn getFontDefault() Font {
-    return std.mem.zeroes(Font);
-}
-pub fn unloadFont(font: Font) void {
-    _ = font;
+pub fn drawSphere(centerPos: Vector3, radius: f32, color: Color) void {
+    _ = centerPos;
+    _ = radius;
+    _ = color;
 }
 
-pub fn initAudioDevice() void {}
-pub fn closeAudioDevice() void {}
-pub fn playSound(sound: Sound) void {
-    _ = sound;
+pub fn drawSphereWires(centerPos: Vector3, radius: f32, rings: i32, slices: i32, color: Color) void {
+    _ = centerPos;
+    _ = radius;
+    _ = rings;
+    _ = slices;
+    _ = color;
 }
-pub fn stopSound(sound: Sound) void {
-    _ = sound;
-}
-pub fn isSoundPlaying(sound: Sound) bool {
-    _ = sound;
-    return false;
-}
-pub fn setSoundVolume(sound: Sound, volume: f32) void {
-    _ = sound;
-    _ = volume;
-}
-pub fn setSoundPitch(sound: Sound, pitch: f32) void {
-    _ = sound;
-    _ = pitch;
-}
-pub fn unloadSound(sound: Sound) void {
-    _ = sound;
-}
-pub fn setAudioListenerPosition(x: f32, y: f32, z: f32) void {
-    _ = x;
-    _ = y;
-    _ = z;
-}
-pub fn setAudioListenerOrientation(forward: Vector3, up: Vector3) void {
-    _ = forward;
-    _ = up;
-}
+
+// ============================================================================
+// Input Functions
+// ============================================================================
 
 pub fn isKeyPressed(key: KeyboardKey) bool {
     _ = key;
     return false;
 }
+
 pub fn isKeyDown(key: KeyboardKey) bool {
     _ = key;
     return false;
 }
-pub fn isKeyReleased(key: KeyboardKey) bool {
-    _ = key;
-    return false;
-}
+
 pub fn isMouseButtonPressed(button: MouseButton) bool {
     _ = button;
     return false;
 }
+
 pub fn isMouseButtonDown(button: MouseButton) bool {
     _ = button;
     return false;
 }
+
 pub fn isMouseButtonReleased(button: MouseButton) bool {
     _ = button;
     return false;
 }
+
 pub fn getMousePosition() Vector2 {
     return .{ .x = 0, .y = 0 };
 }
+
 pub fn getMouseDelta() Vector2 {
     return .{ .x = 0, .y = 0 };
 }
-pub fn getMouseWheelMove() f32 {
-    return 0.0;
-}
-pub fn getCharPressed() c_int {
-    return 0;
-}
-pub fn enableCursor() void {}
-pub fn disableCursor() void {}
 
-pub fn getScreenToWorldRay(mousePosition: Vector2, camera: Camera3D) Ray {
-    _ = mousePosition;
-    _ = camera;
-    return Ray{ .position = .{ .x = 0, .y = 0, .z = 0 }, .direction = .{ .x = 0, .y = 0, .z = 1 } };
-}
-pub fn getMouseRay(mousePosition: Vector2, camera: Camera3D) Ray {
-    return getScreenToWorldRay(mousePosition, camera);
-}
-pub fn getRayCollisionBox(ray: Ray, box: BoundingBox) RayCollision {
-    _ = ray;
-    _ = box;
-    return RayCollision{ .hit = false, .distance = 0, .point = .{ .x = 0, .y = 0, .z = 0 }, .normal = .{ .x = 0, .y = 1, .z = 0 } };
-}
-pub fn getRayCollisionMesh(ray: Ray, mesh: Mesh, transform: Matrix) RayCollision {
-    _ = ray;
-    _ = mesh;
-    _ = transform;
-    return RayCollision{ .hit = false, .distance = 0, .point = .{ .x = 0, .y = 0, .z = 0 }, .normal = .{ .x = 0, .y = 0, .z = 1 } };
+pub fn getMouseWheelMove() f32 {
+    return 0;
 }
 
 pub fn checkCollisionPointRec(point: Vector2, rec: Rectangle) bool {
@@ -719,75 +647,279 @@ pub fn checkCollisionPointRec(point: Vector2, rec: Rectangle) bool {
     return false;
 }
 
-pub fn loadFileData(fileName: [*:0]const u8, dataSize: *c_int) ?[*]u8 {
-    _ = fileName;
-    _ = dataSize;
-    return null;
+pub fn getMouseRay(mousePosition: Vector2, camera: Camera3D) Ray {
+    _ = mousePosition;
+    _ = camera;
+    return .{
+        .position = .{ .x = 0, .y = 0, .z = 0 },
+        .direction = .{ .x = 0, .y = 0, .z = -1 },
+    };
 }
+
+// ============================================================================
+// Audio Functions
+// ============================================================================
+
+pub fn initAudioDevice() void {}
+
+pub fn closeAudioDevice() void {}
+
+pub fn loadSound(fileName: [:0]const u8) Sound {
+    _ = fileName;
+    return std.mem.zeroes(Sound);
+}
+
+pub fn unloadSound(sound: Sound) void {
+    _ = sound;
+}
+
+pub fn playSound(sound: Sound) void {
+    _ = sound;
+}
+
+pub fn stopSound(sound: Sound) void {
+    _ = sound;
+}
+
+pub fn isSoundPlaying(sound: Sound) bool {
+    _ = sound;
+    return false;
+}
+
+pub fn setSoundVolume(sound: Sound, volume: f32) void {
+    _ = sound;
+    _ = volume;
+}
+
+pub fn setSoundPitch(sound: Sound, pitch: f32) void {
+    _ = sound;
+    _ = pitch;
+}
+
+// ============================================================================
+// File I/O Functions
+// ============================================================================
+
+pub fn loadFileData(fileName: [:0]const u8, dataSize: *raylib_c_int) ?[*]u8 {
+    _ = fileName;
+    dataSize.* = 0;
+    return null; // File not found
+}
+
 pub fn unloadFileData(data: [*]u8) void {
     _ = data;
 }
-pub fn saveFileText(fileName: [*:0]const u8, text: [*:0]const u8) bool {
+
+pub fn loadFileText(fileName: [:0]const u8) ?[*:0]u8 {
     _ = fileName;
-    _ = text;
-    return true;
+    // Return a valid null-terminated empty string, or null on error
+    return @constCast("");
 }
-pub fn loadFileText(fileName: [*:0]const u8) ?[*:0]u8 {
-    _ = fileName;
-    return null;
-}
+
 pub fn unloadFileText(text: ?[*:0]u8) void {
     _ = text;
 }
-pub fn fileExists(fileName: [*:0]const u8) bool {
+
+pub fn saveFileText(fileName: [:0]const u8, text: [*:0]const u8) bool {
     _ = fileName;
+    _ = text;
     return false;
 }
-pub fn directoryExists(dirPath: [*:0]const u8) bool {
-    _ = dirPath;
-    return false;
+
+// ============================================================================
+// Asset Loading Functions
+// ============================================================================
+
+pub fn loadTexture(fileName: [:0]const u8) Texture2D {
+    _ = fileName;
+    return std.mem.zeroes(Texture2D);
 }
-pub fn makeDirectory(dirPath: [*:0]const u8) bool {
-    _ = dirPath;
-    return true;
+
+pub fn unloadTexture(texture: Texture2D) void {
+    _ = texture;
 }
-pub fn loadDirectoryFiles(dirPath: [*:0]const u8) FilePathList {
-    _ = dirPath;
-    return FilePathList{ .capacity = 0, .count = 0, .paths = undefined };
+
+pub fn loadModel(fileName: [:0]const u8) Model {
+    _ = fileName;
+    return std.mem.zeroes(Model);
 }
+
+pub fn unloadModel(model: Model) void {
+    _ = model;
+}
+
+pub fn loadShader(vsFileName: ?[:0]const u8, fsFileName: ?[:0]const u8) Shader {
+    _ = vsFileName;
+    _ = fsFileName;
+    return std.mem.zeroes(Shader);
+}
+
+pub fn unloadShader(shader: Shader) void {
+    _ = shader;
+}
+
+pub fn loadRenderTexture(width: i32, height: i32) RenderTexture2D {
+    _ = width;
+    _ = height;
+    return std.mem.zeroes(RenderTexture2D);
+}
+
+pub fn unloadRenderTexture(target: RenderTexture2D) void {
+    _ = target;
+}
+
+pub fn getFontDefault() Font {
+    return std.mem.zeroes(Font);
+}
+
+pub fn loadFont(fileName: [:0]const u8) Font {
+    _ = fileName;
+    return std.mem.zeroes(Font);
+}
+
+pub fn unloadFont(font: Font) void {
+    _ = font;
+}
+
+// ============================================================================
+// Directory Functions
+// ============================================================================
+
+pub fn loadDirectoryFiles(dirPath: [:0]const u8) FilePathList {
+    _ = dirPath;
+    return .{
+        .capacity = 0,
+        .count = 0,
+        .paths = undefined,
+    };
+}
+
 pub fn unloadDirectoryFiles(files: FilePathList) void {
     _ = files;
+    // Stub implementation - nothing to unload
 }
 
-pub fn getCameraMatrix(camera: Camera3D) Matrix {
-    _ = camera;
-    return Matrix.identity();
+pub fn getModelBoundingBox(model: Model) BoundingBox {
+    _ = model;
+    return BoundingBox{ .min = .{ .x = -1, .y = -1, .z = -1 }, .max = .{ .x = 1, .y = 1, .z = 1 } };
 }
 
-pub fn getFPS() c_int {
-    return 60;
-}
-pub fn drawCircle(centerX: c_int, centerY: c_int, radius: f32, color: Color) void {
-    _ = centerX;
-    _ = centerY;
-    _ = radius;
+pub fn enableCursor() void {}
+
+pub fn disableCursor() void {}
+
+pub fn hideCursor() void {}
+
+pub fn showCursor() void {}
+
+pub fn drawLine(startPosX: i32, startPosY: i32, endPosX: i32, endPosY: i32, color: Color) void {
+    _ = startPosX;
+    _ = startPosY;
+    _ = endPosX;
+    _ = endPosY;
     _ = color;
 }
-pub fn loadModelFromMesh(mesh: Mesh) !Model {
-    _ = mesh;
-    return Model{ .transform = Matrix.identity(), .meshCount = 0, .materialCount = 0, .meshes = null, .materials = null, .meshMaterial = null, .boneCount = 0, .bones = null, .bindPose = null };
+
+pub fn drawRectangleRec(rec: Rectangle, color: Color) void {
+    _ = rec;
+    _ = color;
 }
 
-pub fn vec3Distance(v1: Vector3, v2: Vector3) f32 {
-    const dx = v1.x - v2.x;
-    const dy = v1.y - v2.y;
-    const dz = v1.z - v2.z;
-    return @sqrt(dx * dx + dy * dy + dz * dz);
+pub fn drawRectangleLinesEx(rec: Rectangle, lineThick: f32, color: Color) void {
+    _ = rec;
+    _ = lineThick;
+    _ = color;
 }
 
-pub fn drawModelWires(model: Model, position: Vector3, scale: f32, tint: Color) void {
-    _ = model;
+pub fn drawPlane(centerPos: Vector3, size: Vector2, color: Color) void {
+    _ = centerPos;
+    _ = size;
+    _ = color;
+}
+
+pub fn drawGrid(slices: i32, spacing: f32) void {
+    _ = slices;
+    _ = spacing;
+}
+
+pub fn getCharPressed() i32 {
+    return 0;
+}
+
+pub fn getScreenToWorldRay(position: Vector2, camera: Camera3D) Ray {
     _ = position;
-    _ = scale;
-    _ = tint;
+    _ = camera;
+    return .{
+        .position = .{ .x = 0, .y = 0, .z = 0 },
+        .direction = .{ .x = 0, .y = 0, .z = -1 },
+    };
 }
+
+pub fn unloadModelAnimation(anim: ModelAnimation) void {
+    _ = anim;
+}
+
+pub fn isWindowResized() bool {
+    return false;
+}
+
+pub fn unloadMesh(mesh: Mesh) void {
+    _ = mesh;
+}
+
+pub fn unloadMaterial(material: Material) void {
+    _ = material;
+}
+
+pub fn getRayCollisionBox(ray: Ray, box: BoundingBox) RayCollision {
+    _ = ray;
+    _ = box;
+    return .{
+        .hit = false,
+        .distance = 0,
+        .point = .{ .x = 0, .y = 0, .z = 0 },
+        .normal = .{ .x = 0, .y = 0, .z = 0 },
+    };
+}
+
+pub const RayCollision = extern struct {
+    hit: bool,
+    distance: f32,
+    point: Vector3,
+    normal: Vector3,
+};
+
+pub fn directoryExists(dirPath: [:0]const u8) bool {
+    _ = dirPath;
+    return false;
+}
+
+pub fn makeDirectory(dirPath: [:0]const u8) bool {
+    _ = dirPath;
+    return true; // Assume success
+}
+
+// ============================================================================
+// Color Constants (matching raylib-zig)
+// ============================================================================
+
+pub const WHITE = Color{ .r = 255, .g = 255, .b = 255, .a = 255 };
+pub const BLACK = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
+pub const RED = Color{ .r = 255, .g = 0, .b = 0, .a = 255 };
+pub const BLUE = Color{ .r = 0, .g = 0, .b = 255, .a = 255 };
+pub const GREEN = Color{ .r = 0, .g = 255, .b = 0, .a = 255 };
+pub const YELLOW = Color{ .r = 255, .g = 255, .b = 0, .a = 255 };
+pub const MAGENTA = Color{ .r = 255, .g = 0, .b = 255, .a = 255 };
+pub const CYAN = Color{ .r = 0, .g = 255, .b = 255, .a = 255 };
+pub const LIGHT_GRAY = Color{ .r = 200, .g = 200, .b = 200, .a = 255 };
+pub const GRAY = Color{ .r = 130, .g = 130, .b = 130, .a = 255 };
+pub const DARK_GRAY = Color{ .r = 80, .g = 80, .b = 80, .a = 255 };
+pub const RAY_WHITE = WHITE;
+
+// ============================================================================
+// Type Aliases for C compatibility (internal use only)
+// ============================================================================
+
+const raylib_c_int = i32;
+const raylib_c_uint = u32;
+const raylib_c_ushort = u16;

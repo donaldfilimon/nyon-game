@@ -5,13 +5,13 @@ install
 +- install nyon_game
    +- compile exe nyon_game Debug native 1 errors
 src\vendor\sysgpu\sysgpu\interface.zig:302:28: error: sysgpu.Interface field 'deviceCreateRenderPipeline'
-                                                      	expected type: fn (*sysgpu.device.Device, *const sysgpu.render_pipeline.RenderPipeline.Descriptor) callconv(.@"inline") ?*sysgpu.render_pipeline.RenderPipeline
-                                                      	   found type: fn (*sysgpu.device.Device, *const sysgpu.render_pipeline.RenderPipeline.Descriptor) ?*sysgpu.render_pipeline.RenderPipeline
+                                                      	expected type: fn (*sysgpu.device.Device, *const sysgpu.render_pipeline.RenderPipeline.Descriptor) ?*sysgpu.render_pipeline.RenderPipeline
+                                                      	   found type: fn (*sysgpu.device.Device, *const sysgpu.render_pipeline.RenderPipeline.Descriptor) callconv(.@"inline") ?*sysgpu.render_pipeline.RenderPipeline
     if (FoundDecl != Decl) @compileError("sysgpu.Interface field '" ++ name ++ "'\n\texpected type: " ++ @typeName(Decl) ++ "\n\t   found type: " ++ @typeName(FoundDecl));
                            ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 src\vendor\sysgpu\sysgpu\interface.zig:24:15: note: called at comptime here
-    assertDecl(T, "deviceCreateRenderPipeline", fn (device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) callconv(.@"inline") ?*sysgpu.RenderPipeline);
-    ~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    assertDecl(T, "deviceCreateRenderPipeline", fn (device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor)  ?*sysgpu.RenderPipeline);
+    ~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 src\vendor\sysgpu\main.zig:19:34: note: called at comptime here
 pub const Impl = sysgpu.Interface(struct {
                  ~~~~~~~~~~~~~~~~^
@@ -28,4 +28,4 @@ install transitive failure
    +- compile exe nyon_game Debug native 1 errors
 
 error: the following build command failed with exit code 1:
-.zig-cache\o\fa049ec306d795993228eaa6a48708ec\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0x97a88082 -Ze987044634a86f51
+.zig-cache\o\fa049ec306d795993228eaa6a48708ec\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0x7f1ea005 -Za4301dfc1e8540ed

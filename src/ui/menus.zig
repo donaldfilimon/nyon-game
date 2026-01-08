@@ -307,7 +307,7 @@ pub fn drawCreateWorldMenu(menu: *MenuState, ui_style: ui_mod.UiStyle, status_me
     const field_y: f32 = screen_height * 0.32;
 
     engine.Shapes.drawRectangleRec(engine.Rectangle{ .x = field_x, .y = field_y, .width = field_w, .height = field_h }, ui_style.panel_bg);
-    engine.Shapes.drawRectangleLinesEx(engine.Rectangle{ .x = field_x, .y = field_y, .width = field_w, .height = field_h }, @intFromFloat(ui_style.border_width), ui_style.panel_border);
+    engine.Shapes.drawRectangleLinesEx(engine.Rectangle{ .x = field_x, .y = field_y, .width = field_w, .height = field_h }, ui_style.border_width, ui_style.panel_border);
 
     var text_buf: [64:0]u8 = undefined;
     const name = menu.create_name.asSlice();

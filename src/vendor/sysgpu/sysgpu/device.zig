@@ -35,7 +35,7 @@ pub const Device = opaque {
         reason: LostReason,
         message: [*:0]const u8,
         userdata: ?*anyopaque,
-    ) callconv(.C) void;
+    ) callconv(.c) void;
 
     pub const LostReason = enum(u32) {
         undefined = 0x00000000,
@@ -103,7 +103,7 @@ pub const Device = opaque {
             compute_pipeline: *ComputePipeline,
             message: [*:0]const u8,
             ctx: @TypeOf(context),
-        ) callconv(.Inline) void,
+        ) void,
     ) void {
         const Context = @TypeOf(context);
         const Helper = struct {
@@ -112,7 +112,7 @@ pub const Device = opaque {
                 compute_pipeline: *ComputePipeline,
                 message: [*:0]const u8,
                 userdata: ?*anyopaque,
-            ) callconv(.C) void {
+            ) callconv(.c) void {
                 callback(
                     status,
                     compute_pipeline,
@@ -165,7 +165,7 @@ pub const Device = opaque {
             status: CreatePipelineAsyncStatus,
             pipeline: *RenderPipeline,
             message: [*:0]const u8,
-        ) callconv(.Inline) void,
+        ) void,
     ) void {
         const Context = @TypeOf(context);
         const Helper = struct {
@@ -174,7 +174,7 @@ pub const Device = opaque {
                 pipeline: *RenderPipeline,
                 message: [*:0]const u8,
                 userdata: ?*anyopaque,
-            ) callconv(.C) void {
+            ) callconv(.c) void {
                 callback(
                     if (Context == void) {} else @as(Context, @ptrCast(@alignCast(userdata))),
                     status,
@@ -307,11 +307,11 @@ pub const Device = opaque {
     pub inline fn popErrorScope(
         device: *Device,
         context: anytype,
-        comptime callback: fn (ctx: @TypeOf(context), typ: ErrorType, message: [*:0]const u8) callconv(.Inline) void,
+        comptime callback: fn (ctx: @TypeOf(context), typ: ErrorType, message: [*:0]const u8) void,
     ) void {
         const Context = @TypeOf(context);
         const Helper = struct {
-            pub fn cCallback(typ: ErrorType, message: [*:0]const u8, userdata: ?*anyopaque) callconv(.C) void {
+            pub fn cCallback(typ: ErrorType, message: [*:0]const u8, userdata: ?*anyopaque) callconv(.c) void {
                 callback(if (Context == void) {} else @as(Context, @ptrCast(@alignCast(userdata))), typ, message);
             }
         };
@@ -325,12 +325,12 @@ pub const Device = opaque {
     pub inline fn setDeviceLostCallback(
         device: *Device,
         context: anytype,
-        comptime callback: ?fn (ctx: @TypeOf(context), reason: LostReason, message: [*:0]const u8) callconv(.Inline) void,
+        comptime callback: ?fn (ctx: @TypeOf(context), reason: LostReason, message: [*:0]const u8) void,
     ) void {
         if (callback) |cb| {
             const Context = @TypeOf(context);
             const Helper = struct {
-                pub fn cCallback(reason: LostReason, message: [*:0]const u8, userdata: ?*anyopaque) callconv(.C) void {
+                pub fn cCallback(reason: LostReason, message: [*:0]const u8, userdata: ?*anyopaque) callconv(.c) void {
                     cb(if (Context == void) {} else @as(Context, @ptrCast(@alignCast(userdata))), reason, message);
                 }
             };
@@ -347,12 +347,12 @@ pub const Device = opaque {
     pub inline fn setLoggingCallback(
         device: *Device,
         context: anytype,
-        comptime callback: ?fn (ctx: @TypeOf(context), typ: LoggingType, message: [*:0]const u8) callconv(.Inline) void,
+        comptime callback: ?fn (ctx: @TypeOf(context), typ: LoggingType, message: [*:0]const u8) void,
     ) void {
         if (callback) |cb| {
             const Context = @TypeOf(context);
             const Helper = struct {
-                pub fn cCallback(typ: LoggingType, message: [*:0]const u8, userdata: ?*anyopaque) callconv(.C) void {
+                pub fn cCallback(typ: LoggingType, message: [*:0]const u8, userdata: ?*anyopaque) callconv(.c) void {
                     cb(if (Context == void) {} else @as(Context, @ptrCast(@alignCast(userdata))), typ, message);
                 }
             };
@@ -365,12 +365,12 @@ pub const Device = opaque {
     pub inline fn setUncapturedErrorCallback(
         device: *Device,
         context: anytype,
-        comptime callback: ?fn (ctx: @TypeOf(context), typ: ErrorType, message: [*:0]const u8) callconv(.Inline) void,
+        comptime callback: ?fn (ctx: @TypeOf(context), typ: ErrorType, message: [*:0]const u8) void,
     ) void {
         if (callback) |cb| {
             const Context = @TypeOf(context);
             const Helper = struct {
-                pub fn cCallback(typ: ErrorType, message: [*:0]const u8, userdata: ?*anyopaque) callconv(.C) void {
+                pub fn cCallback(typ: ErrorType, message: [*:0]const u8, userdata: ?*anyopaque) callconv(.c) void {
                     cb(if (Context == void) {} else @as(Context, @ptrCast(@alignCast(userdata))), typ, message);
                 }
             };
