@@ -14,25 +14,30 @@ This document tracks the systematic fixing of critical issues identified in the 
 ## 🔴 Critical Issues to Fix
 
 ### 1. Unsafe Casts (HIGH PRIORITY)
+
 - [ ] `src/ui/ui.zig:116` - Add bounds checking for text width conversion
 - [ ] `src/game/sandbox.zig:251-252` - Use Cast.toInt() for color index
 - [ ] `src/application.zig:100-101` - Use Cast.toFloat() for window size
 - [ ] `src/physics/world.zig:209` - Add bounds checking for substep calculation
 
 ### 2. Memory Management (MEDIUM PRIORITY)
+
 - [ ] `src/std_ext/assets.zig:52` - Document ownership contract for load() return value
 - [ ] `src/ui/game_ui.zig:137,226` - Add overflow protection for timestamp casting
 
 ### 3. Performance Issues (HIGH PRIORITY)
+
 - [ ] `src/game/sandbox.zig:364-407` - Replace O(n) linear search with spatial partitioning
 - [ ] `src/physics/world.zig:41-48` - Already has spatial hash, but verify it's being used
 - [ ] `src/ecs/world.zig:26-27` - Change initCapacity(0) to reasonable defaults
 
 ### 4. Code Quality (MEDIUM PRIORITY)
+
 - [ ] `src/ui/sandbox_ui.zig` and `game_ui.zig` - Extract common code to shared module
 - [ ] `src/game/sandbox.zig:410-491` - Remove duplicate vector math, use physics/types.zig
 
 ### 5. Error Handling (MEDIUM PRIORITY)
+
 - [ ] `src/ui/ui.zig:263,268` - Add error logging instead of silent catch {}
 - [ ] `src/font_manager.zig:52` - Document why continue is acceptable
 

@@ -127,6 +127,7 @@ pub fn build(b: *std.Build) void {
         exe.root_module.linkLibrary(glfw_lib);
     }
     exe.root_module.link_libc = true;
+    linkSystemLibraries(exe, target);
     b.installArtifact(exe);
 
     const editor_exe = b.addExecutable(.{
@@ -150,6 +151,7 @@ pub fn build(b: *std.Build) void {
         editor_exe.root_module.linkLibrary(glfw_lib);
     }
     editor_exe.root_module.link_libc = true;
+    linkSystemLibraries(editor_exe, target);
     b.installArtifact(editor_exe);
 
     setupBuildSteps(b, exe, editor_exe, nyon_game_mod, raylib_lib, zglfw_lib);
@@ -234,6 +236,10 @@ pub fn linkSystemLibraries(exe: *std.Build.Step.Compile, target: std.Build.Resol
             exe.root_module.linkSystemLibrary("opengl32", .{});
             exe.root_module.linkSystemLibrary("gdi32", .{});
             exe.root_module.linkSystemLibrary("winmm", .{});
+            // D3D12 and DXGI for WebGPU/sysgpu backend
+            exe.root_module.linkSystemLibrary("d3d12", .{});
+            exe.root_module.linkSystemLibrary("dxgi", .{});
+            exe.root_module.linkSystemLibrary("dxguid", .{});
         },
         .macos => {
             exe.root_module.linkFramework("OpenGL", .{});

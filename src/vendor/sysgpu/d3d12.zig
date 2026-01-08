@@ -8,8 +8,8 @@ const c = @import("d3d12/c.zig");
 const conv = @import("d3d12/conv.zig");
 const gpu_allocator = @import("gpu_allocator.zig");
 
-// Zig 0.16 compatibility: BoundedArray moved to std.bounded_array
-const BoundedArray = std.bounded_array.BoundedArray;
+// Zig 0.16 compatibility: BoundedArray provided by c.zig
+const BoundedArray = c.BoundedArray;
 
 const log = std.log.scoped(.d3d12);
 
@@ -55,14 +55,14 @@ fn setDebugName(object: *c.ID3D12Object, opt_label: ?[*:0]const u8) void {
 
         _ = object.lpVtbl.*.SetPrivateData.?(
             object,
-            &c.WKPDID_D3DDebugObjectName,
+            &c.c.WKPDID_D3DDebugObjectName,
             @intCast(slice.len),
             slice.ptr,
         );
     } else {
         _ = object.lpVtbl.*.SetPrivateData.?(
             object,
-            &c.WKPDID_D3DDebugObjectName,
+            &c.c.WKPDID_D3DDebugObjectName,
             0,
             null,
         );
@@ -84,12 +84,12 @@ pub const Instance = struct {
         var dxgi_factory: *c.IDXGIFactory4 = undefined;
         hr = c.CreateDXGIFactory2(
             if (debug_enabled) c.DXGI_CREATE_FACTORY_DEBUG else 0,
-            &c.IID_IDXGIFactory4,
+            &c.c.IID_IDXGIFactory4,
             @ptrCast(&dxgi_factory),
         );
         if (hr == c.DXGI_ERROR_INVALID_CALL) {
             const hr_prev = hr;
-            hr = c.CreateDXGIFactory2(0, &c.IID_IDXGIFactory4, @ptrCast(&dxgi_factory));
+            hr = c.CreateDXGIFactory2(0, &c.c.IID_IDXGIFactory4, @ptrCast(&dxgi_factory));
             if (hr == c.S_OK) {
                 log.info("note: D3D12 debug layers disabled (couldn't enable, error: {x}), see https://machengine.org/about/faq/#how-to-enable-direct3d-debug-layers", .{@as(u32, @bitCast(hr_prev))});
             } else {
@@ -102,7 +102,7 @@ pub const Instance = struct {
         var opt_dxgi_factory5: ?*c.IDXGIFactory5 = null;
         _ = dxgi_factory.lpVtbl.*.QueryInterface.?(
             dxgi_factory,
-            &c.IID_IDXGIFactory5,
+            &c.c.IID_IDXGIFactory5,
             @ptrCast(&opt_dxgi_factory5),
         );
         defer _ = if (opt_dxgi_factory5) |dxgi_factory5| dxgi_factory5.lpVtbl.*.Release.?(dxgi_factory5);
@@ -121,7 +121,7 @@ pub const Instance = struct {
         // D3D12 Debug Layer
         if (debug_enabled) {
             var debug_controller: *c.ID3D12Debug1 = undefined;
-            hr = c.D3D12GetDebugInterface(&c.IID_ID3D12Debug1, @ptrCast(&debug_controller));
+            hr = c.D3D12GetDebugInterface(&c.c.IID_ID3D12Debug1, @ptrCast(&debug_controller));
             if (hr == c.S_OK) {
                 defer _ = debug_controller.lpVtbl.*.Release.?(debug_controller);
                 debug_controller.lpVtbl.*.EnableDebugLayer.?(debug_controller);
@@ -160,7 +160,7 @@ pub const Instance = struct {
         var hr: c.HRESULT = undefined;
 
         var dxgi_debug: *c.IDXGIDebug = undefined;
-        hr = c.DXGIGetDebugInterface1(0, &c.IID_IDXGIDebug, @ptrCast(&dxgi_debug));
+        hr = c.DXGIGetDebugInterface1(0, &c.c.IID_IDXGIDebug, @ptrCast(&dxgi_debug));
         if (hr == c.S_OK) {
             defer _ = dxgi_debug.lpVtbl.*.Release.?(dxgi_debug);
 
@@ -217,7 +217,7 @@ pub const Adapter = struct {
                 hr = c.D3D12CreateDevice(
                     @ptrCast(dxgi_adapter),
                     c.D3D_FEATURE_LEVEL_11_0,
-                    &c.IID_ID3D12Device,
+                    &c.c.IID_ID3D12Device,
                     @ptrCast(&d3d_device),
                 );
                 if (hr == c.S_OK) {
@@ -259,7 +259,7 @@ pub const Adapter = struct {
             hr = c.D3D12CreateDevice(
                 @ptrCast(selected_adapter),
                 c.D3D_FEATURE_LEVEL_11_0,
-                &c.IID_ID3D12Device,
+                &c.c.IID_ID3D12Device,
                 @ptrCast(&d3d_device),
             );
             if (hr == c.S_OK) {
@@ -373,7 +373,7 @@ pub const Device = struct {
 
             hr = d3d_device.lpVtbl.*.QueryInterface.?(
                 d3d_device,
-                &c.IID_ID3D12InfoQueue,
+                &c.c.IID_ID3D12InfoQueue,
                 @ptrCast(&info_queue),
             );
             if (hr == c.S_OK) {
@@ -770,7 +770,7 @@ pub const MemoryAllocator = struct {
                 const hr = d3d_device.lpVtbl.*.CreateHeap.?(
                     d3d_device,
                     &desc,
-                    &c.IID_ID3D12Heap,
+                    &c.c.IID_ID3D12Heap,
                     @ptrCast(&heap),
                 );
                 if (hr == c.E_OUTOFMEMORY) return gpu_allocator.Error.OutOfMemory;
@@ -1098,7 +1098,7 @@ pub const MemoryAllocator = struct {
             desc.resource_desc,
             desc.initial_state,
             desc.clear_value,
-            &c.IID_ID3D12Resource,
+            &c.c.IID_ID3D12Resource,
             @ptrCast(&d3d_resource),
         );
         if (hr != c.S_OK) return gpu_allocator.Error.Other;
@@ -1157,7 +1157,7 @@ const DescriptorHeap = struct {
                 .Flags = flags,
                 .NodeMask = 0,
             },
-            &c.IID_ID3D12DescriptorHeap,
+            &c.c.IID_ID3D12DescriptorHeap,
             @ptrCast(&d3d_heap),
         );
         if (hr != c.S_OK) {
@@ -1278,7 +1278,7 @@ const CommandManager = struct {
             hr = d3d_device.lpVtbl.*.CreateCommandAllocator.?(
                 d3d_device,
                 c.D3D12_COMMAND_LIST_TYPE_DIRECT,
-                &c.IID_ID3D12CommandAllocator,
+                &c.c.IID_ID3D12CommandAllocator,
                 @ptrCast(&command_allocator),
             );
             if (hr != c.S_OK) {
@@ -1318,7 +1318,7 @@ const CommandManager = struct {
                 c.D3D12_COMMAND_LIST_TYPE_DIRECT,
                 command_allocator,
                 null,
-                &c.IID_ID3D12GraphicsCommandList,
+                &c.c.IID_ID3D12GraphicsCommandList,
                 @ptrCast(&command_list),
             );
             if (hr != c.S_OK) {
@@ -1459,7 +1459,7 @@ pub const SwapChain = struct {
             hr = dxgi_swap_chain.lpVtbl.*.GetBuffer.?(
                 dxgi_swap_chain,
                 @intCast(i),
-                &c.IID_ID3D12Resource,
+                &c.c.IID_ID3D12Resource,
                 @ptrCast(&buffer),
             );
             if (hr != c.S_OK) {
@@ -2327,7 +2327,7 @@ pub const PipelineLayout = struct {
     manager: utils.Manager(PipelineLayout) = .{},
     root_signature: *c.ID3D12RootSignature,
     group_layouts: []*BindGroupLayout,
-    group_parameter_indices: std.BoundedArray(u32, limits.max_bind_groups),
+    group_parameter_indices: BoundedArray(u32, limits.max_bind_groups),
 
     pub fn init(device: *Device, desc: *const sysgpu.PipelineLayout.Descriptor) !*PipelineLayout {
         const d3d_device = device.d3d_device;
@@ -2487,7 +2487,7 @@ pub const PipelineLayout = struct {
             0,
             root_signature_blob.lpVtbl.*.GetBufferPointer.?(root_signature_blob),
             root_signature_blob.lpVtbl.*.GetBufferSize.?(root_signature_blob),
-            &c.IID_ID3D12RootSignature,
+            &c.c.IID_ID3D12RootSignature,
             @ptrCast(&root_signature),
         );
         errdefer _ = root_signature.lpVtbl.*.Release.?(root_signature);
@@ -2642,7 +2642,7 @@ pub const ComputePipeline = struct {
                 .CachedPSO = .{ .pCachedBlob = null, .CachedBlobSizeInBytes = 0 },
                 .Flags = c.D3D12_PIPELINE_STATE_FLAG_NONE,
             },
-            &c.IID_ID3D12PipelineState,
+            &c.c.IID_ID3D12PipelineState,
             @ptrCast(&d3d_pipeline),
         );
         if (hr != c.S_OK) {
@@ -2682,7 +2682,7 @@ pub const RenderPipeline = struct {
     d3d_pipeline: *c.ID3D12PipelineState,
     layout: *PipelineLayout,
     topology: c.D3D12_PRIMITIVE_TOPOLOGY_TYPE,
-    vertex_strides: std.BoundedArray(c.UINT, limits.max_vertex_buffers),
+    vertex_strides: BoundedArray(c.UINT, limits.max_vertex_buffers),
 
     pub fn init(device: *Device, desc: *const sysgpu.RenderPipeline.Descriptor) !*RenderPipeline {
         const d3d_device = device.d3d_device;
@@ -2784,7 +2784,7 @@ pub const RenderPipeline = struct {
                 .CachedPSO = .{ .pCachedBlob = null, .CachedBlobSizeInBytes = 0 },
                 .Flags = c.D3D12_PIPELINE_STATE_FLAG_NONE,
             },
-            &c.IID_ID3D12PipelineState,
+            &c.c.IID_ID3D12PipelineState,
             @ptrCast(&d3d_pipeline),
         );
         if (hr != c.S_OK) {
@@ -4007,7 +4007,7 @@ pub const Queue = struct {
                 .Flags = c.D3D12_COMMAND_QUEUE_FLAG_NONE,
                 .NodeMask = 0,
             },
-            &c.IID_ID3D12CommandQueue,
+            &c.c.IID_ID3D12CommandQueue,
             @ptrCast(&d3d_command_queue),
         );
         if (hr != c.S_OK) {
@@ -4021,7 +4021,7 @@ pub const Queue = struct {
             d3d_device,
             0,
             c.D3D12_FENCE_FLAG_NONE,
-            &c.IID_ID3D12Fence,
+            &c.c.IID_ID3D12Fence,
             @ptrCast(&fence),
         );
         if (hr != c.S_OK) {
