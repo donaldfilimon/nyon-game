@@ -1,13 +1,4 @@
-/// @Browser @Definitions
 const std = @import("std");
-
-// #region agent log - INSTRUMENTATION FOR DEBUGGING BUILD ISSUES
-fn logDebug(hypothesis_id: []const u8, message: []const u8, data: anytype, session_id: []const u8) void {
-    _ = data; // suppress unused parameter warning
-
-    std.debug.print("[DEBUG {s}] {s} (session: {s})\n", .{ hypothesis_id, message, session_id });
-}
-// #endregion
 
 // ============================================================================
 // Build Configuration Definitions
@@ -75,17 +66,8 @@ pub const EXAMPLES = [_]Example{
 // ============================================================================
 
 pub fn build(b: *std.Build) void {
-    // #region agent log
-    logDebug("build_start", "Build function started", .{}, "A");
-    // #endregion
-
-    // Standard build target and optimization option setup.
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-
-    // #region agent log
-    logDebug("target_optimize_setup", "Target and optimize options set", .{ .target_os = @tagName(target.result.os.tag), .optimize = @tagName(optimize) }, "A");
-    // #endregion
 
     // Create raylib dependency (using stub for compatibility)
     const raylib_mod = b.createModule(.{
@@ -171,10 +153,6 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(editor_exe);
 
     setupBuildSteps(b, exe, editor_exe, nyon_game_mod, raylib_lib, zglfw_lib);
-
-    // #region agent log
-    logDebug("build_complete", "Build function completed successfully", .{}, "A");
-    // #endregion
 }
 
 /// Create the editor executable.

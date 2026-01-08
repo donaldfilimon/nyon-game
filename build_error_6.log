@@ -75,4 +75,4 @@ install transitive failure
    +- compile exe nyon_editor Debug native 3 errors
 
 error: the following build command failed with exit code 1:
-.zig-cache\o\48f283d057ff3818d09c60beef4fd871\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2040+c475f1fcd\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2040+c475f1fcd\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0xc5eb195c -Zbed0f1b16ed375a0
+.zig-cache\o\48f283d057ff3818d09c60beef4fd871\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2040+c475f1fcd\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2040+c475f1fcd\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0xb54608f9 -Z82489fd26d06e93c

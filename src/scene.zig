@@ -137,7 +137,7 @@ pub const Scene = struct {
                 for (0..@as(usize, @intCast(model.meshCount))) |mesh_idx| {
                     if (model.meshes) |mesh_ptr| {
                         if (mesh_idx == 0) {
-                            const mesh = mesh_ptr.*;
+                            const mesh = mesh_ptr[mesh_idx];
                             // Apply model transform to mesh transform
                             // NOTE: Mesh.transform not accessible in stub - using model transform directly
                             const mesh_transform = transform; // mesh.transform.multiply(transform);

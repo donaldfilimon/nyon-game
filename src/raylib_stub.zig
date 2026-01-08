@@ -919,7 +919,3 @@ pub const RAY_WHITE = WHITE;
 // ============================================================================
 // Type Aliases for C compatibility (internal use only)
 // ============================================================================
-
-const raylib_c_int = i32;
-const raylib_c_uint = u32;
-const raylib_c_ushort = u16;
