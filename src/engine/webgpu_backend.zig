@@ -29,7 +29,7 @@ pub const WebGpuBackend = struct {
         // Request Adapter (Simulated sync for mock)
         const AdapterContext = struct {
             pub var a: ?*gpu.Adapter = null;
-            fn callback(status: gpu.RequestAdapterStatus, adp: ?*gpu.Adapter, msg: ?[*:0]const u8, userdata: ?*anyopaque) void {
+            fn callback(status: gpu.RequestAdapterStatus, adp: ?*gpu.Adapter, msg: ?[*:0]const u8, userdata: ?*anyopaque) callconv(.c) void {
                 _ = userdata;
                 _ = msg;
                 if (status == .success) {
@@ -58,7 +58,7 @@ pub const WebGpuBackend = struct {
         // Create Device
         const DeviceContext = struct {
             pub var d: ?*gpu.Device = null;
-            fn callback(status: gpu.RequestDeviceStatus, dev: ?*gpu.Device, msg: ?[*:0]const u8, userdata: ?*anyopaque) void {
+            fn callback(status: gpu.RequestDeviceStatus, dev: ?*gpu.Device, msg: ?[*:0]const u8, userdata: ?*anyopaque) callconv(.c) void {
                 _ = userdata;
                 _ = msg;
                 if (status == .success) {

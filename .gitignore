@@ -1,3 +1,30 @@
 .zig-cache*/
 zig-out/
 **/*.DS_Store
+
+# Logs and temporary build output
+*.log
+build_*.txt
+build_*.log
+err.txt
+log.txt
+trace_log*.txt
+test_output.txt
+test_result.txt
+current_build.txt
+build_output*.txt
+build_fail*.txt
+build_error*.txt
+
+# Temporary Zig files
+check_cc.zig
+check_json.zig
+test_*.zig
+demo_continue.zig
+
+# Screenshots
+screenshot*.png
+
+# Artifacts
+raylib.lib
+debug_build.ps1

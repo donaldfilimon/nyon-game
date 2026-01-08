@@ -8,6 +8,9 @@ const c = @import("d3d12/c.zig");
 const conv = @import("d3d12/conv.zig");
 const gpu_allocator = @import("gpu_allocator.zig");
 
+// Zig 0.16 compatibility: BoundedArray moved to std.bounded_array
+const BoundedArray = std.bounded_array.BoundedArray;
+
 const log = std.log.scoped(.d3d12);
 
 // TODO - need to tweak all these sizes and make a better allocator
@@ -733,7 +736,7 @@ pub const MemoryAllocator = struct {
     const max_memory_groups = 9;
     device: *Device,
 
-    memory_groups: std.BoundedArray(MemoryGroup, max_memory_groups),
+    memory_groups: BoundedArray(MemoryGroup, max_memory_groups),
     allocation_sizes: AllocationSizes,
 
     /// a single heap,

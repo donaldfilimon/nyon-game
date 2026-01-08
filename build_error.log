@@ -1,32 +1,90 @@
-[DEBUG build_start] Build function started (session: A)
-[DEBUG target_optimize_setup] Target and optimize options set (session: A)
-[DEBUG build_complete] Build function completed successfully (session: A)
-install
-+- install nyon_editor
-   +- compile exe nyon_editor Debug native 1 errors
-src\vendor\sysgpu\webgpu.zig:1:1: error: unable to load 'webgpu.zig': FileNotFound
-src\vendor\sysgpu\main.zig:11:24: note: file imported here
-    .webgpu => @import("webgpu.zig"),
-                       ^~~~~~~~~~~~
-error: 1 compilation errors
-failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\editor.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep sysgpu --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -ODebug "-Msysgpu=C:\\Users\\donald\\nyon-game\\src\\vendor\\sysgpu\\main.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_editor --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\\lib\\" --listen=-
-
 install
 +- install nyon_game
-   +- compile exe nyon_game Debug native 1 errors
-src\vendor\sysgpu\webgpu.zig:1:1: error: unable to load 'webgpu.zig': FileNotFound
-src\vendor\sysgpu\main.zig:11:24: note: file imported here
-    .webgpu => @import("webgpu.zig"),
-                       ^~~~~~~~~~~~
-error: 1 compilation errors
-failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\main.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep sysgpu --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -ODebug "-Msysgpu=C:\\Users\\donald\\nyon-game\\src\\vendor\\sysgpu\\main.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_game --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\\lib\\" --listen=-
+   +- compile exe nyon_game Debug native 11 errors
+src\vendor\sysgpu\d3d12.zig:201:17: error: expected type '[*c]cimport.struct_DXGI_ADAPTER_DESC1', found '*d3d12.c.DXGI_ADAPTER_DESC1'
+                &dxgi_desc,
+                ^~~~~~~~~~
+src\vendor\sysgpu\d3d12.zig:201:17: note: pointer type child 'd3d12.c.DXGI_ADAPTER_DESC1' cannot cast into pointer type child 'cimport.struct_DXGI_ADAPTER_DESC1'
+src\vendor\sysgpu\d3d12\c.zig:53:39: note: struct declared here
+pub const DXGI_ADAPTER_DESC1 = extern struct {
+                               ~~~~~~~^~~~~~
+.zig-cache\o\897e7c39cd87139cd545670eb5b7edd6\cimport.zig:65571:46: note: struct declared here
+pub const struct_DXGI_ADAPTER_DESC1 = extern struct {
+                                      ~~~~~~~^~~~~~
+referenced by:
+    instanceRequestAdapter: src\vendor\sysgpu\main.zig:788:42
+    init: src\engine\webgpu_backend.zig:50:47
+    7 reference(s) hidden; use '-freference-trace=9' to see all references
+src\vendor\sysgpu\d3d12.zig:736:23: error: root source file struct 'std' has no member named 'BoundedArray'
+    memory_groups: std.BoundedArray(MemoryGroup, max_memory_groups),
+                   ~~~^~~~~~~~~~~~~
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2075+62d6bbc7d\lib\std\std.zig:1:1: note: struct declared here
+pub const ArrayHashMap = array_hash_map.ArrayHashMap;
+^~~
+src\vendor\sysgpu\d3d12.zig:743:17: error: root source file struct 'd3d12.c' has no member named 'ID3D12Heap'
+        heap: *c.ID3D12Heap,
+               ~^~~~~~~~~~~
+src\vendor\sysgpu\d3d12\c.zig:1:1: note: struct declared here
+/// D3D12 C bindings wrapper for Zig 0.16+
+^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12.zig:802:27: error: root source file struct 'd3d12.c' has no member named 'D3D12_HEAP_PROPERTIES'
+        heap_properties: c.D3D12_HEAP_PROPERTIES,
+                         ~^~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12\c.zig:1:1: note: struct declared here
+/// D3D12 C bindings wrapper for Zig 0.16+
+^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12.zig:1979:22: error: root source file struct 'd3d12.c' has no member named 'D3D12_DESCRIPTOR_RANGE_TYPE'
+        range_type: c.D3D12_DESCRIPTOR_RANGE_TYPE,
+                    ~^~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12\c.zig:1:1: note: struct declared here
+/// D3D12 C bindings wrapper for Zig 0.16+
+^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12.zig:1985:26: error: root source file struct 'd3d12.c' has no member named 'D3D12_ROOT_PARAMETER_TYPE'
+        parameter_type: c.D3D12_ROOT_PARAMETER_TYPE,
+                        ~^~~~~~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12\c.zig:1:1: note: struct declared here
+/// D3D12 C bindings wrapper for Zig 0.16+
+^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12.zig:2069:19: error: root source file struct 'd3d12.c' has no member named 'D3D12_GPU_VIRTUAL_ADDRESS'
+        address: c.D3D12_GPU_VIRTUAL_ADDRESS,
+                 ~^~~~~~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12\c.zig:1:1: note: struct declared here
+/// D3D12 C bindings wrapper for Zig 0.16+
+^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12.zig:2327:33: error: root source file struct 'std' has no member named 'BoundedArray'
+    group_parameter_indices: std.BoundedArray(u32, limits.max_bind_groups),
+                             ~~~^~~~~~~~~~~~~
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2075+62d6bbc7d\lib\std\std.zig:1:1: note: struct declared here
+pub const ArrayHashMap = array_hash_map.ArrayHashMap;
+^~~
+src\vendor\sysgpu\d3d12.zig:2681:16: error: root source file struct 'd3d12.c' has no member named 'D3D12_PRIMITIVE_TOPOLOGY_TYPE'
+    topology: c.D3D12_PRIMITIVE_TOPOLOGY_TYPE,
+              ~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12\c.zig:1:1: note: struct declared here
+/// D3D12 C bindings wrapper for Zig 0.16+
+^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12.zig:3990:19: error: root source file struct 'd3d12.c' has no member named 'HANDLE'
+    fence_event: c.HANDLE,
+                 ~^~~~~~~
+src\vendor\sysgpu\d3d12\c.zig:1:1: note: struct declared here
+/// D3D12 C bindings wrapper for Zig 0.16+
+^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+src\vendor\sysgpu\d3d12\c.zig:39:111: error: coercion from enum '@typeInfo(builtin.CallingConvention).@"union".tag_type.?' to union 'builtin.CallingConvention' must initialize 'builtin.CallingConvention.CommonOptions' field 'x86_64_win'
+pub extern "dxgi" fn CreateDXGIFactory2(Flags: c_uint, riid: *const c.IID, ppFactory: *?*anyopaque) callconv(.x86_64_win) HRESULT;
+                                                                                                             ~^~~~~~~~~~
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2075+62d6bbc7d\lib\std\builtin.zig:169:5: note: field 'x86_64_win' declared here
+    x86_64_win: CommonOptions,
+    ^~~~~~~~~~
+C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2075+62d6bbc7d\lib\std\builtin.zig:125:31: note: union declared here
+pub const CallingConvention = union(enum(u8)) {
+                              ^~~~~
+error: 11 compilation errors
+failed command: "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.2075+62d6bbc7d\\zig.exe" build-exe -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep nyon_game "-Mroot=C:\\Users\\donald\\nyon-game\\src\\main.zig" "-Mraygui=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" "-Mzglfw=C:\\Users\\donald\\nyon-game\\src\\raylib_stub.zig" -ODebug --dep raylib=raygui --dep raygui --dep zglfw --dep sysgpu --dep nyon_game "-Mnyon_game=C:\\Users\\donald\\nyon-game\\src\\root.zig" -ODebug "-Msysgpu=C:\\Users\\donald\\nyon-game\\src\\vendor\\sysgpu\\main.zig" -lc --cache-dir .zig-cache --global-cache-dir "C:\\Users\\donald\\AppData\\Local\\zig" --name nyon_game --zig-lib-dir "C:\\Users\\donald\\AppData\\Roaming\\Antigravity\\User\\globalStorage\\ziglang.vscode-zig\\zig\\x86_64-windows-0.16.0-dev.2075+62d6bbc7d\\lib\\" --listen=-
 
-Build Summary: 0/5 steps succeeded (2 failed)
+Build Summary: 2/5 steps succeeded (1 failed)
 install transitive failure
 +- install nyon_game transitive failure
-|  +- compile exe nyon_game Debug native 1 errors
-+- install nyon_editor transitive failure
-   +- compile exe nyon_editor Debug native 1 errors
+   +- compile exe nyon_game Debug native 11 errors
 
 error: the following build command failed with exit code 1:
-.zig-cache\o\fa049ec306d795993228eaa6a48708ec\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.1912+0cbaaa5eb\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0xfb7f7ba6 -Zdac19caa29571a2f
+.zig-cache\o\4056937837fae6a53c9a7fe203b41ca0\build.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2075+62d6bbc7d\zig.exe C:\Users\donald\AppData\Roaming\Antigravity\User\globalStorage\ziglang.vscode-zig\zig\x86_64-windows-0.16.0-dev.2075+62d6bbc7d\lib C:\Users\donald\nyon-game .zig-cache C:\Users\donald\AppData\Local\zig --seed 0x39debcfa -Z3ac28d403920200a

@@ -5,11 +5,11 @@ pub const sysgpu = @import("sysgpu/main.zig");
 pub const shader = @import("shader.zig");
 const utils = @import("utils.zig");
 
-const backend_type: sysgpu.BackendType = if (builtin.target.os.tag == .emscripten or builtin.target.os.tag == .wasi) .webgpu else .mock;
+const backend_type: sysgpu.BackendType = if (builtin.target.os.tag == .emscripten or builtin.target.os.tag == .wasi) .webgpu else .d3d12;
 
 const impl = switch (backend_type) {
     .webgpu => @import("webgpu.zig"),
-    .mock => @import("mock.zig"),
+    .d3d12 => @import("d3d12.zig"),
     else => @compileError("unsupported backend"),
 };
 
@@ -23,7 +23,7 @@ pub const Impl = sysgpu.Interface(struct {
         try impl.init(alloc, options);
     }
 
-    pub inline fn createInstance(descriptor: ?*const sysgpu.Instance.Descriptor) ?*sysgpu.Instance {
+    pub fn createInstance(descriptor: ?*const sysgpu.Instance.Descriptor) ?*sysgpu.Instance {
         if (builtin.mode == .Debug and !inited) {
             std.log.err("sysgpu not initialized; did you forget to call sysgpu.Impl.init()?", .{});
         }
@@ -35,13 +35,13 @@ pub const Impl = sysgpu.Interface(struct {
         return @as(*sysgpu.Instance, @ptrCast(instance));
     }
 
-    pub inline fn getProcAddress(device: *sysgpu.Device, proc_name: [*:0]const u8) ?sysgpu.Proc {
+    pub fn getProcAddress(device: *sysgpu.Device, proc_name: [*:0]const u8) ?sysgpu.Proc {
         _ = device;
         _ = proc_name;
         @panic("unimplemented");
     }
 
-    pub inline fn adapterCreateDevice(adapter_raw: *sysgpu.Adapter, descriptor: ?*const sysgpu.Device.Descriptor) ?*sysgpu.Device {
+    pub fn adapterCreateDevice(adapter_raw: *sysgpu.Adapter, descriptor: ?*const sysgpu.Device.Descriptor) ?*sysgpu.Device {
         const adapter: *impl.Adapter = @ptrCast(@alignCast(adapter_raw));
         const device = adapter.createDevice(descriptor) catch return null;
         if (descriptor) |desc| {
@@ -51,40 +51,40 @@ pub const Impl = sysgpu.Interface(struct {
         return @as(*sysgpu.Device, @ptrCast(device));
     }
 
-    pub inline fn adapterEnumerateFeatures(adapter: *sysgpu.Adapter, features: ?[*]sysgpu.FeatureName) usize {
+    pub fn adapterEnumerateFeatures(adapter: *sysgpu.Adapter, features: ?[*]sysgpu.FeatureName) usize {
         _ = adapter;
         _ = features;
         @panic("unimplemented");
     }
 
-    pub inline fn adapterGetLimits(adapter: *sysgpu.Adapter, limits: *sysgpu.SupportedLimits) u32 {
+    pub fn adapterGetLimits(adapter: *sysgpu.Adapter, limits: *sysgpu.SupportedLimits) u32 {
         _ = adapter;
         _ = limits;
         @panic("unimplemented");
     }
 
-    pub inline fn adapterGetInstance(adapter: *sysgpu.Adapter) *sysgpu.Instance {
+    pub fn adapterGetInstance(adapter: *sysgpu.Adapter) *sysgpu.Instance {
         _ = adapter;
         @panic("unimplemented");
     }
 
-    pub inline fn adapterGetProperties(adapter_raw: *sysgpu.Adapter, properties: *sysgpu.Adapter.Properties) void {
+    pub fn adapterGetProperties(adapter_raw: *sysgpu.Adapter, properties: *sysgpu.Adapter.Properties) void {
         const adapter: *impl.Adapter = @ptrCast(@alignCast(adapter_raw));
         properties.* = adapter.getProperties();
     }
 
-    pub inline fn adapterHasFeature(adapter: *sysgpu.Adapter, feature: sysgpu.FeatureName) u32 {
+    pub fn adapterHasFeature(adapter: *sysgpu.Adapter, feature: sysgpu.FeatureName) u32 {
         _ = adapter;
         _ = feature;
         @panic("unimplemented");
     }
 
-    pub inline fn adapterPropertiesFreeMembers(value: sysgpu.Adapter.Properties) void {
+    pub fn adapterPropertiesFreeMembers(value: sysgpu.Adapter.Properties) void {
         _ = value;
         @panic("unimplemented");
     }
 
-    pub inline fn adapterRequestDevice(adapter: *sysgpu.Adapter, descriptor: ?*const sysgpu.Device.Descriptor, callback: sysgpu.RequestDeviceCallback, userdata: ?*anyopaque) void {
+    pub fn adapterRequestDevice(adapter: *sysgpu.Adapter, descriptor: ?*const sysgpu.Device.Descriptor, callback: sysgpu.RequestDeviceCallback, userdata: ?*anyopaque) void {
         _ = adapter;
         _ = descriptor;
         _ = callback;
@@ -92,54 +92,54 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn adapterReference(adapter_raw: *sysgpu.Adapter) void {
+    pub fn adapterReference(adapter_raw: *sysgpu.Adapter) void {
         const adapter: *impl.Adapter = @ptrCast(@alignCast(adapter_raw));
         adapter.manager.reference();
     }
 
-    pub inline fn adapterRelease(adapter_raw: *sysgpu.Adapter) void {
+    pub fn adapterRelease(adapter_raw: *sysgpu.Adapter) void {
         const adapter: *impl.Adapter = @ptrCast(@alignCast(adapter_raw));
         adapter.manager.release();
     }
 
-    pub inline fn bindGroupSetLabel(bind_group: *sysgpu.BindGroup, label: [*:0]const u8) void {
+    pub fn bindGroupSetLabel(bind_group: *sysgpu.BindGroup, label: [*:0]const u8) void {
         _ = bind_group;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn bindGroupReference(bind_group_raw: *sysgpu.BindGroup) void {
+    pub fn bindGroupReference(bind_group_raw: *sysgpu.BindGroup) void {
         const bind_group: *impl.BindGroup = @ptrCast(@alignCast(bind_group_raw));
         bind_group.manager.reference();
     }
 
-    pub inline fn bindGroupRelease(bind_group_raw: *sysgpu.BindGroup) void {
+    pub fn bindGroupRelease(bind_group_raw: *sysgpu.BindGroup) void {
         const bind_group: *impl.BindGroup = @ptrCast(@alignCast(bind_group_raw));
         bind_group.manager.release();
     }
 
-    pub inline fn bindGroupLayoutSetLabel(bind_group_layout: *sysgpu.BindGroupLayout, label: [*:0]const u8) void {
+    pub fn bindGroupLayoutSetLabel(bind_group_layout: *sysgpu.BindGroupLayout, label: [*:0]const u8) void {
         _ = bind_group_layout;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn bindGroupLayoutReference(bind_group_layout_raw: *sysgpu.BindGroupLayout) void {
+    pub fn bindGroupLayoutReference(bind_group_layout_raw: *sysgpu.BindGroupLayout) void {
         const bind_group_layout: *impl.BindGroupLayout = @ptrCast(@alignCast(bind_group_layout_raw));
         bind_group_layout.manager.reference();
     }
 
-    pub inline fn bindGroupLayoutRelease(bind_group_layout_raw: *sysgpu.BindGroupLayout) void {
+    pub fn bindGroupLayoutRelease(bind_group_layout_raw: *sysgpu.BindGroupLayout) void {
         const bind_group_layout: *impl.BindGroupLayout = @ptrCast(@alignCast(bind_group_layout_raw));
         bind_group_layout.manager.release();
     }
 
-    pub inline fn bufferDestroy(buffer: *sysgpu.Buffer) void {
+    pub fn bufferDestroy(buffer: *sysgpu.Buffer) void {
         _ = buffer;
         @panic("unimplemented");
     }
 
-    pub inline fn bufferGetConstMappedRange(buffer_raw: *sysgpu.Buffer, offset: usize, size: usize) ?*const anyopaque {
+    pub fn bufferGetConstMappedRange(buffer_raw: *sysgpu.Buffer, offset: usize, size: usize) ?*const anyopaque {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         return buffer.getMappedRange(offset, size) catch |err| {
             std.log.err("Failed to get mapped range: {}", .{err});
@@ -147,7 +147,7 @@ pub const Impl = sysgpu.Interface(struct {
         };
     }
 
-    pub inline fn bufferGetMappedRange(buffer_raw: *sysgpu.Buffer, offset: usize, size: usize) ?*anyopaque {
+    pub fn bufferGetMappedRange(buffer_raw: *sysgpu.Buffer, offset: usize, size: usize) ?*anyopaque {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         return buffer.getMappedRange(offset, size) catch |err| {
             std.log.err("Failed to get mapped range: {}", .{err});
@@ -155,77 +155,77 @@ pub const Impl = sysgpu.Interface(struct {
         };
     }
 
-    pub inline fn bufferGetSize(buffer_raw: *sysgpu.Buffer) u64 {
+    pub fn bufferGetSize(buffer_raw: *sysgpu.Buffer) u64 {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         return buffer.getSize();
     }
 
-    pub inline fn bufferGetUsage(buffer_raw: *sysgpu.Buffer) sysgpu.Buffer.UsageFlags {
+    pub fn bufferGetUsage(buffer_raw: *sysgpu.Buffer) sysgpu.Buffer.UsageFlags {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         return buffer.getUsage();
     }
 
-    pub inline fn bufferMapAsync(buffer_raw: *sysgpu.Buffer, mode: sysgpu.MapModeFlags, offset: usize, size: usize, callback: sysgpu.Buffer.MapCallback, userdata: ?*anyopaque) void {
+    pub fn bufferMapAsync(buffer_raw: *sysgpu.Buffer, mode: sysgpu.MapModeFlags, offset: usize, size: usize, callback: sysgpu.Buffer.MapCallback, userdata: ?*anyopaque) void {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         buffer.mapAsync(mode, offset, size, callback, userdata) catch |err| {
             std.log.err("Failed to map buffer async: {}", .{err});
         };
     }
 
-    pub inline fn bufferSetLabel(buffer_raw: *sysgpu.Buffer, label: [*:0]const u8) void {
+    pub fn bufferSetLabel(buffer_raw: *sysgpu.Buffer, label: [*:0]const u8) void {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         buffer.setLabel(label);
     }
 
-    pub inline fn bufferUnmap(buffer_raw: *sysgpu.Buffer) void {
+    pub fn bufferUnmap(buffer_raw: *sysgpu.Buffer) void {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         buffer.unmap() catch |err| {
             std.log.err("Failed to unmap buffer: {}", .{err});
         };
     }
 
-    pub inline fn bufferReference(buffer_raw: *sysgpu.Buffer) void {
+    pub fn bufferReference(buffer_raw: *sysgpu.Buffer) void {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         buffer.manager.reference();
     }
 
-    pub inline fn bufferRelease(buffer_raw: *sysgpu.Buffer) void {
+    pub fn bufferRelease(buffer_raw: *sysgpu.Buffer) void {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         buffer.manager.release();
     }
 
-    pub inline fn commandBufferSetLabel(command_buffer: *sysgpu.CommandBuffer, label: [*:0]const u8) void {
+    pub fn commandBufferSetLabel(command_buffer: *sysgpu.CommandBuffer, label: [*:0]const u8) void {
         _ = command_buffer;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn commandBufferReference(command_buffer_raw: *sysgpu.CommandBuffer) void {
+    pub fn commandBufferReference(command_buffer_raw: *sysgpu.CommandBuffer) void {
         const command_buffer: *impl.CommandBuffer = @ptrCast(@alignCast(command_buffer_raw));
         command_buffer.manager.reference();
     }
 
-    pub inline fn commandBufferRelease(command_buffer_raw: *sysgpu.CommandBuffer) void {
+    pub fn commandBufferRelease(command_buffer_raw: *sysgpu.CommandBuffer) void {
         const command_buffer: *impl.CommandBuffer = @ptrCast(@alignCast(command_buffer_raw));
         command_buffer.manager.release();
     }
 
-    pub inline fn commandEncoderBeginComputePass(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: ?*const sysgpu.ComputePassDescriptor) *sysgpu.ComputePassEncoder {
+    pub fn commandEncoderBeginComputePass(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: ?*const sysgpu.ComputePassDescriptor) *sysgpu.ComputePassEncoder {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
         const compute_pass = command_encoder.beginComputePass(descriptor orelse &.{}) catch @panic("api error");
         return @ptrCast(compute_pass);
     }
 
-    pub inline fn commandEncoderBeginRenderPass(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: *const sysgpu.RenderPassDescriptor) ?*sysgpu.RenderPassEncoder {
+    pub fn commandEncoderBeginRenderPass(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: *const sysgpu.RenderPassDescriptor) *sysgpu.RenderPassEncoder {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
         const render_pass = command_encoder.beginRenderPass(descriptor) catch |err| {
             std.log.err("Failed to begin render pass: {}", .{err});
-            return null;
+            @panic("Failed to begin render pass");
         };
         return @ptrCast(render_pass);
     }
 
-    pub inline fn commandEncoderClearBuffer(command_encoder: *sysgpu.CommandEncoder, buffer: *sysgpu.Buffer, offset: u64, size: u64) void {
+    pub fn commandEncoderClearBuffer(command_encoder: *sysgpu.CommandEncoder, buffer: *sysgpu.Buffer, offset: u64, size: u64) void {
         _ = command_encoder;
         _ = buffer;
         _ = offset;
@@ -233,7 +233,7 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn commandEncoderCopyBufferToBuffer(command_encoder_raw: *sysgpu.CommandEncoder, source_raw: *sysgpu.Buffer, source_offset: u64, destination_raw: *sysgpu.Buffer, destination_offset: u64, size: u64) void {
+    pub fn commandEncoderCopyBufferToBuffer(command_encoder_raw: *sysgpu.CommandEncoder, source_raw: *sysgpu.Buffer, source_offset: u64, destination_raw: *sysgpu.Buffer, destination_offset: u64, size: u64) void {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
         const source: *impl.Buffer = @ptrCast(@alignCast(source_raw));
         const destination: *impl.Buffer = @ptrCast(@alignCast(destination_raw));
@@ -243,12 +243,12 @@ pub const Impl = sysgpu.Interface(struct {
         };
     }
 
-    pub inline fn commandEncoderCopyBufferToTexture(command_encoder_raw: *sysgpu.CommandEncoder, source: *const sysgpu.ImageCopyBuffer, destination: *const sysgpu.ImageCopyTexture, copy_size: *const sysgpu.Extent3D) void {
+    pub fn commandEncoderCopyBufferToTexture(command_encoder_raw: *sysgpu.CommandEncoder, source: *const sysgpu.ImageCopyBuffer, destination: *const sysgpu.ImageCopyTexture, copy_size: *const sysgpu.Extent3D) void {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
         command_encoder.copyBufferToTexture(source, destination, copy_size) catch @panic("api error");
     }
 
-    pub inline fn commandEncoderCopyTextureToBuffer(command_encoder: *sysgpu.CommandEncoder, source: *const sysgpu.ImageCopyTexture, destination: *const sysgpu.ImageCopyBuffer, copy_size: *const sysgpu.Extent3D) void {
+    pub fn commandEncoderCopyTextureToBuffer(command_encoder: *sysgpu.CommandEncoder, source: *const sysgpu.ImageCopyTexture, destination: *const sysgpu.ImageCopyBuffer, copy_size: *const sysgpu.Extent3D) void {
         _ = command_encoder;
         _ = source;
         _ = destination;
@@ -256,7 +256,7 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn commandEncoderCopyTextureToTexture(command_encoder_raw: *sysgpu.CommandEncoder, source: *const sysgpu.ImageCopyTexture, destination: *const sysgpu.ImageCopyTexture, copy_size: *const sysgpu.Extent3D) void {
+    pub fn commandEncoderCopyTextureToTexture(command_encoder_raw: *sysgpu.CommandEncoder, source: *const sysgpu.ImageCopyTexture, destination: *const sysgpu.ImageCopyTexture, copy_size: *const sysgpu.Extent3D) void {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
         command_encoder.copyTextureToTexture(source, destination, copy_size) catch @panic("api error");
     }
@@ -269,40 +269,40 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn commandEncoderFinish(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: ?*const sysgpu.CommandBuffer.Descriptor) ?*sysgpu.CommandBuffer {
+    pub fn commandEncoderFinish(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: ?*const sysgpu.CommandBuffer.Descriptor) *sysgpu.CommandBuffer {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
         const command_buffer = command_encoder.finish(descriptor orelse &.{}) catch |err| {
             std.log.err("Failed to finish command encoder: {}", .{err});
-            return null;
+            @panic("Failed to finish command encoder");
         };
         command_buffer.manager.reference();
         return @ptrCast(command_buffer);
     }
 
-    pub inline fn commandEncoderInjectValidationError(command_encoder: *sysgpu.CommandEncoder, message: [*:0]const u8) void {
+    pub fn commandEncoderInjectValidationError(command_encoder: *sysgpu.CommandEncoder, message: [*:0]const u8) void {
         _ = command_encoder;
         _ = message;
         @panic("unimplemented");
     }
 
-    pub inline fn commandEncoderInsertDebugMarker(command_encoder: *sysgpu.CommandEncoder, marker_label: [*:0]const u8) void {
+    pub fn commandEncoderInsertDebugMarker(command_encoder: *sysgpu.CommandEncoder, marker_label: [*:0]const u8) void {
         _ = command_encoder;
         _ = marker_label;
         @panic("unimplemented");
     }
 
-    pub inline fn commandEncoderPopDebugGroup(command_encoder: *sysgpu.CommandEncoder) void {
+    pub fn commandEncoderPopDebugGroup(command_encoder: *sysgpu.CommandEncoder) void {
         _ = command_encoder;
         @panic("unimplemented");
     }
 
-    pub inline fn commandEncoderPushDebugGroup(command_encoder: *sysgpu.CommandEncoder, group_label: [*:0]const u8) void {
+    pub fn commandEncoderPushDebugGroup(command_encoder: *sysgpu.CommandEncoder, group_label: [*:0]const u8) void {
         _ = command_encoder;
         _ = group_label;
         @panic("unimplemented");
     }
 
-    pub inline fn commandEncoderResolveQuerySet(command_encoder: *sysgpu.CommandEncoder, query_set: *sysgpu.QuerySet, first_query: u32, query_count: u32, destination: *sysgpu.Buffer, destination_offset: u64) void {
+    pub fn commandEncoderResolveQuerySet(command_encoder: *sysgpu.CommandEncoder, query_set: *sysgpu.QuerySet, first_query: u32, query_count: u32, destination: *sysgpu.Buffer, destination_offset: u64) void {
         _ = command_encoder;
         _ = query_set;
         _ = first_query;
@@ -312,72 +312,72 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn commandEncoderSetLabel(command_encoder: *sysgpu.CommandEncoder, label: [*:0]const u8) void {
+    pub fn commandEncoderSetLabel(command_encoder: *sysgpu.CommandEncoder, label: [*:0]const u8) void {
         _ = command_encoder;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn commandEncoderWriteBuffer(command_encoder_raw: *sysgpu.CommandEncoder, buffer_raw: *sysgpu.Buffer, buffer_offset: u64, data: [*]const u8, size: u64) void {
+    pub fn commandEncoderWriteBuffer(command_encoder_raw: *sysgpu.CommandEncoder, buffer_raw: *sysgpu.Buffer, buffer_offset: u64, data: [*]const u8, size: u64) void {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         command_encoder.writeBuffer(buffer, buffer_offset, @ptrCast(data), size) catch @panic("api error");
     }
 
-    pub inline fn commandEncoderWriteTimestamp(command_encoder: *sysgpu.CommandEncoder, query_set: *sysgpu.QuerySet, query_index: u32) void {
+    pub fn commandEncoderWriteTimestamp(command_encoder: *sysgpu.CommandEncoder, query_set: *sysgpu.QuerySet, query_index: u32) void {
         _ = command_encoder;
         _ = query_set;
         _ = query_index;
         @panic("unimplemented");
     }
 
-    pub inline fn commandEncoderReference(command_encoder_raw: *sysgpu.CommandEncoder) void {
+    pub fn commandEncoderReference(command_encoder_raw: *sysgpu.CommandEncoder) void {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
         command_encoder.manager.reference();
     }
 
-    pub inline fn commandEncoderRelease(command_encoder_raw: *sysgpu.CommandEncoder) void {
+    pub fn commandEncoderRelease(command_encoder_raw: *sysgpu.CommandEncoder) void {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
         command_encoder.manager.release();
     }
 
-    pub inline fn computePassEncoderDispatchWorkgroups(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder, workgroup_count_x: u32, workgroup_count_y: u32, workgroup_count_z: u32) void {
+    pub fn computePassEncoderDispatchWorkgroups(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder, workgroup_count_x: u32, workgroup_count_y: u32, workgroup_count_z: u32) void {
         const compute_pass_encoder: *impl.ComputePassEncoder = @ptrCast(@alignCast(compute_pass_encoder_raw));
         compute_pass_encoder.dispatchWorkgroups(workgroup_count_x, workgroup_count_y, workgroup_count_z) catch |err| {
             std.log.err("Failed to dispatch workgroups: {}", .{err});
         };
     }
 
-    pub inline fn computePassEncoderDispatchWorkgroupsIndirect(compute_pass_encoder: *sysgpu.ComputePassEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
+    pub fn computePassEncoderDispatchWorkgroupsIndirect(compute_pass_encoder: *sysgpu.ComputePassEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
         _ = compute_pass_encoder;
         _ = indirect_buffer;
         _ = indirect_offset;
         @panic("unimplemented");
     }
 
-    pub inline fn computePassEncoderEnd(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder) void {
+    pub fn computePassEncoderEnd(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder) void {
         const compute_pass_encoder: *impl.ComputePassEncoder = @ptrCast(@alignCast(compute_pass_encoder_raw));
         compute_pass_encoder.end();
     }
 
-    pub inline fn computePassEncoderInsertDebugMarker(compute_pass_encoder: *sysgpu.ComputePassEncoder, marker_label: [*:0]const u8) void {
+    pub fn computePassEncoderInsertDebugMarker(compute_pass_encoder: *sysgpu.ComputePassEncoder, marker_label: [*:0]const u8) void {
         _ = compute_pass_encoder;
         _ = marker_label;
         @panic("unimplemented");
     }
 
-    pub inline fn computePassEncoderPopDebugGroup(compute_pass_encoder: *sysgpu.ComputePassEncoder) void {
+    pub fn computePassEncoderPopDebugGroup(compute_pass_encoder: *sysgpu.ComputePassEncoder) void {
         _ = compute_pass_encoder;
         @panic("unimplemented");
     }
 
-    pub inline fn computePassEncoderPushDebugGroup(compute_pass_encoder: *sysgpu.ComputePassEncoder, group_label: [*:0]const u8) void {
+    pub fn computePassEncoderPushDebugGroup(compute_pass_encoder: *sysgpu.ComputePassEncoder, group_label: [*:0]const u8) void {
         _ = compute_pass_encoder;
         _ = group_label;
         @panic("unimplemented");
     }
 
-    pub inline fn computePassEncoderSetBindGroup(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder, group_index: u32, group_raw: *sysgpu.BindGroup, dynamic_offset_count: usize, dynamic_offsets: ?[*]const u32) void {
+    pub fn computePassEncoderSetBindGroup(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder, group_index: u32, group_raw: *sysgpu.BindGroup, dynamic_offset_count: usize, dynamic_offsets: ?[*]const u32) void {
         const compute_pass_encoder: *impl.ComputePassEncoder = @ptrCast(@alignCast(compute_pass_encoder_raw));
         const group: *impl.BindGroup = @ptrCast(@alignCast(group_raw));
         compute_pass_encoder.setBindGroup(group_index, group, dynamic_offset_count, dynamic_offsets) catch |err| {
@@ -385,13 +385,13 @@ pub const Impl = sysgpu.Interface(struct {
         };
     }
 
-    pub inline fn computePassEncoderSetLabel(compute_pass_encoder: *sysgpu.ComputePassEncoder, label: [*:0]const u8) void {
+    pub fn computePassEncoderSetLabel(compute_pass_encoder: *sysgpu.ComputePassEncoder, label: [*:0]const u8) void {
         _ = compute_pass_encoder;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn computePassEncoderSetPipeline(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder, pipeline_raw: *sysgpu.ComputePipeline) void {
+    pub fn computePassEncoderSetPipeline(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder, pipeline_raw: *sysgpu.ComputePipeline) void {
         const compute_pass_encoder: *impl.ComputePassEncoder = @ptrCast(@alignCast(compute_pass_encoder_raw));
         const pipeline: *impl.ComputePipeline = @ptrCast(@alignCast(pipeline_raw));
         compute_pass_encoder.setPipeline(pipeline) catch |err| {
@@ -399,47 +399,47 @@ pub const Impl = sysgpu.Interface(struct {
         };
     }
 
-    pub inline fn computePassEncoderWriteTimestamp(compute_pass_encoder: *sysgpu.ComputePassEncoder, query_set: *sysgpu.QuerySet, query_index: u32) void {
+    pub fn computePassEncoderWriteTimestamp(compute_pass_encoder: *sysgpu.ComputePassEncoder, query_set: *sysgpu.QuerySet, query_index: u32) void {
         _ = compute_pass_encoder;
         _ = query_set;
         _ = query_index;
         @panic("unimplemented");
     }
 
-    pub inline fn computePassEncoderReference(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder) void {
+    pub fn computePassEncoderReference(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder) void {
         const compute_pass_encoder: *impl.ComputePassEncoder = @ptrCast(@alignCast(compute_pass_encoder_raw));
         compute_pass_encoder.manager.reference();
     }
 
-    pub inline fn computePassEncoderRelease(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder) void {
+    pub fn computePassEncoderRelease(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder) void {
         const compute_pass_encoder: *impl.ComputePassEncoder = @ptrCast(@alignCast(compute_pass_encoder_raw));
         compute_pass_encoder.manager.release();
     }
 
-    pub inline fn computePipelineGetBindGroupLayout(compute_pipeline_raw: *sysgpu.ComputePipeline, group_index: u32) *sysgpu.BindGroupLayout {
+    pub fn computePipelineGetBindGroupLayout(compute_pipeline_raw: *sysgpu.ComputePipeline, group_index: u32) *sysgpu.BindGroupLayout {
         const compute_pipeline: *impl.ComputePipeline = @ptrCast(@alignCast(compute_pipeline_raw));
         const layout = compute_pipeline.getBindGroupLayout(group_index);
         layout.manager.reference();
         return @ptrCast(layout);
     }
 
-    pub inline fn computePipelineSetLabel(compute_pipeline: *sysgpu.ComputePipeline, label: [*:0]const u8) void {
+    pub fn computePipelineSetLabel(compute_pipeline: *sysgpu.ComputePipeline, label: [*:0]const u8) void {
         _ = compute_pipeline;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn computePipelineReference(compute_pipeline_raw: *sysgpu.ComputePipeline) void {
+    pub fn computePipelineReference(compute_pipeline_raw: *sysgpu.ComputePipeline) void {
         const compute_pipeline: *impl.ComputePipeline = @ptrCast(@alignCast(compute_pipeline_raw));
         compute_pipeline.manager.reference();
     }
 
-    pub inline fn computePipelineRelease(compute_pipeline_raw: *sysgpu.ComputePipeline) void {
+    pub fn computePipelineRelease(compute_pipeline_raw: *sysgpu.ComputePipeline) void {
         const compute_pipeline: *impl.ComputePipeline = @ptrCast(@alignCast(compute_pipeline_raw));
         compute_pipeline.manager.release();
     }
 
-    pub inline fn deviceCreateBindGroup(device_raw: *sysgpu.Device, descriptor: *const sysgpu.BindGroup.Descriptor) ?*sysgpu.BindGroup {
+    pub fn deviceCreateBindGroup(device_raw: *sysgpu.Device, descriptor: *const sysgpu.BindGroup.Descriptor) ?*sysgpu.BindGroup {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         const group = device.createBindGroup(descriptor) catch |err| {
             std.log.err("Failed to create bind group: {}", .{err});
@@ -448,7 +448,7 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(group);
     }
 
-    pub inline fn deviceCreateBindGroupLayout(device_raw: *sysgpu.Device, descriptor: *const sysgpu.BindGroupLayout.Descriptor) ?*sysgpu.BindGroupLayout {
+    pub fn deviceCreateBindGroupLayout(device_raw: *sysgpu.Device, descriptor: *const sysgpu.BindGroupLayout.Descriptor) ?*sysgpu.BindGroupLayout {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         const layout = device.createBindGroupLayout(descriptor) catch |err| {
             std.log.err("Failed to create bind group layout: {}", .{err});
@@ -457,7 +457,7 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(layout);
     }
 
-    pub inline fn deviceCreateBuffer(device_raw: *sysgpu.Device, descriptor: *const sysgpu.Buffer.Descriptor) ?*sysgpu.Buffer {
+    pub fn deviceCreateBuffer(device_raw: *sysgpu.Device, descriptor: *const sysgpu.Buffer.Descriptor) ?*sysgpu.Buffer {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         const buffer = device.createBuffer(descriptor) catch |err| {
             std.log.err("Failed to create buffer: {}", .{err});
@@ -466,7 +466,7 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(buffer);
     }
 
-    pub inline fn deviceCreateCommandEncoder(device_raw: *sysgpu.Device, descriptor: ?*const sysgpu.CommandEncoder.Descriptor) ?*sysgpu.CommandEncoder {
+    pub fn deviceCreateCommandEncoder(device_raw: *sysgpu.Device, descriptor: ?*const sysgpu.CommandEncoder.Descriptor) ?*sysgpu.CommandEncoder {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         const command_encoder = device.createCommandEncoder(descriptor orelse &.{}) catch |err| {
             std.log.err("Failed to create command encoder: {}", .{err});
@@ -475,7 +475,7 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(command_encoder);
     }
 
-    pub inline fn deviceCreateComputePipeline(device_raw: *sysgpu.Device, descriptor: *const sysgpu.ComputePipeline.Descriptor) ?*sysgpu.ComputePipeline {
+    pub fn deviceCreateComputePipeline(device_raw: *sysgpu.Device, descriptor: *const sysgpu.ComputePipeline.Descriptor) ?*sysgpu.ComputePipeline {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         const pipeline = device.createComputePipeline(descriptor) catch |err| {
             std.log.err("Failed to create compute pipeline: {}", .{err});
@@ -484,7 +484,7 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(pipeline);
     }
 
-    pub inline fn deviceCreateComputePipelineAsync(device: *sysgpu.Device, descriptor: *const sysgpu.ComputePipeline.Descriptor, callback: sysgpu.CreateComputePipelineAsyncCallback, userdata: ?*anyopaque) void {
+    pub fn deviceCreateComputePipelineAsync(device: *sysgpu.Device, descriptor: *const sysgpu.ComputePipeline.Descriptor, callback: sysgpu.CreateComputePipelineAsyncCallback, userdata: ?*anyopaque) void {
         _ = device;
         _ = descriptor;
         _ = callback;
@@ -492,30 +492,30 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreateErrorBuffer(device: *sysgpu.Device, descriptor: *const sysgpu.Buffer.Descriptor) *sysgpu.Buffer {
+    pub fn deviceCreateErrorBuffer(device: *sysgpu.Device, descriptor: *const sysgpu.Buffer.Descriptor) *sysgpu.Buffer {
         _ = device;
         _ = descriptor;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreateErrorExternalTexture(device: *sysgpu.Device) *sysgpu.ExternalTexture {
+    pub fn deviceCreateErrorExternalTexture(device: *sysgpu.Device) *sysgpu.ExternalTexture {
         _ = device;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreateErrorTexture(device: *sysgpu.Device, descriptor: *const sysgpu.Texture.Descriptor) *sysgpu.Texture {
+    pub fn deviceCreateErrorTexture(device: *sysgpu.Device, descriptor: *const sysgpu.Texture.Descriptor) *sysgpu.Texture {
         _ = device;
         _ = descriptor;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreateExternalTexture(device: *sysgpu.Device, external_texture_descriptor: *const sysgpu.ExternalTexture.Descriptor) *sysgpu.ExternalTexture {
+    pub fn deviceCreateExternalTexture(device: *sysgpu.Device, external_texture_descriptor: *const sysgpu.ExternalTexture.Descriptor) *sysgpu.ExternalTexture {
         _ = device;
         _ = external_texture_descriptor;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreatePipelineLayout(device_raw: *sysgpu.Device, pipeline_layout_descriptor: *const sysgpu.PipelineLayout.Descriptor) ?*sysgpu.PipelineLayout {
+    pub fn deviceCreatePipelineLayout(device_raw: *sysgpu.Device, pipeline_layout_descriptor: *const sysgpu.PipelineLayout.Descriptor) ?*sysgpu.PipelineLayout {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         const layout = device.createPipelineLayout(pipeline_layout_descriptor) catch |err| {
             std.log.err("Failed to create pipeline layout: {}", .{err});
@@ -524,19 +524,19 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(layout);
     }
 
-    pub inline fn deviceCreateQuerySet(device: *sysgpu.Device, descriptor: *const sysgpu.QuerySet.Descriptor) *sysgpu.QuerySet {
+    pub fn deviceCreateQuerySet(device: *sysgpu.Device, descriptor: *const sysgpu.QuerySet.Descriptor) *sysgpu.QuerySet {
         _ = device;
         _ = descriptor;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreateRenderBundleEncoder(device: *sysgpu.Device, descriptor: *const sysgpu.RenderBundleEncoder.Descriptor) *sysgpu.RenderBundleEncoder {
+    pub fn deviceCreateRenderBundleEncoder(device: *sysgpu.Device, descriptor: *const sysgpu.RenderBundleEncoder.Descriptor) *sysgpu.RenderBundleEncoder {
         _ = device;
         _ = descriptor;
         @panic("unimplemented");
     }
 
-    pub fn deviceCreateRenderPipeline(device_raw: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) ?*sysgpu.RenderPipeline {
+    pub inline fn deviceCreateRenderPipeline(device_raw: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) ?*sysgpu.RenderPipeline {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         const render_pipeline = device.createRenderPipeline(descriptor) catch |err| {
             std.log.err("Failed to create render pipeline: {}", .{err});
@@ -545,7 +545,7 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(render_pipeline);
     }
 
-    pub fn deviceCreateRenderPipelineAsync(device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor, callback: sysgpu.CreateRenderPipelineAsyncCallback, userdata: ?*anyopaque) void {
+    pub inline fn deviceCreateRenderPipelineAsync(device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor, callback: sysgpu.CreateRenderPipelineAsyncCallback, userdata: ?*anyopaque) void {
         _ = device;
         _ = descriptor;
         _ = callback;
@@ -553,7 +553,7 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreateSampler(device_raw: *sysgpu.Device, descriptor: ?*const sysgpu.Sampler.Descriptor) ?*sysgpu.Sampler {
+    pub fn deviceCreateSampler(device_raw: *sysgpu.Device, descriptor: ?*const sysgpu.Sampler.Descriptor) ?*sysgpu.Sampler {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         const sampler = device.createSampler(descriptor orelse &sysgpu.Sampler.Descriptor{}) catch |err| {
             std.log.err("Failed to create sampler: {}", .{err});
@@ -562,7 +562,7 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(sampler);
     }
 
-    pub inline fn deviceCreateShaderModule(device_raw: *sysgpu.Device, descriptor: *const sysgpu.ShaderModule.Descriptor) *sysgpu.ShaderModule {
+    pub fn deviceCreateShaderModule(device_raw: *sysgpu.Device, descriptor: *const sysgpu.ShaderModule.Descriptor) *sysgpu.ShaderModule {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
 
         var errors = try shader.ErrorList.init(allocator);
@@ -608,7 +608,7 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreateSwapChain(device_raw: *sysgpu.Device, surface_raw: ?*sysgpu.Surface, descriptor: *const sysgpu.SwapChain.Descriptor) ?*sysgpu.SwapChain {
+    pub fn deviceCreateSwapChain(device_raw: *sysgpu.Device, surface_raw: ?*sysgpu.Surface, descriptor: *const sysgpu.SwapChain.Descriptor) ?*sysgpu.SwapChain {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         if (surface_raw == null) return null;
         const surface: *impl.Surface = @ptrCast(@alignCast(surface_raw.?));
@@ -619,7 +619,7 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(swapchain);
     }
 
-    pub inline fn deviceCreateTexture(device_raw: *sysgpu.Device, descriptor: *const sysgpu.Texture.Descriptor) ?*sysgpu.Texture {
+    pub fn deviceCreateTexture(device_raw: *sysgpu.Device, descriptor: *const sysgpu.Texture.Descriptor) ?*sysgpu.Texture {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         const texture = device.createTexture(descriptor) catch |err| {
             std.log.err("Failed to create texture: {}", .{err});
@@ -628,157 +628,157 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(texture);
     }
 
-    pub inline fn deviceDestroy(device: *sysgpu.Device) void {
+    pub fn deviceDestroy(device: *sysgpu.Device) void {
         _ = device;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceEnumerateFeatures(device: *sysgpu.Device, features: ?[*]sysgpu.FeatureName) usize {
+    pub fn deviceEnumerateFeatures(device: *sysgpu.Device, features: ?[*]sysgpu.FeatureName) usize {
         _ = device;
         _ = features;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceGetLimits(device: *sysgpu.Device, limits: *sysgpu.SupportedLimits) u32 {
+    pub fn deviceGetLimits(device: *sysgpu.Device, limits: *sysgpu.SupportedLimits) u32 {
         _ = device;
         _ = limits;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceGetQueue(device_raw: *sysgpu.Device) ?*sysgpu.Queue {
+    pub fn deviceGetQueue(device_raw: *sysgpu.Device) *sysgpu.Queue {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         const queue = device.getQueue() catch |err| {
             std.log.err("Failed to get device queue: {}", .{err});
-            return null;
+            @panic("Failed to get device queue");
         };
         queue.manager.reference();
         return @ptrCast(queue);
     }
 
-    pub inline fn deviceHasFeature(device: *sysgpu.Device, feature: sysgpu.FeatureName) u32 {
+    pub fn deviceHasFeature(device: *sysgpu.Device, feature: sysgpu.FeatureName) u32 {
         _ = device;
         _ = feature;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceImportSharedFence(device: *sysgpu.Device, descriptor: *const sysgpu.SharedFence.Descriptor) *sysgpu.SharedFence {
+    pub fn deviceImportSharedFence(device: *sysgpu.Device, descriptor: *const sysgpu.SharedFence.Descriptor) *sysgpu.SharedFence {
         _ = device;
         _ = descriptor;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceImportSharedTextureMemory(device: *sysgpu.Device, descriptor: *const sysgpu.SharedTextureMemory.Descriptor) *sysgpu.SharedTextureMemory {
+    pub fn deviceImportSharedTextureMemory(device: *sysgpu.Device, descriptor: *const sysgpu.SharedTextureMemory.Descriptor) *sysgpu.SharedTextureMemory {
         _ = device;
         _ = descriptor;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceInjectError(device: *sysgpu.Device, typ: sysgpu.ErrorType, message: [*:0]const u8) void {
+    pub fn deviceInjectError(device: *sysgpu.Device, typ: sysgpu.ErrorType, message: [*:0]const u8) void {
         _ = device;
         _ = typ;
         _ = message;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceLoseForTesting(device: *sysgpu.Device) void {
+    pub fn deviceLoseForTesting(device: *sysgpu.Device) void {
         _ = device;
         @panic("unimplemented");
     }
 
-    pub inline fn devicePopErrorScope(device: *sysgpu.Device, callback: sysgpu.ErrorCallback, userdata: ?*anyopaque) void {
+    pub fn devicePopErrorScope(device: *sysgpu.Device, callback: sysgpu.ErrorCallback, userdata: ?*anyopaque) void {
         _ = device;
         _ = callback;
         _ = userdata;
         @panic("unimplemented");
     }
 
-    pub inline fn devicePushErrorScope(device: *sysgpu.Device, filter: sysgpu.ErrorFilter) void {
+    pub fn devicePushErrorScope(device: *sysgpu.Device, filter: sysgpu.ErrorFilter) void {
         _ = device;
         _ = filter;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceSetDeviceLostCallback(device_raw: *sysgpu.Device, callback: ?sysgpu.Device.LostCallback, userdata: ?*anyopaque) void {
+    pub fn deviceSetDeviceLostCallback(device_raw: *sysgpu.Device, callback: ?sysgpu.Device.LostCallback, userdata: ?*anyopaque) void {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         device.lost_cb = callback;
         device.lost_cb_userdata = userdata;
     }
 
-    pub inline fn deviceSetLabel(device: *sysgpu.Device, label: [*:0]const u8) void {
+    pub fn deviceSetLabel(device: *sysgpu.Device, label: [*:0]const u8) void {
         _ = device;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn deviceSetLoggingCallback(device_raw: *sysgpu.Device, callback: ?sysgpu.LoggingCallback, userdata: ?*anyopaque) void {
+    pub fn deviceSetLoggingCallback(device_raw: *sysgpu.Device, callback: ?sysgpu.LoggingCallback, userdata: ?*anyopaque) void {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         device.log_cb = callback;
         device.log_cb_userdata = userdata;
     }
 
-    pub inline fn deviceSetUncapturedErrorCallback(device_raw: *sysgpu.Device, callback: ?sysgpu.ErrorCallback, userdata: ?*anyopaque) void {
+    pub fn deviceSetUncapturedErrorCallback(device_raw: *sysgpu.Device, callback: ?sysgpu.ErrorCallback, userdata: ?*anyopaque) void {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         device.err_cb = callback;
         device.err_cb_userdata = userdata;
     }
 
-    pub inline fn deviceTick(device_raw: *sysgpu.Device) void {
+    pub fn deviceTick(device_raw: *sysgpu.Device) void {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         device.tick() catch |err| {
             std.log.err("Failed to tick device: {}", .{err});
         };
     }
 
-    pub inline fn machDeviceWaitForCommandsToBeScheduled(device: *sysgpu.Device) void {
+    pub fn machDeviceWaitForCommandsToBeScheduled(device: *sysgpu.Device) void {
         _ = device;
     }
 
-    pub inline fn deviceReference(device_raw: *sysgpu.Device) void {
+    pub fn deviceReference(device_raw: *sysgpu.Device) void {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         device.manager.reference();
     }
 
-    pub inline fn deviceRelease(device_raw: *sysgpu.Device) void {
+    pub fn deviceRelease(device_raw: *sysgpu.Device) void {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
         device.manager.release();
     }
 
-    pub inline fn externalTextureDestroy(external_texture: *sysgpu.ExternalTexture) void {
+    pub fn externalTextureDestroy(external_texture: *sysgpu.ExternalTexture) void {
         _ = external_texture;
         @panic("unimplemented");
     }
 
-    pub inline fn externalTextureSetLabel(external_texture: *sysgpu.ExternalTexture, label: [*:0]const u8) void {
+    pub fn externalTextureSetLabel(external_texture: *sysgpu.ExternalTexture, label: [*:0]const u8) void {
         _ = external_texture;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn externalTextureReference(external_texture: *sysgpu.ExternalTexture) void {
+    pub fn externalTextureReference(external_texture: *sysgpu.ExternalTexture) void {
         _ = external_texture;
         @panic("unimplemented");
     }
 
-    pub inline fn externalTextureRelease(external_texture: *sysgpu.ExternalTexture) void {
+    pub fn externalTextureRelease(external_texture: *sysgpu.ExternalTexture) void {
         _ = external_texture;
         @panic("unimplemented");
     }
 
-    pub inline fn instanceCreateSurface(instance_raw: *sysgpu.Instance, descriptor: *const sysgpu.Surface.Descriptor) ?*sysgpu.Surface {
+    pub fn instanceCreateSurface(instance_raw: *sysgpu.Instance, descriptor: *const sysgpu.Surface.Descriptor) *sysgpu.Surface {
         const instance: *impl.Instance = @ptrCast(@alignCast(instance_raw));
         const surface = instance.createSurface(descriptor) catch |err| {
             std.log.err("Failed to create surface: {}", .{err});
-            return null;
+            @panic("Failed to create surface");
         };
         return @ptrCast(surface);
     }
 
-    pub inline fn instanceProcessEvents(instance: *sysgpu.Instance) void {
+    pub fn instanceProcessEvents(instance: *sysgpu.Instance) void {
         _ = instance;
         @panic("unimplemented");
     }
 
-    pub inline fn instanceRequestAdapter(
+    pub fn instanceRequestAdapter(
         instance_raw: *sysgpu.Instance,
         options: ?*const sysgpu.RequestAdapterOptions,
         callback: sysgpu.RequestAdapterCallback,
@@ -791,38 +791,38 @@ pub const Impl = sysgpu.Interface(struct {
         callback(.success, @as(*sysgpu.Adapter, @ptrCast(adapter)), null, userdata);
     }
 
-    pub inline fn instanceReference(instance_raw: *sysgpu.Instance) void {
+    pub fn instanceReference(instance_raw: *sysgpu.Instance) void {
         const instance: *impl.Instance = @ptrCast(@alignCast(instance_raw));
         instance.manager.reference();
     }
 
-    pub inline fn instanceRelease(instance_raw: *sysgpu.Instance) void {
+    pub fn instanceRelease(instance_raw: *sysgpu.Instance) void {
         const instance: *impl.Instance = @ptrCast(@alignCast(instance_raw));
         instance.manager.release();
     }
 
-    pub inline fn pipelineLayoutSetLabel(pipeline_layout: *sysgpu.PipelineLayout, label: [*:0]const u8) void {
+    pub fn pipelineLayoutSetLabel(pipeline_layout: *sysgpu.PipelineLayout, label: [*:0]const u8) void {
         _ = pipeline_layout;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn pipelineLayoutReference(pipeline_layout_raw: *sysgpu.PipelineLayout) void {
+    pub fn pipelineLayoutReference(pipeline_layout_raw: *sysgpu.PipelineLayout) void {
         const pipeline_layout: *impl.PipelineLayout = @ptrCast(@alignCast(pipeline_layout_raw));
         pipeline_layout.manager.reference();
     }
 
-    pub inline fn pipelineLayoutRelease(pipeline_layout_raw: *sysgpu.PipelineLayout) void {
+    pub fn pipelineLayoutRelease(pipeline_layout_raw: *sysgpu.PipelineLayout) void {
         const pipeline_layout: *impl.PipelineLayout = @ptrCast(@alignCast(pipeline_layout_raw));
         pipeline_layout.manager.release();
     }
 
-    pub inline fn querySetDestroy(query_set: *sysgpu.QuerySet) void {
+    pub fn querySetDestroy(query_set: *sysgpu.QuerySet) void {
         _ = query_set;
         @panic("unimplemented");
     }
 
-    pub inline fn querySetGetCount(query_set: *sysgpu.QuerySet) u32 {
+    pub fn querySetGetCount(query_set: *sysgpu.QuerySet) u32 {
         _ = query_set;
         @panic("unimplemented");
     }
@@ -832,23 +832,23 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn querySetSetLabel(query_set: *sysgpu.QuerySet, label: [*:0]const u8) void {
+    pub fn querySetSetLabel(query_set: *sysgpu.QuerySet, label: [*:0]const u8) void {
         _ = query_set;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn querySetReference(query_set: *sysgpu.QuerySet) void {
+    pub fn querySetReference(query_set: *sysgpu.QuerySet) void {
         _ = query_set;
         @panic("unimplemented");
     }
 
-    pub inline fn querySetRelease(query_set: *sysgpu.QuerySet) void {
+    pub fn querySetRelease(query_set: *sysgpu.QuerySet) void {
         _ = query_set;
         @panic("unimplemented");
     }
 
-    pub inline fn queueCopyTextureForBrowser(queue: *sysgpu.Queue, source: *const sysgpu.ImageCopyTexture, destination: *const sysgpu.ImageCopyTexture, copy_size: *const sysgpu.Extent3D, options: *const sysgpu.CopyTextureForBrowserOptions) void {
+    pub fn queueCopyTextureForBrowser(queue: *sysgpu.Queue, source: *const sysgpu.ImageCopyTexture, destination: *const sysgpu.ImageCopyTexture, copy_size: *const sysgpu.Extent3D, options: *const sysgpu.CopyTextureForBrowserOptions) void {
         _ = queue;
         _ = source;
         _ = destination;
@@ -857,7 +857,7 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn queueOnSubmittedWorkDone(queue: *sysgpu.Queue, signal_value: u64, callback: sysgpu.Queue.WorkDoneCallback, userdata: ?*anyopaque) void {
+    pub fn queueOnSubmittedWorkDone(queue: *sysgpu.Queue, signal_value: u64, callback: sysgpu.Queue.WorkDoneCallback, userdata: ?*anyopaque) void {
         _ = queue;
         _ = signal_value;
         _ = callback;
@@ -865,13 +865,13 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn queueSetLabel(queue: *sysgpu.Queue, label: [*:0]const u8) void {
+    pub fn queueSetLabel(queue: *sysgpu.Queue, label: [*:0]const u8) void {
         _ = queue;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn queueSubmit(queue_raw: *sysgpu.Queue, command_count: usize, commands_raw: [*]const *const sysgpu.CommandBuffer) void {
+    pub fn queueSubmit(queue_raw: *sysgpu.Queue, command_count: usize, commands_raw: [*]const *const sysgpu.CommandBuffer) void {
         const queue: *impl.Queue = @ptrCast(@alignCast(queue_raw));
         const commands: []const *impl.CommandBuffer = @ptrCast(commands_raw[0..command_count]);
         queue.submit(commands) catch |err| {
@@ -879,7 +879,7 @@ pub const Impl = sysgpu.Interface(struct {
         };
     }
 
-    pub inline fn queueWriteBuffer(queue_raw: *sysgpu.Queue, buffer_raw: *sysgpu.Buffer, buffer_offset: u64, data: *const anyopaque, size: usize) void {
+    pub fn queueWriteBuffer(queue_raw: *sysgpu.Queue, buffer_raw: *sysgpu.Buffer, buffer_offset: u64, data: *const anyopaque, size: usize) void {
         const queue: *impl.Queue = @ptrCast(@alignCast(queue_raw));
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         queue.writeBuffer(buffer, buffer_offset, @ptrCast(data), size) catch |err| {
@@ -887,40 +887,40 @@ pub const Impl = sysgpu.Interface(struct {
         };
     }
 
-    pub inline fn queueWriteTexture(queue_raw: *sysgpu.Queue, destination: *const sysgpu.ImageCopyTexture, data: *const anyopaque, data_size: usize, data_layout: *const sysgpu.Texture.DataLayout, write_size: *const sysgpu.Extent3D) void {
+    pub fn queueWriteTexture(queue_raw: *sysgpu.Queue, destination: *const sysgpu.ImageCopyTexture, data: *const anyopaque, data_size: usize, data_layout: *const sysgpu.Texture.DataLayout, write_size: *const sysgpu.Extent3D) void {
         const queue: *impl.Queue = @ptrCast(@alignCast(queue_raw));
         queue.writeTexture(destination, @ptrCast(data), data_size, data_layout, write_size) catch |err| {
             std.log.err("Failed to write texture: {}", .{err});
         };
     }
 
-    pub inline fn queueReference(queue_raw: *sysgpu.Queue) void {
+    pub fn queueReference(queue_raw: *sysgpu.Queue) void {
         const queue: *impl.Queue = @ptrCast(@alignCast(queue_raw));
         queue.manager.reference();
     }
 
-    pub inline fn queueRelease(queue_raw: *sysgpu.Queue) void {
+    pub fn queueRelease(queue_raw: *sysgpu.Queue) void {
         const queue: *impl.Queue = @ptrCast(@alignCast(queue_raw));
         queue.manager.release();
     }
 
-    pub inline fn renderBundleReference(render_bundle: *sysgpu.RenderBundle) void {
+    pub fn renderBundleReference(render_bundle: *sysgpu.RenderBundle) void {
         _ = render_bundle;
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleRelease(render_bundle: *sysgpu.RenderBundle) void {
+    pub fn renderBundleRelease(render_bundle: *sysgpu.RenderBundle) void {
         _ = render_bundle;
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleSetLabel(render_bundle: *sysgpu.RenderBundle, name: [*:0]const u8) void {
+    pub fn renderBundleSetLabel(render_bundle: *sysgpu.RenderBundle, name: [*:0]const u8) void {
         _ = name;
         _ = render_bundle;
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderDraw(render_bundle_encoder: *sysgpu.RenderBundleEncoder, vertex_count: u32, instance_count: u32, first_vertex: u32, first_instance: u32) void {
+    pub fn renderBundleEncoderDraw(render_bundle_encoder: *sysgpu.RenderBundleEncoder, vertex_count: u32, instance_count: u32, first_vertex: u32, first_instance: u32) void {
         _ = render_bundle_encoder;
         _ = vertex_count;
         _ = instance_count;
@@ -929,7 +929,7 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderDrawIndexed(render_bundle_encoder: *sysgpu.RenderBundleEncoder, index_count: u32, instance_count: u32, first_index: u32, base_vertex: i32, first_instance: u32) void {
+    pub fn renderBundleEncoderDrawIndexed(render_bundle_encoder: *sysgpu.RenderBundleEncoder, index_count: u32, instance_count: u32, first_index: u32, base_vertex: i32, first_instance: u32) void {
         _ = render_bundle_encoder;
         _ = index_count;
         _ = instance_count;
@@ -939,14 +939,14 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderDrawIndexedIndirect(render_bundle_encoder: *sysgpu.RenderBundleEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
+    pub fn renderBundleEncoderDrawIndexedIndirect(render_bundle_encoder: *sysgpu.RenderBundleEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
         _ = render_bundle_encoder;
         _ = indirect_buffer;
         _ = indirect_offset;
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderDrawIndirect(render_bundle_encoder: *sysgpu.RenderBundleEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
+    pub fn renderBundleEncoderDrawIndirect(render_bundle_encoder: *sysgpu.RenderBundleEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
         _ = render_bundle_encoder;
         _ = indirect_buffer;
         _ = indirect_offset;
@@ -959,24 +959,24 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderInsertDebugMarker(render_bundle_encoder: *sysgpu.RenderBundleEncoder, marker_label: [*:0]const u8) void {
+    pub fn renderBundleEncoderInsertDebugMarker(render_bundle_encoder: *sysgpu.RenderBundleEncoder, marker_label: [*:0]const u8) void {
         _ = render_bundle_encoder;
         _ = marker_label;
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderPopDebugGroup(render_bundle_encoder: *sysgpu.RenderBundleEncoder) void {
+    pub fn renderBundleEncoderPopDebugGroup(render_bundle_encoder: *sysgpu.RenderBundleEncoder) void {
         _ = render_bundle_encoder;
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderPushDebugGroup(render_bundle_encoder: *sysgpu.RenderBundleEncoder, group_label: [*:0]const u8) void {
+    pub fn renderBundleEncoderPushDebugGroup(render_bundle_encoder: *sysgpu.RenderBundleEncoder, group_label: [*:0]const u8) void {
         _ = render_bundle_encoder;
         _ = group_label;
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderSetBindGroup(render_bundle_encoder: *sysgpu.RenderBundleEncoder, group_index: u32, group: *sysgpu.BindGroup, dynamic_offset_count: usize, dynamic_offsets: ?[*]const u32) void {
+    pub fn renderBundleEncoderSetBindGroup(render_bundle_encoder: *sysgpu.RenderBundleEncoder, group_index: u32, group: *sysgpu.BindGroup, dynamic_offset_count: usize, dynamic_offsets: ?[*]const u32) void {
         _ = render_bundle_encoder;
         _ = group_index;
         _ = group;
@@ -985,7 +985,7 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderSetIndexBuffer(render_bundle_encoder: *sysgpu.RenderBundleEncoder, buffer: *sysgpu.Buffer, format: sysgpu.IndexFormat, offset: u64, size: u64) void {
+    pub fn renderBundleEncoderSetIndexBuffer(render_bundle_encoder: *sysgpu.RenderBundleEncoder, buffer: *sysgpu.Buffer, format: sysgpu.IndexFormat, offset: u64, size: u64) void {
         _ = render_bundle_encoder;
         _ = buffer;
         _ = format;
@@ -994,19 +994,19 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderSetLabel(render_bundle_encoder: *sysgpu.RenderBundleEncoder, label: [*:0]const u8) void {
+    pub fn renderBundleEncoderSetLabel(render_bundle_encoder: *sysgpu.RenderBundleEncoder, label: [*:0]const u8) void {
         _ = render_bundle_encoder;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderSetPipeline(render_bundle_encoder: *sysgpu.RenderBundleEncoder, pipeline: *sysgpu.RenderPipeline) void {
+    pub fn renderBundleEncoderSetPipeline(render_bundle_encoder: *sysgpu.RenderBundleEncoder, pipeline: *sysgpu.RenderPipeline) void {
         _ = render_bundle_encoder;
         _ = pipeline;
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderSetVertexBuffer(render_bundle_encoder: *sysgpu.RenderBundleEncoder, slot: u32, buffer: *sysgpu.Buffer, offset: u64, size: u64) void {
+    pub fn renderBundleEncoderSetVertexBuffer(render_bundle_encoder: *sysgpu.RenderBundleEncoder, slot: u32, buffer: *sysgpu.Buffer, offset: u64, size: u64) void {
         _ = render_bundle_encoder;
         _ = slot;
         _ = buffer;
@@ -1015,87 +1015,87 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderReference(render_bundle_encoder: *sysgpu.RenderBundleEncoder) void {
+    pub fn renderBundleEncoderReference(render_bundle_encoder: *sysgpu.RenderBundleEncoder) void {
         _ = render_bundle_encoder;
         @panic("unimplemented");
     }
 
-    pub inline fn renderBundleEncoderRelease(render_bundle_encoder: *sysgpu.RenderBundleEncoder) void {
+    pub fn renderBundleEncoderRelease(render_bundle_encoder: *sysgpu.RenderBundleEncoder) void {
         _ = render_bundle_encoder;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderBeginOcclusionQuery(render_pass_encoder: *sysgpu.RenderPassEncoder, query_index: u32) void {
+    pub fn renderPassEncoderBeginOcclusionQuery(render_pass_encoder: *sysgpu.RenderPassEncoder, query_index: u32) void {
         _ = render_pass_encoder;
         _ = query_index;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderDraw(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, vertex_count: u32, instance_count: u32, first_vertex: u32, first_instance: u32) void {
+    pub fn renderPassEncoderDraw(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, vertex_count: u32, instance_count: u32, first_vertex: u32, first_instance: u32) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         render_pass_encoder.draw(vertex_count, instance_count, first_vertex, first_instance) catch |err| {
             std.log.err("Failed to draw in render pass: {}", .{err});
         };
     }
 
-    pub inline fn renderPassEncoderDrawIndexed(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, index_count: u32, instance_count: u32, first_index: u32, base_vertex: i32, first_instance: u32) void {
+    pub fn renderPassEncoderDrawIndexed(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, index_count: u32, instance_count: u32, first_index: u32, base_vertex: i32, first_instance: u32) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         render_pass_encoder.drawIndexed(index_count, instance_count, first_index, base_vertex, first_instance) catch |err| {
             std.log.err("Failed to draw indexed in render pass: {}", .{err});
         };
     }
 
-    pub inline fn renderPassEncoderDrawIndexedIndirect(render_pass_encoder: *sysgpu.RenderPassEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
+    pub fn renderPassEncoderDrawIndexedIndirect(render_pass_encoder: *sysgpu.RenderPassEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
         _ = render_pass_encoder;
         _ = indirect_buffer;
         _ = indirect_offset;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderDrawIndirect(render_pass_encoder: *sysgpu.RenderPassEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
+    pub fn renderPassEncoderDrawIndirect(render_pass_encoder: *sysgpu.RenderPassEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
         _ = render_pass_encoder;
         _ = indirect_buffer;
         _ = indirect_offset;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderEnd(render_pass_encoder_raw: *sysgpu.RenderPassEncoder) void {
+    pub fn renderPassEncoderEnd(render_pass_encoder_raw: *sysgpu.RenderPassEncoder) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         render_pass_encoder.end() catch |err| {
             std.log.err("Failed to end render pass: {}", .{err});
         };
     }
 
-    pub inline fn renderPassEncoderEndOcclusionQuery(render_pass_encoder: *sysgpu.RenderPassEncoder) void {
+    pub fn renderPassEncoderEndOcclusionQuery(render_pass_encoder: *sysgpu.RenderPassEncoder) void {
         _ = render_pass_encoder;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderExecuteBundles(render_pass_encoder: *sysgpu.RenderPassEncoder, bundles_count: usize, bundles: [*]const *const sysgpu.RenderBundle) void {
+    pub fn renderPassEncoderExecuteBundles(render_pass_encoder: *sysgpu.RenderPassEncoder, bundles_count: usize, bundles: [*]const *const sysgpu.RenderBundle) void {
         _ = render_pass_encoder;
         _ = bundles_count;
         _ = bundles;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderInsertDebugMarker(render_pass_encoder: *sysgpu.RenderPassEncoder, marker_label: [*:0]const u8) void {
+    pub fn renderPassEncoderInsertDebugMarker(render_pass_encoder: *sysgpu.RenderPassEncoder, marker_label: [*:0]const u8) void {
         _ = render_pass_encoder;
         _ = marker_label;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderPopDebugGroup(render_pass_encoder: *sysgpu.RenderPassEncoder) void {
+    pub fn renderPassEncoderPopDebugGroup(render_pass_encoder: *sysgpu.RenderPassEncoder) void {
         _ = render_pass_encoder;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderPushDebugGroup(render_pass_encoder: *sysgpu.RenderPassEncoder, group_label: [*:0]const u8) void {
+    pub fn renderPassEncoderPushDebugGroup(render_pass_encoder: *sysgpu.RenderPassEncoder, group_label: [*:0]const u8) void {
         _ = render_pass_encoder;
         _ = group_label;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderSetBindGroup(
+    pub fn renderPassEncoderSetBindGroup(
         render_pass_encoder_raw: *sysgpu.RenderPassEncoder,
         group_index: u32,
         group_raw: *sysgpu.BindGroup,
@@ -1109,13 +1109,13 @@ pub const Impl = sysgpu.Interface(struct {
         };
     }
 
-    pub inline fn renderPassEncoderSetBlendConstant(render_pass_encoder: *sysgpu.RenderPassEncoder, color: *const sysgpu.Color) void {
+    pub fn renderPassEncoderSetBlendConstant(render_pass_encoder: *sysgpu.RenderPassEncoder, color: *const sysgpu.Color) void {
         _ = render_pass_encoder;
         _ = color;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderSetIndexBuffer(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, buffer_raw: *sysgpu.Buffer, format: sysgpu.IndexFormat, offset: u64, size: u64) void {
+    pub fn renderPassEncoderSetIndexBuffer(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, buffer_raw: *sysgpu.Buffer, format: sysgpu.IndexFormat, offset: u64, size: u64) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         render_pass_encoder.setIndexBuffer(buffer, format, offset, size) catch |err| {
@@ -1123,13 +1123,13 @@ pub const Impl = sysgpu.Interface(struct {
         };
     }
 
-    pub inline fn renderPassEncoderSetLabel(render_pass_encoder: *sysgpu.RenderPassEncoder, label: [*:0]const u8) void {
+    pub fn renderPassEncoderSetLabel(render_pass_encoder: *sysgpu.RenderPassEncoder, label: [*:0]const u8) void {
         _ = render_pass_encoder;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderSetPipeline(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, pipeline_raw: *sysgpu.RenderPipeline) void {
+    pub fn renderPassEncoderSetPipeline(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, pipeline_raw: *sysgpu.RenderPipeline) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         const pipeline: *impl.RenderPipeline = @ptrCast(@alignCast(pipeline_raw));
         render_pass_encoder.setPipeline(pipeline) catch |err| {
@@ -1137,20 +1137,20 @@ pub const Impl = sysgpu.Interface(struct {
         };
     }
 
-    pub inline fn renderPassEncoderSetScissorRect(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, x: u32, y: u32, width: u32, height: u32) void {
+    pub fn renderPassEncoderSetScissorRect(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, x: u32, y: u32, width: u32, height: u32) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         render_pass_encoder.setScissorRect(x, y, width, height) catch |err| {
             std.log.err("Failed to set scissor rect in render pass: {}", .{err});
         };
     }
 
-    pub inline fn renderPassEncoderSetStencilReference(render_pass_encoder: *sysgpu.RenderPassEncoder, reference: u32) void {
+    pub fn renderPassEncoderSetStencilReference(render_pass_encoder: *sysgpu.RenderPassEncoder, reference: u32) void {
         _ = render_pass_encoder;
         _ = reference;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderSetVertexBuffer(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, slot: u32, buffer_raw: *sysgpu.Buffer, offset: u64, size: u64) void {
+    pub fn renderPassEncoderSetVertexBuffer(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, slot: u32, buffer_raw: *sysgpu.Buffer, offset: u64, size: u64) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
         render_pass_encoder.setVertexBuffer(slot, buffer, offset, size) catch |err| {
@@ -1158,109 +1158,109 @@ pub const Impl = sysgpu.Interface(struct {
         };
     }
 
-    pub inline fn renderPassEncoderSetViewport(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, x: f32, y: f32, width: f32, height: f32, min_depth: f32, max_depth: f32) void {
+    pub fn renderPassEncoderSetViewport(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, x: f32, y: f32, width: f32, height: f32, min_depth: f32, max_depth: f32) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         render_pass_encoder.setViewport(x, y, width, height, min_depth, max_depth) catch |err| {
             std.log.err("Failed to set viewport in render pass: {}", .{err});
         };
     }
 
-    pub inline fn renderPassEncoderWriteTimestamp(render_pass_encoder: *sysgpu.RenderPassEncoder, query_set: *sysgpu.QuerySet, query_index: u32) void {
+    pub fn renderPassEncoderWriteTimestamp(render_pass_encoder: *sysgpu.RenderPassEncoder, query_set: *sysgpu.QuerySet, query_index: u32) void {
         _ = render_pass_encoder;
         _ = query_set;
         _ = query_index;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPassEncoderReference(render_pass_encoder_raw: *sysgpu.RenderPassEncoder) void {
+    pub fn renderPassEncoderReference(render_pass_encoder_raw: *sysgpu.RenderPassEncoder) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         render_pass_encoder.manager.reference();
     }
 
-    pub inline fn renderPassEncoderRelease(render_pass_encoder_raw: *sysgpu.RenderPassEncoder) void {
+    pub fn renderPassEncoderRelease(render_pass_encoder_raw: *sysgpu.RenderPassEncoder) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         render_pass_encoder.manager.release();
     }
 
-    pub inline fn renderPipelineGetBindGroupLayout(render_pipeline_raw: *sysgpu.RenderPipeline, group_index: u32) *sysgpu.BindGroupLayout {
+    pub fn renderPipelineGetBindGroupLayout(render_pipeline_raw: *sysgpu.RenderPipeline, group_index: u32) *sysgpu.BindGroupLayout {
         const render_pipeline: *impl.RenderPipeline = @ptrCast(@alignCast(render_pipeline_raw));
         const layout: *impl.BindGroupLayout = render_pipeline.getBindGroupLayout(group_index);
         layout.manager.reference();
         return @ptrCast(layout);
     }
 
-    pub inline fn renderPipelineSetLabel(render_pipeline: *sysgpu.RenderPipeline, label: [*:0]const u8) void {
+    pub fn renderPipelineSetLabel(render_pipeline: *sysgpu.RenderPipeline, label: [*:0]const u8) void {
         _ = render_pipeline;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn renderPipelineReference(render_pipeline_raw: *sysgpu.RenderPipeline) void {
+    pub fn renderPipelineReference(render_pipeline_raw: *sysgpu.RenderPipeline) void {
         const render_pipeline: *impl.RenderPipeline = @ptrCast(@alignCast(render_pipeline_raw));
         render_pipeline.manager.reference();
     }
 
-    pub inline fn renderPipelineRelease(render_pipeline_raw: *sysgpu.RenderPipeline) void {
+    pub fn renderPipelineRelease(render_pipeline_raw: *sysgpu.RenderPipeline) void {
         const render_pipeline: *impl.RenderPipeline = @ptrCast(@alignCast(render_pipeline_raw));
         render_pipeline.manager.release();
     }
 
-    pub inline fn samplerSetLabel(sampler: *sysgpu.Sampler, label: [*:0]const u8) void {
+    pub fn samplerSetLabel(sampler: *sysgpu.Sampler, label: [*:0]const u8) void {
         _ = sampler;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn samplerReference(sampler_raw: *sysgpu.Sampler) void {
+    pub fn samplerReference(sampler_raw: *sysgpu.Sampler) void {
         const sampler: *impl.Sampler = @ptrCast(@alignCast(sampler_raw));
         sampler.manager.reference();
     }
 
-    pub inline fn samplerRelease(sampler_raw: *sysgpu.Sampler) void {
+    pub fn samplerRelease(sampler_raw: *sysgpu.Sampler) void {
         const sampler: *impl.Sampler = @ptrCast(@alignCast(sampler_raw));
         sampler.manager.release();
     }
 
-    pub inline fn shaderModuleGetCompilationInfo(shader_module: *sysgpu.ShaderModule, callback: sysgpu.CompilationInfoCallback, userdata: ?*anyopaque) void {
+    pub fn shaderModuleGetCompilationInfo(shader_module: *sysgpu.ShaderModule, callback: sysgpu.CompilationInfoCallback, userdata: ?*anyopaque) void {
         _ = shader_module;
         _ = callback;
         _ = userdata;
         @panic("unimplemented");
     }
 
-    pub inline fn shaderModuleSetLabel(shader_module: *sysgpu.ShaderModule, label: [*:0]const u8) void {
+    pub fn shaderModuleSetLabel(shader_module: *sysgpu.ShaderModule, label: [*:0]const u8) void {
         _ = shader_module;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn shaderModuleReference(shader_module_raw: *sysgpu.ShaderModule) void {
+    pub fn shaderModuleReference(shader_module_raw: *sysgpu.ShaderModule) void {
         const shader_module: *impl.ShaderModule = @ptrCast(@alignCast(shader_module_raw));
         shader_module.manager.reference();
     }
 
-    pub inline fn shaderModuleRelease(shader_module_raw: *sysgpu.ShaderModule) void {
+    pub fn shaderModuleRelease(shader_module_raw: *sysgpu.ShaderModule) void {
         const shader_module: *impl.ShaderModule = @ptrCast(@alignCast(shader_module_raw));
         shader_module.manager.release();
     }
 
-    pub inline fn sharedFenceExportInfo(shared_fence: *sysgpu.SharedFence, info: *sysgpu.SharedFence.ExportInfo) void {
+    pub fn sharedFenceExportInfo(shared_fence: *sysgpu.SharedFence, info: *sysgpu.SharedFence.ExportInfo) void {
         _ = shared_fence;
         _ = info;
         @panic("unimplemented");
     }
 
-    pub inline fn sharedFenceReference(shared_fence: *sysgpu.SharedFence) void {
+    pub fn sharedFenceReference(shared_fence: *sysgpu.SharedFence) void {
         _ = shared_fence;
         @panic("unimplemented");
     }
 
-    pub inline fn sharedFenceRelease(shared_fence: *sysgpu.SharedFence) void {
+    pub fn sharedFenceRelease(shared_fence: *sysgpu.SharedFence) void {
         _ = shared_fence;
         @panic("unimplemented");
     }
 
-    pub inline fn sharedTextureMemoryBeginAccess(shared_texture_memory: *sysgpu.SharedTextureMemory, texture: *sysgpu.Texture, descriptor: *const sysgpu.SharedTextureMemory.BeginAccessDescriptor) void {
+    pub fn sharedTextureMemoryBeginAccess(shared_texture_memory: *sysgpu.SharedTextureMemory, texture: *sysgpu.Texture, descriptor: *const sysgpu.SharedTextureMemory.BeginAccessDescriptor) void {
         _ = shared_texture_memory;
         _ = texture;
         _ = descriptor;
@@ -1273,46 +1273,46 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn sharedTextureMemoryEndAccess(shared_texture_memory: *sysgpu.SharedTextureMemory, texture: *sysgpu.Texture, descriptor: *sysgpu.SharedTextureMemory.EndAccessState) void {
+    pub fn sharedTextureMemoryEndAccess(shared_texture_memory: *sysgpu.SharedTextureMemory, texture: *sysgpu.Texture, descriptor: *sysgpu.SharedTextureMemory.EndAccessState) void {
         _ = shared_texture_memory;
         _ = texture;
         _ = descriptor;
         @panic("unimplemented");
     }
 
-    pub inline fn sharedTextureMemoryEndAccessStateFreeMembers(value: sysgpu.SharedTextureMemory.EndAccessState) void {
+    pub fn sharedTextureMemoryEndAccessStateFreeMembers(value: sysgpu.SharedTextureMemory.EndAccessState) void {
         _ = value;
         @panic("unimplemented");
     }
 
-    pub inline fn sharedTextureMemoryGetProperties(shared_texture_memory: *sysgpu.SharedTextureMemory, properties: *sysgpu.SharedTextureMemory.Properties) void {
+    pub fn sharedTextureMemoryGetProperties(shared_texture_memory: *sysgpu.SharedTextureMemory, properties: *sysgpu.SharedTextureMemory.Properties) void {
         _ = shared_texture_memory;
         _ = properties;
         @panic("unimplemented");
     }
 
-    pub inline fn sharedTextureMemorySetLabel(shared_texture_memory: *sysgpu.SharedTextureMemory, label: [*:0]const u8) void {
+    pub fn sharedTextureMemorySetLabel(shared_texture_memory: *sysgpu.SharedTextureMemory, label: [*:0]const u8) void {
         _ = shared_texture_memory;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn sharedTextureMemoryReference(shared_texture_memory: *sysgpu.SharedTextureMemory) void {
+    pub fn sharedTextureMemoryReference(shared_texture_memory: *sysgpu.SharedTextureMemory) void {
         _ = shared_texture_memory;
         @panic("unimplemented");
     }
 
-    pub inline fn sharedTextureMemoryRelease(shared_texture_memory: *sysgpu.SharedTextureMemory) void {
+    pub fn sharedTextureMemoryRelease(shared_texture_memory: *sysgpu.SharedTextureMemory) void {
         _ = shared_texture_memory;
         @panic("unimplemented");
     }
 
-    pub inline fn surfaceReference(surface_raw: *sysgpu.Surface) void {
+    pub fn surfaceReference(surface_raw: *sysgpu.Surface) void {
         const surface: *impl.Surface = @ptrCast(@alignCast(surface_raw));
         surface.manager.reference();
     }
 
-    pub inline fn surfaceRelease(surface_raw: *sysgpu.Surface) void {
+    pub fn surfaceRelease(surface_raw: *sysgpu.Surface) void {
         const surface: *impl.Surface = @ptrCast(@alignCast(surface_raw));
         surface.manager.release();
     }
@@ -1331,7 +1331,7 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn swapChainGetCurrentTextureView(swap_chain_raw: *sysgpu.SwapChain) ?*sysgpu.TextureView {
+    pub fn swapChainGetCurrentTextureView(swap_chain_raw: *sysgpu.SwapChain) ?*sysgpu.TextureView {
         const swap_chain: *impl.SwapChain = @ptrCast(@alignCast(swap_chain_raw));
         const texture_view = swap_chain.getCurrentTextureView() catch |err| {
             std.log.err("Failed to get current texture view from swap chain: {}", .{err});
@@ -1340,38 +1340,38 @@ pub const Impl = sysgpu.Interface(struct {
         return @ptrCast(texture_view);
     }
 
-    pub inline fn swapChainPresent(swap_chain_raw: *sysgpu.SwapChain) void {
+    pub fn swapChainPresent(swap_chain_raw: *sysgpu.SwapChain) void {
         const swap_chain: *impl.SwapChain = @ptrCast(@alignCast(swap_chain_raw));
         swap_chain.present() catch |err| {
             std.log.err("Failed to present swap chain: {}", .{err});
         };
     }
 
-    pub inline fn swapChainReference(swap_chain_raw: *sysgpu.SwapChain) void {
+    pub fn swapChainReference(swap_chain_raw: *sysgpu.SwapChain) void {
         const swap_chain: *impl.SwapChain = @ptrCast(@alignCast(swap_chain_raw));
         swap_chain.manager.reference();
     }
 
-    pub inline fn swapChainRelease(swap_chain_raw: *sysgpu.SwapChain) void {
+    pub fn swapChainRelease(swap_chain_raw: *sysgpu.SwapChain) void {
         const swap_chain: *impl.SwapChain = @ptrCast(@alignCast(swap_chain_raw));
         swap_chain.manager.release();
     }
 
-    pub inline fn textureCreateView(texture_raw: *sysgpu.Texture, descriptor: ?*const sysgpu.TextureView.Descriptor) ?*sysgpu.TextureView {
+    pub fn textureCreateView(texture_raw: *sysgpu.Texture, descriptor: ?*const sysgpu.TextureView.Descriptor) *sysgpu.TextureView {
         const texture: *impl.Texture = @ptrCast(@alignCast(texture_raw));
         const texture_view = texture.createView(descriptor orelse &sysgpu.TextureView.Descriptor{}) catch |err| {
             std.log.err("Failed to create texture view: {}", .{err});
-            return null;
+            @panic("Failed to create texture view");
         };
         return @ptrCast(texture_view);
     }
 
-    pub inline fn textureDestroy(texture: *sysgpu.Texture) void {
+    pub fn textureDestroy(texture: *sysgpu.Texture) void {
         _ = texture;
         @panic("unimplemented");
     }
 
-    pub inline fn textureGetDepthOrArrayLayers(texture: *sysgpu.Texture) u32 {
+    pub fn textureGetDepthOrArrayLayers(texture: *sysgpu.Texture) u32 {
         _ = texture;
         @panic("unimplemented");
     }
@@ -1386,17 +1386,17 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn textureGetHeight(texture_raw: *sysgpu.Texture) u32 {
+    pub fn textureGetHeight(texture_raw: *sysgpu.Texture) u32 {
         const texture: *impl.Texture = @ptrCast(@alignCast(texture_raw));
         return texture.getHeight();
     }
 
-    pub inline fn textureGetMipLevelCount(texture: *sysgpu.Texture) u32 {
+    pub fn textureGetMipLevelCount(texture: *sysgpu.Texture) u32 {
         _ = texture;
         @panic("unimplemented");
     }
 
-    pub inline fn textureGetSampleCount(texture: *sysgpu.Texture) u32 {
+    pub fn textureGetSampleCount(texture: *sysgpu.Texture) u32 {
         _ = texture;
         @panic("unimplemented");
     }
@@ -1406,39 +1406,39 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn textureGetWidth(texture_raw: *sysgpu.Texture) u32 {
+    pub fn textureGetWidth(texture_raw: *sysgpu.Texture) u32 {
         const texture: *impl.Texture = @ptrCast(@alignCast(texture_raw));
         return texture.getWidth();
     }
 
-    pub inline fn textureSetLabel(texture: *sysgpu.Texture, label: [*:0]const u8) void {
+    pub fn textureSetLabel(texture: *sysgpu.Texture, label: [*:0]const u8) void {
         _ = texture;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn textureReference(texture_raw: *sysgpu.Texture) void {
+    pub fn textureReference(texture_raw: *sysgpu.Texture) void {
         const texture: *impl.Texture = @ptrCast(@alignCast(texture_raw));
         texture.manager.reference();
     }
 
-    pub inline fn textureRelease(texture_raw: *sysgpu.Texture) void {
+    pub fn textureRelease(texture_raw: *sysgpu.Texture) void {
         const texture: *impl.Texture = @ptrCast(@alignCast(texture_raw));
         texture.manager.release();
     }
 
-    pub inline fn textureViewSetLabel(texture_view: *sysgpu.TextureView, label: [*:0]const u8) void {
+    pub fn textureViewSetLabel(texture_view: *sysgpu.TextureView, label: [*:0]const u8) void {
         _ = texture_view;
         _ = label;
         @panic("unimplemented");
     }
 
-    pub inline fn textureViewReference(texture_view_raw: *sysgpu.TextureView) void {
+    pub fn textureViewReference(texture_view_raw: *sysgpu.TextureView) void {
         const texture_view: *impl.TextureView = @ptrCast(@alignCast(texture_view_raw));
         texture_view.manager.reference();
     }
 
-    pub inline fn textureViewRelease(texture_view_raw: *sysgpu.TextureView) void {
+    pub fn textureViewRelease(texture_view_raw: *sysgpu.TextureView) void {
         const texture_view: *impl.TextureView = @ptrCast(@alignCast(texture_view_raw));
         texture_view.manager.release();
     }

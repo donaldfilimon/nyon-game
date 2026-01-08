@@ -529,12 +529,25 @@ pub fn beginScissorMode(x: i32, y: i32, width: i32, height: i32) void {
 
 pub fn endScissorMode() void {}
 
-pub fn drawText(text: [:0]const u8, x: i32, y: i32, fontSize: i32, color: Color) void {
+pub fn drawText(text: []const u8, x: i32, y: i32, fontSize: i32, color: Color) void {
     _ = text;
     _ = x;
     _ = y;
     _ = fontSize;
     _ = color;
+}
+
+pub fn getFPS() i32 {
+    return 60;
+}
+
+pub fn getTime() f64 {
+    return 0.0;
+}
+
+pub fn loadModelFromMesh(mesh: Mesh) !Model {
+    _ = mesh;
+    return std.mem.zeroes(Model);
 }
 
 pub fn drawCircle(centerX: i32, centerY: i32, radius: f32, color: Color) void {
@@ -799,6 +812,25 @@ pub fn loadDirectoryFiles(dirPath: [:0]const u8) FilePathList {
     };
 }
 
+pub fn beginTextureMode(target: RenderTexture2D) void {
+    _ = target;
+}
+
+pub fn endTextureMode() void {}
+
+pub fn setAudioListenerPosition(x: f32, y: f32, z: f32) void {
+    _ = x;
+    _ = y;
+    _ = z;
+}
+
+pub fn getRayCollisionMesh(ray: Ray, mesh: Mesh, transform: Matrix) RayCollision {
+    _ = ray;
+    _ = mesh;
+    _ = transform;
+    return std.mem.zeroes(RayCollision);
+}
+
 pub fn unloadDirectoryFiles(files: FilePathList) void {
     _ = files;
     // Stub implementation - nothing to unload
@@ -939,4 +971,40 @@ pub const CYAN = Color{ .r = 0, .g = 255, .b = 255, .a = 255 };
 pub const LIGHT_GRAY = Color{ .r = 200, .g = 200, .b = 200, .a = 255 };
 pub const GRAY = Color{ .r = 130, .g = 130, .b = 130, .a = 255 };
 pub const DARK_GRAY = Color{ .r = 80, .g = 80, .b = 80, .a = 255 };
+
+pub fn beginShaderMode(shader: Shader) void {
+    _ = shader;
+}
+
+pub fn endShaderMode() void {}
+
 pub const RAY_WHITE = WHITE;
+
+pub fn drawLine3D(startPos: Vector3, endPos: Vector3, color: Color) void {
+    _ = startPos;
+    _ = endPos;
+    _ = color;
+}
+
+pub fn drawCapsuleWires(startPos: Vector3, endPos: Vector3, radius: f32, slices: i32, rings: i32, color: Color) void {
+    _ = startPos;
+    _ = endPos;
+    _ = radius;
+    _ = slices;
+    _ = rings;
+    _ = color;
+}
+
+pub fn setAudioListenerOrientation(forward: Vector3, up: Vector3) void {
+    _ = forward;
+    _ = up;
+}
+
+pub fn drawTexturePro(texture: Texture2D, source: Rectangle, dest: Rectangle, origin: Vector2, rotation: f32, tint: Color) void {
+    _ = texture;
+    _ = source;
+    _ = dest;
+    _ = origin;
+    _ = rotation;
+    _ = tint;
+}
