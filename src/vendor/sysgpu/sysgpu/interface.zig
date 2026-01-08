@@ -21,9 +21,9 @@ pub const Impl = blk: {
 /// Verifies that a sysgpu.Interface implementation exposes the expected function declarations.
 pub fn Interface(comptime T: type) type {
     // sysgpu.Device
-    assertDecl(T, "deviceCreateRenderPipeline", fn (device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) *sysgpu.RenderPipeline);
+    assertDecl(T, "deviceCreateRenderPipeline", fn (device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) callconv(.Inline) ?*sysgpu.RenderPipeline);
     assertDecl(T, "deviceCreateRenderPipelineAsync", fn (device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor, callback: sysgpu.CreateRenderPipelineAsyncCallback, userdata: ?*anyopaque) callconv(.Inline) void);
-    assertDecl(T, "deviceCreatePipelineLayout", fn (device: *sysgpu.Device, pipeline_layout_descriptor: *const sysgpu.PipelineLayout.Descriptor) callconv(.Inline) *sysgpu.PipelineLayout);
+    assertDecl(T, "deviceCreatePipelineLayout", fn (device: *sysgpu.Device, pipeline_layout_descriptor: *const sysgpu.PipelineLayout.Descriptor) callconv(.Inline) ?*sysgpu.PipelineLayout);
 
     // sysgpu.PipelineLayout
     assertDecl(T, "pipelineLayoutSetLabel", fn (pipeline_layout: *sysgpu.PipelineLayout, label: [*:0]const u8) callconv(.Inline) void);
@@ -128,11 +128,11 @@ pub fn Interface(comptime T: type) type {
 
     // sysgpu.Device
     assertDecl(T, "getProcAddress", fn (device: *sysgpu.Device, proc_name: [*:0]const u8) callconv(.Inline) ?sysgpu.Proc);
-    assertDecl(T, "deviceCreateBindGroup", fn (device: *sysgpu.Device, descriptor: *const sysgpu.BindGroup.Descriptor) callconv(.Inline) *sysgpu.BindGroup);
-    assertDecl(T, "deviceCreateBindGroupLayout", fn (device: *sysgpu.Device, descriptor: *const sysgpu.BindGroupLayout.Descriptor) callconv(.Inline) *sysgpu.BindGroupLayout);
-    assertDecl(T, "deviceCreateBuffer", fn (device: *sysgpu.Device, descriptor: *const sysgpu.Buffer.Descriptor) callconv(.Inline) *sysgpu.Buffer);
-    assertDecl(T, "deviceCreateCommandEncoder", fn (device: *sysgpu.Device, descriptor: ?*const sysgpu.CommandEncoder.Descriptor) callconv(.Inline) *sysgpu.CommandEncoder);
-    assertDecl(T, "deviceCreateComputePipeline", fn (device: *sysgpu.Device, descriptor: *const sysgpu.ComputePipeline.Descriptor) callconv(.Inline) *sysgpu.ComputePipeline);
+    assertDecl(T, "deviceCreateBindGroup", fn (device: *sysgpu.Device, descriptor: *const sysgpu.BindGroup.Descriptor) callconv(.Inline) ?*sysgpu.BindGroup);
+    assertDecl(T, "deviceCreateBindGroupLayout", fn (device: *sysgpu.Device, descriptor: *const sysgpu.BindGroupLayout.Descriptor) callconv(.Inline) ?*sysgpu.BindGroupLayout);
+    assertDecl(T, "deviceCreateBuffer", fn (device: *sysgpu.Device, descriptor: *const sysgpu.Buffer.Descriptor) callconv(.Inline) ?*sysgpu.Buffer);
+    assertDecl(T, "deviceCreateCommandEncoder", fn (device: *sysgpu.Device, descriptor: ?*const sysgpu.CommandEncoder.Descriptor) callconv(.Inline) ?*sysgpu.CommandEncoder);
+    assertDecl(T, "deviceCreateComputePipeline", fn (device: *sysgpu.Device, descriptor: *const sysgpu.ComputePipeline.Descriptor) callconv(.Inline) ?*sysgpu.ComputePipeline);
     assertDecl(T, "deviceCreateComputePipelineAsync", fn (device: *sysgpu.Device, descriptor: *const sysgpu.ComputePipeline.Descriptor, callback: sysgpu.CreateComputePipelineAsyncCallback, userdata: ?*anyopaque) callconv(.Inline) void);
     assertDecl(T, "deviceCreateErrorBuffer", fn (device: *sysgpu.Device, descriptor: *const sysgpu.Buffer.Descriptor) callconv(.Inline) *sysgpu.Buffer);
     assertDecl(T, "deviceCreateErrorExternalTexture", fn (device: *sysgpu.Device) callconv(.Inline) *sysgpu.ExternalTexture);
@@ -142,10 +142,10 @@ pub fn Interface(comptime T: type) type {
     assertDecl(T, "deviceCreateRenderBundleEncoder", fn (device: *sysgpu.Device, descriptor: *const sysgpu.RenderBundleEncoder.Descriptor) callconv(.Inline) *sysgpu.RenderBundleEncoder);
     // TODO(self-hosted): this cannot be marked as inline for some reason:
     // https://github.com/ziglang/zig/issues/12545
-    assertDecl(T, "deviceCreateSampler", fn (device: *sysgpu.Device, descriptor: ?*const sysgpu.Sampler.Descriptor) callconv(.Inline) *sysgpu.Sampler);
+    assertDecl(T, "deviceCreateSampler", fn (device: *sysgpu.Device, descriptor: ?*const sysgpu.Sampler.Descriptor) callconv(.Inline) ?*sysgpu.Sampler);
     assertDecl(T, "deviceCreateShaderModule", fn (device: *sysgpu.Device, descriptor: *const sysgpu.ShaderModule.Descriptor) callconv(.Inline) *sysgpu.ShaderModule);
-    assertDecl(T, "deviceCreateSwapChain", fn (device: *sysgpu.Device, surface: ?*sysgpu.Surface, descriptor: *const sysgpu.SwapChain.Descriptor) callconv(.Inline) *sysgpu.SwapChain);
-    assertDecl(T, "deviceCreateTexture", fn (device: *sysgpu.Device, descriptor: *const sysgpu.Texture.Descriptor) callconv(.Inline) *sysgpu.Texture);
+    assertDecl(T, "deviceCreateSwapChain", fn (device: *sysgpu.Device, surface: ?*sysgpu.Surface, descriptor: *const sysgpu.SwapChain.Descriptor) callconv(.Inline) ?*sysgpu.SwapChain);
+    assertDecl(T, "deviceCreateTexture", fn (device: *sysgpu.Device, descriptor: *const sysgpu.Texture.Descriptor) callconv(.Inline) ?*sysgpu.Texture);
     assertDecl(T, "deviceDestroy", fn (device: *sysgpu.Device) callconv(.Inline) void);
     assertDecl(T, "deviceEnumerateFeatures", fn (device: *sysgpu.Device, features: ?[*]sysgpu.FeatureName) callconv(.Inline) usize);
     assertDecl(T, "deviceGetLimits", fn (device: *sysgpu.Device, limits: *sysgpu.SupportedLimits) callconv(.Inline) u32);
@@ -632,27 +632,27 @@ pub fn Export(comptime T: type) type {
         }
 
         // SYSGPU_EXPORT WGPUBindGroup sysgpuDeviceCreateBindGroup(WGPUDevice device, WGPUBindGroupDescriptor const * descriptor);
-        export fn sysgpuDeviceCreateBindGroup(device: *sysgpu.Device, descriptor: *const sysgpu.BindGroup.Descriptor) *sysgpu.BindGroup {
+        export fn sysgpuDeviceCreateBindGroup(device: *sysgpu.Device, descriptor: *const sysgpu.BindGroup.Descriptor) ?*sysgpu.BindGroup {
             return T.deviceCreateBindGroup(device, descriptor);
         }
 
         // SYSGPU_EXPORT WGPUBindGroupLayout sysgpuDeviceCreateBindGroupLayout(WGPUDevice device, WGPUBindGroupLayout.Descriptor const * descriptor);
-        export fn sysgpuDeviceCreateBindGroupLayout(device: *sysgpu.Device, descriptor: *const sysgpu.BindGroupLayout.Descriptor) *sysgpu.BindGroupLayout {
+        export fn sysgpuDeviceCreateBindGroupLayout(device: *sysgpu.Device, descriptor: *const sysgpu.BindGroupLayout.Descriptor) ?*sysgpu.BindGroupLayout {
             return T.deviceCreateBindGroupLayout(device, descriptor);
         }
 
         // SYSGPU_EXPORT WGPUBuffer sysgpuDeviceCreateBuffer(WGPUDevice device, WGPUBuffer.Descriptor const * descriptor);
-        export fn sysgpuDeviceCreateBuffer(device: *sysgpu.Device, descriptor: *const sysgpu.Buffer.Descriptor) *sysgpu.Buffer {
+        export fn sysgpuDeviceCreateBuffer(device: *sysgpu.Device, descriptor: *const sysgpu.Buffer.Descriptor) ?*sysgpu.Buffer {
             return T.deviceCreateBuffer(device, descriptor);
         }
 
         // SYSGPU_EXPORT WGPUCommandEncoder sysgpuDeviceCreateCommandEncoder(WGPUDevice device, WGPUCommandEncoderDescriptor const * descriptor /* nullable */);
-        export fn sysgpuDeviceCreateCommandEncoder(device: *sysgpu.Device, descriptor: ?*const sysgpu.CommandEncoder.Descriptor) *sysgpu.CommandEncoder {
+        export fn sysgpuDeviceCreateCommandEncoder(device: *sysgpu.Device, descriptor: ?*const sysgpu.CommandEncoder.Descriptor) ?*sysgpu.CommandEncoder {
             return T.deviceCreateCommandEncoder(device, descriptor);
         }
 
         // SYSGPU_EXPORT WGPUComputePipeline sysgpuDeviceCreateComputePipeline(WGPUDevice device, WGPUComputePipelineDescriptor const * descriptor);
-        export fn sysgpuDeviceCreateComputePipeline(device: *sysgpu.Device, descriptor: *const sysgpu.ComputePipeline.Descriptor) *sysgpu.ComputePipeline {
+        export fn sysgpuDeviceCreateComputePipeline(device: *sysgpu.Device, descriptor: *const sysgpu.ComputePipeline.Descriptor) ?*sysgpu.ComputePipeline {
             return T.deviceCreateComputePipeline(device, descriptor);
         }
 
@@ -682,7 +682,7 @@ pub fn Export(comptime T: type) type {
         }
 
         // SYSGPU_EXPORT WGPUPipelineLayout sysgpuDeviceCreatePipelineLayout(WGPUDevice device, WGPUPipelineLayoutDescriptor const * descriptor);
-        export fn sysgpuDeviceCreatePipelineLayout(device: *sysgpu.Device, pipeline_layout_descriptor: *const sysgpu.PipelineLayout.Descriptor) *sysgpu.PipelineLayout {
+        export fn sysgpuDeviceCreatePipelineLayout(device: *sysgpu.Device, pipeline_layout_descriptor: *const sysgpu.PipelineLayout.Descriptor) ?*sysgpu.PipelineLayout {
             return T.deviceCreatePipelineLayout(device, pipeline_layout_descriptor);
         }
 
@@ -697,7 +697,7 @@ pub fn Export(comptime T: type) type {
         }
 
         // SYSGPU_EXPORT WGPURenderPipeline sysgpuDeviceCreateRenderPipeline(WGPUDevice device, WGPURenderPipelineDescriptor const * descriptor);
-        export fn sysgpuDeviceCreateRenderPipeline(device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) *sysgpu.RenderPipeline {
+        export fn sysgpuDeviceCreateRenderPipeline(device: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) ?*sysgpu.RenderPipeline {
             return T.deviceCreateRenderPipeline(device, descriptor);
         }
 
@@ -707,7 +707,7 @@ pub fn Export(comptime T: type) type {
         }
 
         // SYSGPU_EXPORT WGPUSampler sysgpuDeviceCreateSampler(WGPUDevice device, WGPUSamplerDescriptor const * descriptor /* nullable */);
-        export fn sysgpuDeviceCreateSampler(device: *sysgpu.Device, descriptor: ?*const sysgpu.Sampler.Descriptor) *sysgpu.Sampler {
+        export fn sysgpuDeviceCreateSampler(device: *sysgpu.Device, descriptor: ?*const sysgpu.Sampler.Descriptor) ?*sysgpu.Sampler {
             return T.deviceCreateSampler(device, descriptor);
         }
 
@@ -717,12 +717,12 @@ pub fn Export(comptime T: type) type {
         }
 
         // SYSGPU_EXPORT WGPUSwapChain sysgpuDeviceCreateSwapChain(WGPUDevice device, WGPUSurface surface /* nullable */, WGPUSwapChainDescriptor const * descriptor);
-        export fn sysgpuDeviceCreateSwapChain(device: *sysgpu.Device, surface: ?*sysgpu.Surface, descriptor: *const sysgpu.SwapChain.Descriptor) *sysgpu.SwapChain {
+        export fn sysgpuDeviceCreateSwapChain(device: *sysgpu.Device, surface: ?*sysgpu.Surface, descriptor: *const sysgpu.SwapChain.Descriptor) ?*sysgpu.SwapChain {
             return T.deviceCreateSwapChain(device, surface, descriptor);
         }
 
         // SYSGPU_EXPORT WGPUTexture sysgpuDeviceCreateTexture(WGPUDevice device, WGPUTextureDescriptor const * descriptor);
-        export fn sysgpuDeviceCreateTexture(device: *sysgpu.Device, descriptor: *const sysgpu.Texture.Descriptor) *sysgpu.Texture {
+        export fn sysgpuDeviceCreateTexture(device: *sysgpu.Device, descriptor: *const sysgpu.Texture.Descriptor) ?*sysgpu.Texture {
             return T.deviceCreateTexture(device, descriptor);
         }
 
