@@ -3,6 +3,6 @@
     .version = "0.1.0",
     .fingerprint = 0x369b208fd10649a7,
     .paths = .{ ".", "build.zig", "build.zig.zon", "src" },
-    .minimum_zig_version = "0.16.0-dev.1892+53ebfde6b",
+    .minimum_zig_version = "0.16.0-dev.2040+c475f1fcd",
     .dependencies = .{},
 }

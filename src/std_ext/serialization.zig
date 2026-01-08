@@ -12,11 +12,15 @@ pub const JsonSerializer = struct {
     }
 
     pub fn serialize(self: *const JsonSerializer, value: anytype) ![]u8 {
-        return std.json.stringifyAlloc(self.allocator, value, .{});
+        var buffer = try std.ArrayList(u8).initCapacity(self.allocator, 0);
+        try buffer.print(self.allocator, "{f}", .{std.json.fmt(value, .{})});
+        return buffer.toOwnedSlice(self.allocator);
     }
 
     pub fn deserialize(self: *const JsonSerializer, comptime T: type, data: []const u8) !T {
-        return std.json.parse(T, self.allocator, data, .{});
+        const parsed = try std.json.parseFromSlice(T, self.allocator, data, .{});
+        defer parsed.deinit();
+        return parsed.value;
     }
 
     pub fn serializeToFile(self: *const JsonSerializer, value: anytype, path: []const u8) !void {

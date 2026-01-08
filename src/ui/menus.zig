@@ -70,7 +70,7 @@ const NameInput = struct {
 
 pub const MenuState = struct {
     allocator: std.mem.Allocator,
-    ctx: ui_mod.UiContext = ui_mod.UiContext{ .style = ui_mod.UiStyle.fromTheme(.dark, 180, 1.0) },
+    ctx: ui_mod.UiContext = ui_mod.UiContext{ .style = ui_mod.UiStyle.fromTheme(.dark, 1.0) },
     worlds: []worlds_mod.WorldEntry = &.{},
     selected_world: ?usize = null,
     create_name: NameInput = NameInput{},
@@ -78,7 +78,7 @@ pub const MenuState = struct {
     pub fn init(allocator: std.mem.Allocator) MenuState {
         return .{
             .allocator = allocator,
-            .ctx = .{ .style = ui_mod.UiStyle.fromTheme(.dark, 180, 1.0) },
+            .ctx = .{ .style = ui_mod.UiStyle.fromTheme(.dark, 1.0) },
         };
     }
 
@@ -144,31 +144,26 @@ pub fn drawTitleMenu(menu: *MenuState, ui_style: ui_mod.UiStyle, status_message:
     const start_y: f32 = screen_height * 0.42;
     const x: f32 = (screen_width - button_w) / 2.0;
 
-    const single_id = std.hash.Wyhash.hash(0, "menu_singleplayer");
-    if (menu.ctx.button(single_id, engine.Rectangle{ .x = x, .y = start_y, .width = button_w, .height = button_h }, "Singleplayer")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = x, .y = start_y, .width = button_w, .height = button_h }, "Singleplayer")) {
         menu.refreshWorlds();
         status_message.set("Select a world", 3.0);
         return .singleplayer;
     }
 
-    const continue_id = std.hash.Wyhash.hash(0, "menu_continue");
-    if (menu.ctx.button(continue_id, engine.Rectangle{ .x = x, .y = start_y + button_h + 12, .width = button_w, .height = button_h }, "Continue")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = x, .y = start_y + button_h + 12, .width = button_w, .height = button_h }, "Continue")) {
         return .continue_last;
     }
 
-    const multiplayer_id = std.hash.Wyhash.hash(0, "menu_multiplayer");
-    if (menu.ctx.button(multiplayer_id, engine.Rectangle{ .x = x, .y = start_y + (button_h + 12) * 2, .width = button_w, .height = button_h }, "Multiplayer")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = x, .y = start_y + (button_h + 12) * 2, .width = button_w, .height = button_h }, "Multiplayer")) {
         return .multiplayer;
     }
 
-    const options_id = std.hash.Wyhash.hash(0, "menu_options");
-    if (menu.ctx.button(options_id, engine.Rectangle{ .x = x, .y = start_y + (button_h + 12) * 3, .width = button_w, .height = button_h }, "Options")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = x, .y = start_y + (button_h + 12) * 3, .width = button_w, .height = button_h }, "Options")) {
         status_message.set("Use in-game Settings panel for now (F2)", 4.5);
         return .none;
     }
 
-    const quit_id = std.hash.Wyhash.hash(0, "menu_quit");
-    if (menu.ctx.button(quit_id, engine.Rectangle{ .x = x, .y = start_y + (button_h + 12) * 4, .width = button_w, .height = button_h }, "Quit")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = x, .y = start_y + (button_h + 12) * 4, .width = button_w, .height = button_h }, "Quit")) {
         return .quit;
     }
 
@@ -195,8 +190,7 @@ pub fn drawWorldListMenu(menu: *MenuState, ui_style: ui_mod.UiStyle, status_mess
         var name_buf: [80:0]u8 = undefined;
         const label = std.fmt.bufPrintZ(&name_buf, "{s}", .{entry.meta.name}) catch "World";
         const y = list_y + @as(f32, @floatFromInt(i - start_index)) * (row_h + 10.0);
-        const id = std.hash.Wyhash.hash(0, entry.folder);
-        const clicked = menu.ctx.button(id, engine.Rectangle{ .x = list_x, .y = y, .width = list_w, .height = row_h }, label);
+        const clicked = menu.ctx.button(engine.Rectangle{ .x = list_x, .y = y, .width = list_w, .height = row_h }, label);
         if (clicked) {
             menu.selected_world = i;
             selected = i;
@@ -213,16 +207,14 @@ pub fn drawWorldListMenu(menu: *MenuState, ui_style: ui_mod.UiStyle, status_mess
     const button_y: f32 = screen_height - 120.0 * ui_style.scale;
     const left_x: f32 = (screen_width - (button_w * 2.0 + 20.0 * ui_style.scale)) / 2.0;
 
-    const create_id = std.hash.Wyhash.hash(0, "world_create");
-    if (menu.ctx.button(create_id, engine.Rectangle{ .x = left_x, .y = button_y, .width = button_w, .height = button_h }, "Create New World")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = left_x, .y = button_y, .width = button_w, .height = button_h }, "Create New World")) {
         menu.create_name.clear();
         status_message.set("Type a name and press Enter", 4.5);
         menu.selected_world = null;
         return .create_world;
     }
 
-    const back_id = std.hash.Wyhash.hash(0, "world_back");
-    if (menu.ctx.button(back_id, engine.Rectangle{ .x = left_x + button_w + 20.0 * ui_style.scale, .y = button_y, .width = button_w, .height = button_h }, "Back")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = left_x + button_w + 20.0 * ui_style.scale, .y = button_y, .width = button_w, .height = button_h }, "Back")) {
         return .back;
     }
 
@@ -230,12 +222,11 @@ pub fn drawWorldListMenu(menu: *MenuState, ui_style: ui_mod.UiStyle, status_mess
         status_message.set("Press Play to start", 3.0);
     }
 
-    const play_id = std.hash.Wyhash.hash(0, "world_play");
     const play_y: f32 = button_y - (button_h + 12.0 * ui_style.scale);
     const play_x: f32 = (screen_width - button_w) / 2.0;
     const can_play = menu.selected_world != null and menu.selected_world.? < menu.worlds.len;
     const play_label: [:0]const u8 = if (can_play) "Play Selected World" else "Select a World";
-    if (menu.ctx.button(play_id, engine.Rectangle{ .x = play_x, .y = play_y, .width = button_w, .height = button_h }, play_label) and can_play) {
+    if (menu.ctx.button(engine.Rectangle{ .x = play_x, .y = play_y, .width = button_w, .height = button_h }, play_label) and can_play) {
         return .play_selected;
     }
 
@@ -262,13 +253,9 @@ pub fn drawServerBrowser(menu: *MenuState, ui_style: ui_mod.UiStyle, status_mess
     var selected: ?usize = null;
     for (servers, 0..) |server, i| {
         const y = list_y + @as(f32, @floatFromInt(i)) * (row_h + 10.0);
-        var id_buf: [32]u8 = undefined;
-        const id_label = std.fmt.bufPrint(&id_buf, "server_{d}", .{i}) catch "server";
-        const id = std.hash.Wyhash.hash(0, id_label);
-        // Convert server name to null-terminated string for button label
         var server_buf: [128:0]u8 = undefined;
         const server_label = std.fmt.bufPrintZ(&server_buf, "{s}", .{server}) catch "Server";
-        const clicked = menu.ctx.button(id, engine.Rectangle{ .x = list_x, .y = y, .width = list_w, .height = row_h }, server_label);
+        const clicked = menu.ctx.button(engine.Rectangle{ .x = list_x, .y = y, .width = list_w, .height = row_h }, server_label);
         if (clicked) {
             selected = i;
         }
@@ -279,13 +266,11 @@ pub fn drawServerBrowser(menu: *MenuState, ui_style: ui_mod.UiStyle, status_mess
     const button_y: f32 = screen_height - 120.0 * ui_style.scale;
     const left_x: f32 = (screen_width - (button_w * 2.0 + 20.0 * ui_style.scale)) / 2.0;
 
-    const connect_id = std.hash.Wyhash.hash(0, "server_connect");
-    if (menu.ctx.button(connect_id, engine.Rectangle{ .x = left_x, .y = button_y, .width = button_w, .height = button_h }, "Connect to Selected") and selected != null) {
+    if (menu.ctx.button(engine.Rectangle{ .x = left_x, .y = button_y, .width = button_w, .height = button_h }, "Connect to Selected") and selected != null) {
         return .connect;
     }
 
-    const back_id = std.hash.Wyhash.hash(0, "server_back");
-    if (menu.ctx.button(back_id, engine.Rectangle{ .x = left_x + button_w + 20.0 * ui_style.scale, .y = button_y, .width = button_w, .height = button_h }, "Back")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = left_x + button_w + 20.0 * ui_style.scale, .y = button_y, .width = button_w, .height = button_h }, "Back")) {
         return .back;
     }
 
@@ -353,8 +338,7 @@ pub fn drawCreateWorldMenu(menu: *MenuState, ui_style: ui_mod.UiStyle, status_me
     const button_y: f32 = screen_height - 120.0 * ui_style.scale;
     const left_x: f32 = (screen_width - (button_w * 2.0 + 20.0 * ui_style.scale)) / 2.0;
 
-    const create_id = std.hash.Wyhash.hash(0, "create_confirm");
-    if (menu.ctx.button(create_id, engine.Rectangle{ .x = left_x, .y = button_y, .width = button_w, .height = button_h }, "Create")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = left_x, .y = button_y, .width = button_w, .height = button_h }, "Create")) {
         if (name.len == 0) {
             status_message.set("Enter a world name", 3.0);
             return .none;
@@ -376,8 +360,7 @@ pub fn drawCreateWorldMenu(menu: *MenuState, ui_style: ui_mod.UiStyle, status_me
         return .{ .created = session };
     }
 
-    const back_id = std.hash.Wyhash.hash(0, "create_back");
-    if (menu.ctx.button(back_id, engine.Rectangle{ .x = left_x + button_w + 20.0 * ui_style.scale, .y = button_y, .width = button_w, .height = button_h }, "Back")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = left_x + button_w + 20.0 * ui_style.scale, .y = button_y, .width = button_w, .height = button_h }, "Back")) {
         return .back;
     }
 
@@ -398,13 +381,11 @@ pub fn drawPauseMenu(menu: *MenuState, ui_style: ui_mod.UiStyle, status_message:
     const start_y: f32 = screen_height * 0.34;
     const x: f32 = (screen_width - button_w) / 2.0;
 
-    const resume_id = std.hash.Wyhash.hash(0, "pause_resume");
-    if (menu.ctx.button(resume_id, engine.Rectangle{ .x = x, .y = start_y, .width = button_w, .height = button_h }, "Resume Game")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = x, .y = start_y, .width = button_w, .height = button_h }, "Resume Game")) {
         return .unpause;
     }
 
-    const quit_id = std.hash.Wyhash.hash(0, "pause_quit");
-    if (menu.ctx.button(quit_id, engine.Rectangle{ .x = x, .y = start_y + button_h + 12, .width = button_w, .height = button_h }, "Save & Quit to Title")) {
+    if (menu.ctx.button(engine.Rectangle{ .x = x, .y = start_y + button_h + 12, .width = button_w, .height = button_h }, "Save & Quit to Title")) {
         return .quit_to_title;
     }
 

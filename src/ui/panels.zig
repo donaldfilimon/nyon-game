@@ -1,23 +1,14 @@
 //! Panel Utilities - Helper functions for panel layout and docking.
 //!
 //! This module provides utilities for managing panel positioning, sizing,
-//! and docking behavior. These functions help implement flexible
-//! UI layouts with draggable, resizable panels.
-//!
-//! Shared panel utilities for docking, clamping, and layout management.
-//! Common logic extracted from both sandbox and game UI modules
-//! to eliminate code duplication while maintaining identical behavior.
+//! and docking behavior using raygui.
 
 const std = @import("std");
-const engine_mod = @import("../engine.zig");
-const ui_mod = @import("ui.zig");
+const raygui = @import("raygui");
 const config = @import("../config/constants.zig");
+const ui_mod = @import("ui.zig");
 
-const Rectangle = engine_mod.Rectangle;
-const PanelConfig = ui_mod.PanelConfig;
-
-const MIN_PANEL_WIDTH: f32 = config.UI.MIN_PANEL_WIDTH;
-const MIN_PANEL_HEIGHT: f32 = config.UI.MIN_PANEL_HEIGHT;
+pub const Rectangle = raygui.Rectangle;
 
 pub const DockPosition = enum {
     left,
@@ -28,10 +19,12 @@ pub const DockPosition = enum {
 
 pub const DockThreshold = struct {
     edge_ratio: f32 = 0.25,
-    min_size: f32 = MIN_PANEL_WIDTH,
+    min_size: f32 = config.UI.MIN_PANEL_WIDTH,
 };
 
 const default_threshold = DockThreshold{};
+const MIN_PANEL_WIDTH: f32 = config.UI.MIN_PANEL_WIDTH;
+const MIN_PANEL_HEIGHT: f32 = config.UI.MIN_PANEL_HEIGHT;
 
 pub fn clampPanelRect(rect: *Rectangle, screen_width: f32, screen_height: f32) void {
     if (rect.width > screen_width) rect.width = screen_width;
@@ -47,8 +40,8 @@ pub fn clampPanelRect(rect: *Rectangle, screen_width: f32, screen_height: f32) v
 }
 
 pub fn splitDockPanels(
-    moving: *PanelConfig,
-    target: *PanelConfig,
+    moving: *ui_mod.PanelConfig,
+    target: *ui_mod.PanelConfig,
     position: DockPosition,
 ) void {
     const target_rect = target.rect;
@@ -62,9 +55,6 @@ pub fn splitDockPanels(
                 .width = half,
                 .height = target_rect.height,
             };
-            target.rect.height = target_rect.height; // Error in logic in previous replace? No, this is .left case.
-            // Wait, I need to restore the whole function content properly.
-            // Let's rewrite the whole switch.
             target.rect.width = @max(MIN_PANEL_WIDTH, target_rect.width - half);
         },
         .right => {
@@ -102,8 +92,7 @@ pub fn splitDockPanels(
 }
 
 /// Detect which dock position a mouse is hovering over relative to a panel.
-/// Returns null if the mouse is not close enough to the panel edge.
-/// The drag_offset parameter is the offset from the panel's center to the mouse position.
+/// Returns null if mouse is not close enough to panel edge.
 pub fn detectDockPosition(
     mouse_x: f32,
     mouse_y: f32,
@@ -134,38 +123,6 @@ pub fn isPanelActive(active_id: u64, panel_id: ui_mod.PanelId) bool {
     return active_id == getActivePanelId(panel_id);
 }
 
-pub const PanelResult = struct {
-    dragged: bool = false,
-    clicked: bool = false,
-    resized: bool = false,
-};
-
-pub fn isMouseOverRect(mouse_pos: Rectangle, x: f32, y: f32, width: f32, height: f32) bool {
-    return mouse_pos.x >= x and mouse_pos.y >= y and
-        mouse_pos.x <= x + width and mouse_pos.y <= y + height;
-}
-
-pub fn resizePanel(
-    rect: *Rectangle,
-    mouse_pos: Rectangle,
-    start_mouse: Rectangle,
-    start_rect: Rectangle,
-    min_width: f32,
-    min_height: f32,
-) Rectangle {
-    const dx = mouse_pos.x - start_mouse.x;
-    const dy = mouse_pos.y - start_mouse.y;
-    var new_rect = start_rect;
-    new_rect.width = start_rect.width + dx;
-    new_rect.height = start_rect.height + dy;
-
-    if (new_rect.width < min_width) new_rect.width = min_width;
-    if (new_rect.height < min_height) new_rect.height = min_height;
-
-    rect.* = new_rect;
-    return new_rect;
-}
-
 test "clampPanelRect bounds" {
     var rect = Rectangle{ .x = -10, .y = -10, .width = 100, .height = 100 };
     clampPanelRect(&rect, 800, 600);
@@ -181,8 +138,8 @@ test "clampPanelRect max bounds" {
 }
 
 test "splitDockPanels left" {
-    var target = PanelConfig{ .rect = Rectangle{ .x = 100, .y = 100, .width = 400, .height = 300 } };
-    var moving = PanelConfig{ .rect = undefined };
+    var target = ui_mod.PanelConfig{ .rect = Rectangle{ .x = 100, .y = 100, .width = 400, .height = 300 } };
+    var moving = ui_mod.PanelConfig{ .rect = undefined };
     splitDockPanels(&moving, &target, .left);
 
     try std.testing.expect(moving.rect.x == 100);

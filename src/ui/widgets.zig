@@ -1,178 +1,43 @@
-//! Widget Primitives - Basic UI building blocks for immediate-mode GUI.
+//! Raygui-based Widget Primitives - Basic UI building blocks for immediate-mode GUI.
 //!
-//! This module provides fundamental UI widgets that can be combined to create
-//! complex interfaces. All widgets follow the immediate-mode pattern: call
-//! them each frame to draw and handle interaction.
-//!
-//! Core widget functions extracted from UiContext for modularity.
-//! These functions handle input processing, rendering, and interaction state.
+//! This module provides fundamental UI widgets using raygui controls.
+//! All widgets follow immediate-mode pattern: call them each frame to draw
+//! and handle interaction.
 
 const std = @import("std");
-const engine_mod = @import("../engine.zig");
-const ui_mod = @import("ui.zig");
+const raygui = @import("raygui");
 
-const Rectangle = engine_mod.Rectangle;
-const Vector2 = engine_mod.Vector2;
-const Color = engine_mod.Color;
-const Shapes = engine_mod.Shapes;
-const Text = engine_mod.Text;
+pub const Rectangle = raygui.Rectangle;
+pub const Color = raygui.Color;
 
-const UiContext = ui_mod.UiContext;
-const UiStyle = ui_mod.UiStyle;
-const FrameInput = ui_mod.FrameInput;
-
-pub const WidgetId = struct {
-    pub fn fromString(prefix: []const u8, extra: []const u8) u64 {
-        var hasher = std.hash.Wyhash.init(0);
-        hasher.update(prefix);
-        hasher.update(extra);
-        return hasher.final();
-    }
-};
-
-/// Check if mouse position is inside a rectangle.
-/// Returns true if the mouse cursor is within the rectangle bounds.
-fn isMouseOverRect(input: FrameInput, rect: Rectangle) bool {
-    const mx = input.mouse_pos.x;
-    const my = input.mouse_pos.y;
-    return mx >= rect.x and my >= rect.y and
-        mx <= rect.x + rect.width and my <= rect.y + rect.height;
-}
-
-/// Draw a clickable button and return true if clicked this frame.
-/// The button is considered clicked when the mouse is released while hovering
-/// and the button was the active widget (mouse was pressed on it).
-pub fn button(
-    ctx: *UiContext,
-    id: u64,
-    rect: Rectangle,
-    label_text: [:0]const u8,
-) bool {
-    const hovered = isMouseOverRect(ctx.input, rect);
-    if (hovered) ctx.hot_id = id;
-
-    const is_active = ctx.active_id == id;
-    if (hovered and ctx.input.mouse_pressed) {
-        ctx.active_id = id;
-    }
-
-    const pressed = hovered and is_active and ctx.input.mouse_released;
-
-    const bg = if (hovered) ctx.style.accent_hover else ctx.style.accent;
-    Shapes.drawRectangleRec(rect, bg);
-    Shapes.drawRectangleLinesEx(rect, @intFromFloat(ctx.style.border_width), ctx.style.panel_border);
-
-    const text_w = Text.measure(label_text, ctx.style.small_font_size);
-    const tx: i32 = @intFromFloat(rect.x + (rect.width - @as(f32, @floatFromInt(text_w))) / 2.0);
-    const ty: i32 = @intFromFloat(rect.y + (rect.height - @as(f32, @floatFromInt(ctx.style.small_font_size))) / 2.0);
-    Text.draw(label_text, tx, ty, ctx.style.small_font_size, ctx.style.text);
-
-    return pressed;
+/// Draw a clickable button and return true if clicked.
+pub fn button(rect: Rectangle, label_text: [:0]const u8) bool {
+    return raygui.GuiButton(rect, label_text) > 0;
 }
 
 /// Draw a checkbox and update its value when clicked.
-/// Returns true if the checkbox was toggled this frame.
-pub fn checkbox(
-    ctx: *UiContext,
-    id: u64,
-    rect: Rectangle,
-    label_text: [:0]const u8,
-    value: *bool,
-) bool {
-    const box = Rectangle{ .x = rect.x, .y = rect.y, .width = rect.height, .height = rect.height };
-    const hovered = isMouseOverRect(ctx.input, rect);
-    if (hovered) ctx.hot_id = id;
-
-    if (hovered and ctx.input.mouse_pressed) {
-        ctx.active_id = id;
-    }
-
-    const clicked = hovered and ctx.active_id == id and ctx.input.mouse_released;
-    if (clicked) value.* = !value.*;
-
-    const radius = ctx.style.corner_radius * 0.5;
-    const bg_color = if (value.*) ctx.style.accent else ctx.style.panel_bg;
-
-    Shapes.drawRectangleRounded(box, radius / @min(box.width, box.height), 4, bg_color);
-    Shapes.drawRectangleRoundedLinesEx(box, radius / @min(box.width, box.height), 4, ctx.style.border_width, ctx.style.panel_border);
-    if (value.*) {
-        const mark = Rectangle{
-            .x = box.x + 4,
-            .y = box.y + 4,
-            .width = box.width - 8,
-            .height = box.height - 8,
-        };
-        Shapes.drawRectangleRec(mark, ctx.style.panel_border);
-    }
-
-    const label_x: i32 = @as(i32, @intFromFloat(rect.x + rect.height + 10));
-    const label_y: i32 = @as(i32, @intFromFloat(rect.y + 2));
-    Text.draw(label_text, label_x, label_y, ctx.style.small_font_size, ctx.style.text);
-    return clicked;
+/// Returns true if checkbox was toggled this frame.
+pub fn checkbox(rect: Rectangle, label_text: [:0]const u8, value: *bool) bool {
+    return raygui.GuiCheckBox(rect, label_text, value);
 }
 
 /// Draw a float slider and update value when dragged.
-/// Returns true if the slider value changed this frame.
-pub fn sliderFloat(
-    ctx: *UiContext,
-    id: u64,
-    rect: Rectangle,
-    label_text: [:0]const u8,
-    value: *f32,
-    min: f32,
-    max: f32,
-) bool {
-    const track = Rectangle{ .x = rect.x + 10.0, .y = rect.y + rect.height / 2.0 - 2.0, .width = rect.width - 20.0, .height = 4.0 };
-    const knob_radius: f32 = rect.height / 2.0 - 2.0;
-    const knob_x = @min(@max(track.x, track.x + (value.* - min) / (max - min) * track.width), track.x + track.width - knob_radius);
-    const knob_center = Vector2{ .x = knob_x, .y = rect.y + rect.height / 2.0 };
-    const knob_rect = Rectangle{ .x = knob_center.x - knob_radius, .y = knob_center.y - knob_radius, .width = knob_radius * 2.0, .height = knob_radius * 2.0 };
-    const hovered = isMouseOverRect(ctx.input, rect);
-    if (hovered) ctx.hot_id = id;
-
-    const was_active = ctx.active_id == id;
-    if (hovered and ctx.input.mouse_pressed) {
-        ctx.active_id = id;
-        if (ctx.input.mouse_down) {
-            const knob_rect_f32 = Rectangle{ .x = knob_rect.x, .y = knob_rect.y, .width = knob_rect.width, .height = knob_rect.height };
-            if (isMouseOverRect(ctx.input, knob_rect_f32)) {
-                const mx = ctx.input.mouse_pos.x - track.x;
-                const clamped = @max(min, @min(max, min + mx / track.width * (max - min)));
-                if (@abs(clamped - value.*) > 0.0001) {
-                    value.* = clamped;
-                    return true;
-                }
-            }
-        }
-    }
-
-    const bg = if (hovered) ctx.style.accent_hover else ctx.style.panel_bg;
-    const track_color = if (was_active) ctx.style.accent else ctx.style.text_muted;
-    Shapes.drawRectangleRec(rect, bg);
-    Shapes.drawRectangleRec(track, track_color);
-
-    const knob_color = if (hovered or was_active) ctx.style.accent else ctx.style.text;
-    Shapes.drawCircleV(knob_center, knob_radius, knob_color);
-    Text.draw(label_text, @intFromFloat(rect.x), @intFromFloat(rect.y), ctx.style.small_font_size, ctx.style.text);
-
-    return false;
+/// Returns true if slider value changed this frame.
+pub fn sliderFloat(rect: Rectangle, label_text: [:0]const u8, value: *f32, min: f32, max: f32) bool {
+    const old_value = value.*;
+    value.* = raygui.GuiSlider(rect, label_text, null, value.*, min, max);
+    return value.* != old_value;
 }
 
-pub fn sliderInt(
-    ctx: *UiContext,
-    id: u64,
-    rect: Rectangle,
-    label_text: [:0]const u8,
-    value: *i32,
-    min: i32,
-    max: i32,
-) bool {
+/// Draw an int slider and update value when dragged.
+/// Returns true if slider value changed this frame.
+pub fn sliderInt(rect: Rectangle, label_text: [:0]const u8, value: *i32, min: i32, max: i32) bool {
     const float_val: f32 = @floatFromInt(value.*);
     const min_f: f32 = @floatFromInt(min);
     const max_f: f32 = @floatFromInt(max);
 
     var float_val_out = float_val;
-    const changed = sliderFloat(ctx, id, rect, label_text, &float_val_out, min_f, max_f);
+    const changed = sliderFloat(rect, label_text, &float_val_out, min_f, max_f);
 
     if (changed) {
         const rounded = std.math.round(float_val_out);
@@ -183,83 +48,132 @@ pub fn sliderInt(
     return changed;
 }
 
-pub fn drawLabel(
-    ctx: *UiContext,
-    text: [:0]const u8,
-    x: f32,
-    y: f32,
-    size: i32,
-    color: Color,
-) void {
-    _ = ctx;
-    Text.draw(text, @intFromFloat(x), @intFromFloat(y), size, color);
+/// Draw a label.
+pub fn drawLabel(text: [:0]const u8, x: f32, y: f32) void {
+    const rect = Rectangle{ .x = x, .y = y, .width = 0, .height = 0 };
+    raygui.GuiLabel(rect, text);
 }
 
-pub fn drawLabelScaled(
-    ctx: *UiContext,
-    text: [:0]const u8,
-    x: f32,
-    y: f32,
-    base_size: i32,
-    color: Color,
-) void {
-    const size: i32 = @intFromFloat(@as(f32, @floatFromInt(base_size)) * ctx.style.scale);
-    Text.draw(text, @intFromFloat(x), @intFromFloat(y), size, color);
+/// Draw a progress bar.
+pub fn drawProgressBar(rect: Rectangle, progress: f32, bg_color: Color, fill_color: Color) void {
+    _ = bg_color;
+    _ = fill_color;
+    _ = raygui.GuiProgressBar(rect, null, null, progress, 0.0, 1.0);
 }
 
-pub fn drawProgressBar(
-    ctx: *UiContext,
-    rect: Rectangle,
-    progress: f32,
-    bg_color: Color,
-    fill_color: Color,
-) void {
-    _ = ctx;
-    Shapes.drawRectangleRec(rect, bg_color);
-
-    const clamped = if (progress < 0.0) 0.0 else if (progress > 1.0) 1.0 else progress;
-    const fill_width = rect.width * clamped;
-    if (fill_width > 0.0) {
-        Shapes.drawRectangleRec(Rectangle{ .x = rect.x, .y = rect.y, .width = fill_width, .height = rect.height }, fill_color);
-    }
+/// Draw a separator line.
+pub fn drawSeparator(x: f32, y: f32, width: f32, color: Color) void {
+    _ = color;
+    const rect = Rectangle{ .x = x, .y = y, .width = width, .height = 1 };
+    _ = raygui.GuiLine(rect, "");
 }
 
-pub fn drawSeparator(
-    ctx: *UiContext,
-    x: f32,
-    y: f32,
-    width: f32,
-    color: Color,
-) void {
-    _ = ctx;
-    Shapes.drawLine(@intFromFloat(x), @intFromFloat(y), @intFromFloat(x + width), @intFromFloat(y), color);
+/// Draw a section header.
+pub fn drawSectionHeader(text: [:0]const u8, x: f32, y: f32) void {
+    const rect = Rectangle{ .x = x, .y = y, .width = 0, .height = 0 };
+    raygui.GuiLabel(rect, text);
 }
 
-pub fn drawSectionHeader(
-    ctx: *UiContext,
-    text: [:0]const u8,
-    x: f32,
-    y: f32,
-) void {
-    drawLabel(ctx, text, x, y, ctx.style.small_font_size, ctx.style.accent);
+/// Draw a combo box (dropdown selection).
+/// text: options separated by ';' (e.g., "Option1;Option2;Option3")
+/// active: pointer to current selection index
+/// Returns true if selection changed.
+pub fn comboBox(rect: Rectangle, text: [:0]const u8, active: *c_int) bool {
+    const old_value = active.*;
+    _ = raygui.GuiComboBox(rect, text, active);
+    return active.* != old_value;
 }
 
-test "button returns true on click release" {
-    const test_rect = Rectangle{ .x = 100, .y = 100, .width = 120, .height = 30 };
-    const mouse_over_rect = isMouseOverRect(.{
-        .mouse_pos = .{ .x = 160.0, .y = 115.0 },
-        .mouse_pressed = false,
-        .mouse_down = false,
-        .mouse_released = false,
-    }, test_rect);
-    try std.testing.expect(mouse_over_rect);
+/// Draw a dropdown box.
+/// text: options separated by ';' (e.g., "Option1;Option2;Option3")
+/// active: pointer to current selection index
+/// editMode: whether dropdown is open
+/// Returns true if selection changed.
+pub fn dropdownBox(rect: Rectangle, text: [:0]const u8, active: *c_int, editMode: bool) bool {
+    return raygui.GuiDropdownBox(rect, text, active, editMode);
 }
 
-test "checkbox toggles value" {
-    var value = false;
-    try std.testing.expect(value == false);
-    value = true;
-    try std.testing.expect(value == true);
+/// Draw a toggle button.
+/// text: label text
+/// active: pointer to toggle state
+/// Returns true if toggled.
+pub fn toggle(rect: Rectangle, text: [:0]const u8, active: *bool) bool {
+    return raygui.GuiToggle(rect, text, active);
+}
+
+/// Draw a toggle group (radio buttons).
+/// text: options separated by ';' (e.g., "Option1;Option2;Option3")
+/// active: pointer to currently selected index
+/// Returns newly selected index.
+pub fn toggleGroup(rect: Rectangle, text: [:0]const u8, active: *c_int) c_int {
+    return raygui.GuiToggleGroup(rect, text, active);
+}
+
+/// Draw a spinner for numeric input.
+/// text: label text
+/// value: pointer to current value
+/// min/max: value bounds
+/// editMode: whether editing
+/// Returns state code.
+pub fn spinner(rect: Rectangle, text: [:0]const u8, value: *c_int, min: c_int, max: c_int, editMode: bool) c_int {
+    return raygui.GuiSpinner(rect, text, value, min, max, editMode);
+}
+
+/// Draw a text input box.
+/// text: buffer for input text
+/// textSize: buffer capacity
+/// editMode: whether editing
+/// Returns state code.
+pub fn textBox(rect: Rectangle, text: [*]u8, textSize: c_int, editMode: bool) c_int {
+    return raygui.GuiTextBox(rect, text, textSize, editMode);
+}
+
+/// Draw a list view.
+/// text: items separated by ';' (e.g., "Item1;Item2;Item3")
+/// scrollIndex: pointer to scroll position
+/// active: pointer to selected item index
+/// Returns state code.
+pub fn listView(rect: Rectangle, text: [:0]const u8, scrollIndex: *c_int, active: *c_int) c_int {
+    return raygui.GuiListView(rect, text, scrollIndex, active);
+}
+
+/// Draw a color picker.
+/// text: label text
+/// color: pointer to current color
+/// Returns new color.
+pub fn colorPicker(rect: Rectangle, text: [:0]const u8, color: *Color) Color {
+    return raygui.GuiColorPicker(rect, text, color);
+}
+
+/// Draw a color panel.
+/// text: label text
+/// color: pointer to current color
+/// Returns new color.
+pub fn colorPanel(rect: Rectangle, text: [:0]const u8, color: *Color) Color {
+    return raygui.GuiColorPanel(rect, text, color);
+}
+
+/// Draw a message box with title, message, and buttons.
+/// buttons: button labels separated by ';' (e.g., "OK;Cancel")
+/// Returns button index pressed or -1 to close.
+pub fn messageBox(rect: Rectangle, title: [:0]const u8, message: [:0]const u8, buttons: [:0]const u8) c_int {
+    return raygui.GuiMessageBox(rect, title, message, buttons);
+}
+
+/// Draw a group box with label.
+pub fn groupBox(rect: Rectangle, text: [:0]const u8) void {
+    _ = raygui.GuiGroupBox(rect, text);
+}
+
+/// Draw a line separator.
+pub fn line(rect: Rectangle, text: [:0]const u8) void {
+    _ = raygui.GuiLine(rect, text);
+}
+
+/// Draw a scroll panel with content.
+pub fn scrollPanel(bounds: Rectangle, text: [:0]const u8, content: *Rectangle, scroll: *Rectangle) c_int {
+    var view: c_int = 0;
+    return raygui.GuiScrollPanel(bounds, text, content, scroll, &view);
 }
 
 test "sliderFloat clamps values correctly" {
@@ -275,15 +189,4 @@ test "sliderFloat clamps values correctly" {
 
     value = std.math.clamp(150.0, min, max);
     try std.testing.expect(value == 100.0);
-}
-
-test "drawProgressBar clamps progress" {
-    var clamped = if (-0.5 < 0.0) 0.0 else if (-0.5 > 1.0) 1.0 else -0.5;
-    try std.testing.expect(clamped == 0.0);
-
-    clamped = if (1.5 < 0.0) 0.0 else if (1.5 > 1.0) 1.0 else 1.5;
-    try std.testing.expect(clamped == 1.0);
-
-    clamped = if (0.5 < 0.0) 0.0 else if (0.5 > 1.0) 1.0 else 0.5;
-    try std.testing.expect(clamped == 0.5);
 }

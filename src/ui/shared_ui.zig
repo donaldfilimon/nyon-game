@@ -7,7 +7,7 @@ const std = @import("std");
 const engine = @import("../engine.zig");
 const ui_mod = @import("ui.zig");
 const StatusMessage = @import("status_message.zig").StatusMessage;
-const panels = ui_mod.panels;
+const panels = @import("panels.zig");
 const common = @import("../common/error_handling.zig");
 const config = @import("../config/constants.zig");
 
@@ -26,19 +26,16 @@ pub fn beginHudPanel(
     ui_state: *GameUiState,
     screen_width: f32,
     screen_height: f32,
-    min_width: f32,
-    min_height: f32,
+    _: f32,
+    _: f32,
 ) ?HudLayout {
     if (!ui_state.config.hud.visible) return null;
 
     var rect = ui_state.config.hud.rect;
     const style = ui_state.ctx.style;
 
-    const result = ui_state.ctx.panel(.hud, &rect, "HUD", ui_state.edit_mode);
+    const result = ui_state.ctx.panel(.hud, &rect, "HUD");
     if (result.dragged) ui_state.dirty = true;
-    if (ui_state.edit_mode) {
-        if (ui_state.ctx.resizeHandle(.hud, &rect, min_width, min_height)) ui_state.dirty = true;
-    }
 
     panels.clampPanelRect(&rect, screen_width, screen_height);
     ui_state.config.hud.rect = rect;
@@ -71,12 +68,8 @@ pub fn drawSettingsPanel(
     var rect = ui_state.config.settings.rect;
     const style = ui_state.ctx.style;
 
-    const result = ui_state.ctx.panel(.settings, &rect, "Settings", ui_state.edit_mode);
+    const result = ui_state.ctx.panel(.settings, &rect, "Settings");
     if (result.dragged) ui_state.dirty = true;
-    if (ui_state.edit_mode) {
-        if (ui_state.ctx.resizeHandle(.settings, &rect, config.UI.SETTINGS_MIN_WIDTH, config.UI.SETTINGS_MIN_HEIGHT))
-            ui_state.dirty = true;
-    }
 
     panels.clampPanelRect(&rect, screen_width, screen_height);
     ui_state.config.settings.rect = rect;
@@ -96,9 +89,7 @@ pub fn drawSettingsPanel(
         y += row_h;
     }
 
-    const show_hud_id: u64 = std.hash.Wyhash.hash(0, "settings_show_hud");
     _ = ui_state.ctx.checkbox(
-        show_hud_id,
         engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Show HUD",
         &ui_state.config.hud.visible,
@@ -107,24 +98,21 @@ pub fn drawSettingsPanel(
 
     var theme_buf: [32:0]u8 = undefined;
     const theme_label = try std.fmt.bufPrintZ(&theme_buf, "Theme: {s}", .{if (ui_state.config.theme == .dark) "Dark" else "Light"});
-    const theme_id: u64 = std.hash.Wyhash.hash(0, "settings_theme");
-    if (ui_state.ctx.button(theme_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h + 6 }, theme_label)) {
+    if (ui_state.ctx.button(engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h + 6 }, theme_label)) {
         ui_state.config.theme = if (ui_state.config.theme == .dark) .light else .dark;
         ui_state.dirty = true;
     }
     y += row_h + 18;
 
-    const scale_id: u64 = std.hash.Wyhash.hash(0, "settings_scale");
     var scale = ui_state.config.scale;
-    if (ui_state.ctx.sliderFloat(scale_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Scale", &scale, config.UI.MIN_SCALE, config.UI.MAX_SCALE)) {
+    if (ui_state.ctx.sliderFloat(engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Scale", &scale, config.UI.MIN_SCALE, config.UI.MAX_SCALE)) {
         ui_state.config.scale = scale;
         ui_state.dirty = true;
     }
     y += row_h + 22;
 
-    const opacity_id: u64 = std.hash.Wyhash.hash(0, "settings_opacity");
     var opacity_f: f32 = common.Cast.toFloat(f32, ui_state.config.opacity);
-    if (ui_state.ctx.sliderFloat(opacity_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Panel Opacity", &opacity_f, 60.0, 255.0)) {
+    if (ui_state.ctx.sliderFloat(engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Panel Opacity", &opacity_f, 60.0, 255.0)) {
         const rounded = std.math.round(opacity_f);
         const clamped = if (rounded < 0.0) 0.0 else if (rounded > 255.0) 255.0 else rounded;
         ui_state.config.opacity = @intFromFloat(clamped);
@@ -135,25 +123,22 @@ pub fn drawSettingsPanel(
     engine.Text.draw("Audio", common.Cast.toInt(i32, x), common.Cast.toInt(i32, y), style.small_font_size, style.accent);
     y += row_h;
 
-    const master_vol_id: u64 = std.hash.Wyhash.hash(0, "settings_master_volume");
     var master_vol = ui_state.config.game.master_volume;
-    if (ui_state.ctx.sliderFloat(master_vol_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Master Volume", &master_vol, 0.0, 1.0)) {
+    if (ui_state.ctx.sliderFloat(engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Master Volume", &master_vol, 0.0, 1.0)) {
         ui_state.config.game.master_volume = master_vol;
         ui_state.dirty = true;
     }
     y += row_h + 6;
 
-    const music_vol_id: u64 = std.hash.Wyhash.hash(0, "settings_music_volume");
     var music_vol = ui_state.config.game.music_volume;
-    if (ui_state.ctx.sliderFloat(music_vol_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Music Volume", &music_vol, 0.0, 1.0)) {
+    if (ui_state.ctx.sliderFloat(engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "Music Volume", &music_vol, 0.0, 1.0)) {
         ui_state.config.game.music_volume = music_vol;
         ui_state.dirty = true;
     }
     y += row_h + 6;
 
-    const sfx_vol_id: u64 = std.hash.Wyhash.hash(0, "settings_sfx_volume");
     var sfx_vol = ui_state.config.game.sfx_volume;
-    if (ui_state.ctx.sliderFloat(sfx_vol_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "SFX Volume", &sfx_vol, 0.0, 1.0)) {
+    if (ui_state.ctx.sliderFloat(engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "SFX Volume", &sfx_vol, 0.0, 1.0)) {
         ui_state.config.game.sfx_volume = sfx_vol;
         ui_state.dirty = true;
     }
@@ -162,27 +147,21 @@ pub fn drawSettingsPanel(
     engine.Text.draw("Graphics", common.Cast.toInt(i32, x), common.Cast.toInt(i32, y), style.small_font_size, style.accent);
     y += row_h;
 
-    const show_fps_id: u64 = std.hash.Wyhash.hash(0, "settings_show_fps");
     _ = ui_state.ctx.checkbox(
-        show_fps_id,
         engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Show FPS",
         &ui_state.config.game.show_fps,
     );
     y += row_h + 6;
 
-    const vsync_id: u64 = std.hash.Wyhash.hash(0, "settings_vsync");
     _ = ui_state.ctx.checkbox(
-        vsync_id,
         engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "VSync",
         &ui_state.config.game.vsync,
     );
     y += row_h + 6;
 
-    const fullscreen_id: u64 = std.hash.Wyhash.hash(0, "settings_fullscreen");
     _ = ui_state.ctx.checkbox(
-        fullscreen_id,
         engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Fullscreen",
         &ui_state.config.game.fullscreen,
@@ -192,27 +171,21 @@ pub fn drawSettingsPanel(
     engine.Text.draw("Accessibility", common.Cast.toInt(i32, x), common.Cast.toInt(i32, y), style.small_font_size, style.accent);
     y += row_h;
 
-    const high_contrast_id: u64 = std.hash.Wyhash.hash(0, "settings_high_contrast");
     _ = ui_state.ctx.checkbox(
-        high_contrast_id,
         engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "High Contrast",
         &ui_state.config.game.high_contrast,
     );
     y += row_h + 6;
 
-    const large_text_id: u64 = std.hash.Wyhash.hash(0, "settings_large_text");
     _ = ui_state.ctx.checkbox(
-        large_text_id,
         engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Large Text",
         &ui_state.config.game.large_text,
     );
     y += row_h + 6;
 
-    const reduced_motion_id: u64 = std.hash.Wyhash.hash(0, "settings_reduced_motion");
     _ = ui_state.ctx.checkbox(
-        reduced_motion_id,
         engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Reduced Motion",
         &ui_state.config.game.reduced_motion,
@@ -222,27 +195,22 @@ pub fn drawSettingsPanel(
     engine.Text.draw("Fonts", common.Cast.toInt(i32, x), common.Cast.toInt(i32, y), style.small_font_size, style.accent);
     y += row_h;
 
-    const system_font_id: u64 = std.hash.Wyhash.hash(0, "settings_system_font");
     _ = ui_state.ctx.checkbox(
-        system_font_id,
         engine.Rectangle{ .x = x, .y = y, .width = w, .height = row_h },
         "Use System Font",
         &ui_state.config.font.use_system_font,
     );
     y += row_h + 6;
 
-    const dpi_scale_id: u64 = std.hash.Wyhash.hash(0, "settings_dpi_scale");
     var dpi_scale = ui_state.config.font.dpi_scale;
-    if (ui_state.ctx.sliderFloat(dpi_scale_id, engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "DPI Scale", &dpi_scale, 0.5, 2.0)) {
+    if (ui_state.ctx.sliderFloat(engine.Rectangle{ .x = x, .y = y, .width = w, .height = 14.0 * style.scale }, "DPI Scale", &dpi_scale, 0.5, 2.0)) {
         ui_state.config.font.dpi_scale = dpi_scale;
         ui_state.dirty = true;
     }
     y += row_h + 12;
 
-    const save_id: u64 = std.hash.Wyhash.hash(0, "settings_save");
-    const reset_id: u64 = std.hash.Wyhash.hash(0, "settings_reset");
     const half_w = (w - 10.0) / 2.0;
-    if (ui_state.ctx.button(save_id, engine.Rectangle{ .x = x, .y = y, .width = half_w, .height = row_h + 8 }, "Save Layout")) {
+    if (ui_state.ctx.button(engine.Rectangle{ .x = x, .y = y, .width = half_w, .height = row_h + 8 }, "Save Layout")) {
         if (ui_state.config.save(allocator, ui_mod.UiConfig.DEFAULT_PATH)) |_| {
             ui_state.dirty = false;
             status_message.set("Saved UI layout", config.UI.STATUS_MESSAGE_DURATION);
@@ -252,7 +220,7 @@ pub fn drawSettingsPanel(
             return;
         }
     }
-    if (ui_state.ctx.button(reset_id, engine.Rectangle{ .x = x + half_w + 10.0, .y = y, .width = half_w, .height = row_h + 8 }, "Reset")) {
+    if (ui_state.ctx.button(engine.Rectangle{ .x = x + half_w + 10.0, .y = y, .width = half_w, .height = row_h + 8 }, "Reset")) {
         ui_state.config = ui_mod.UiConfig{};
         ui_state.dirty = true;
         status_message.set("Reset UI layout", config.UI.STATUS_MESSAGE_DURATION);

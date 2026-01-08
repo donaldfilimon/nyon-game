@@ -28,7 +28,10 @@ pub const Impl = sysgpu.Interface(struct {
             std.log.err("sysgpu not initialized; did you forget to call sysgpu.Impl.init()?", .{});
         }
 
-        const instance = impl.Instance.init(descriptor orelse &sysgpu.Instance.Descriptor{}) catch @panic("api error");
+        const instance = impl.Instance.init(descriptor orelse &sysgpu.Instance.Descriptor{}) catch |err| {
+            std.log.err("Failed to create GPU instance: {}", .{err});
+            return null;
+        };
         return @as(*sysgpu.Instance, @ptrCast(instance));
     }
 
@@ -138,12 +141,18 @@ pub const Impl = sysgpu.Interface(struct {
 
     pub inline fn bufferGetConstMappedRange(buffer_raw: *sysgpu.Buffer, offset: usize, size: usize) ?*const anyopaque {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
-        return buffer.getMappedRange(offset, size) catch @panic("api error");
+        return buffer.getMappedRange(offset, size) catch |err| {
+            std.log.err("Failed to get mapped range: {}", .{err});
+            return null;
+        };
     }
 
     pub inline fn bufferGetMappedRange(buffer_raw: *sysgpu.Buffer, offset: usize, size: usize) ?*anyopaque {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
-        return buffer.getMappedRange(offset, size) catch @panic("api error");
+        return buffer.getMappedRange(offset, size) catch |err| {
+            std.log.err("Failed to get mapped range: {}", .{err});
+            return null;
+        };
     }
 
     pub inline fn bufferGetSize(buffer_raw: *sysgpu.Buffer) u64 {
@@ -158,7 +167,9 @@ pub const Impl = sysgpu.Interface(struct {
 
     pub inline fn bufferMapAsync(buffer_raw: *sysgpu.Buffer, mode: sysgpu.MapModeFlags, offset: usize, size: usize, callback: sysgpu.Buffer.MapCallback, userdata: ?*anyopaque) void {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
-        buffer.mapAsync(mode, offset, size, callback, userdata) catch @panic("api error");
+        buffer.mapAsync(mode, offset, size, callback, userdata) catch |err| {
+            std.log.err("Failed to map buffer async: {}", .{err});
+        };
     }
 
     pub inline fn bufferSetLabel(buffer_raw: *sysgpu.Buffer, label: [*:0]const u8) void {
@@ -168,7 +179,9 @@ pub const Impl = sysgpu.Interface(struct {
 
     pub inline fn bufferUnmap(buffer_raw: *sysgpu.Buffer) void {
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
-        buffer.unmap() catch @panic("api error");
+        buffer.unmap() catch |err| {
+            std.log.err("Failed to unmap buffer: {}", .{err});
+        };
     }
 
     pub inline fn bufferReference(buffer_raw: *sysgpu.Buffer) void {
@@ -197,15 +210,21 @@ pub const Impl = sysgpu.Interface(struct {
         command_buffer.manager.release();
     }
 
-    pub inline fn commandEncoderBeginComputePass(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: ?*const sysgpu.ComputePassDescriptor) *sysgpu.ComputePassEncoder {
+    pub inline fn commandEncoderBeginComputePass(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: ?*const sysgpu.ComputePassDescriptor) ?*sysgpu.ComputePassEncoder {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
-        const compute_pass = command_encoder.beginComputePass(descriptor orelse &.{}) catch @panic("api error");
+        const compute_pass = command_encoder.beginComputePass(descriptor orelse &.{}) catch |err| {
+            std.log.err("Failed to begin compute pass: {}", .{err});
+            return null;
+        };
         return @ptrCast(compute_pass);
     }
 
-    pub inline fn commandEncoderBeginRenderPass(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: *const sysgpu.RenderPassDescriptor) *sysgpu.RenderPassEncoder {
+    pub inline fn commandEncoderBeginRenderPass(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: *const sysgpu.RenderPassDescriptor) ?*sysgpu.RenderPassEncoder {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
-        const render_pass = command_encoder.beginRenderPass(descriptor) catch @panic("api error");
+        const render_pass = command_encoder.beginRenderPass(descriptor) catch |err| {
+            std.log.err("Failed to begin render pass: {}", .{err});
+            return null;
+        };
         return @ptrCast(render_pass);
     }
 
@@ -222,7 +241,9 @@ pub const Impl = sysgpu.Interface(struct {
         const source: *impl.Buffer = @ptrCast(@alignCast(source_raw));
         const destination: *impl.Buffer = @ptrCast(@alignCast(destination_raw));
 
-        command_encoder.copyBufferToBuffer(source, source_offset, destination, destination_offset, size) catch @panic("api error");
+        command_encoder.copyBufferToBuffer(source, source_offset, destination, destination_offset, size) catch |err| {
+            std.log.err("Failed to copy buffer to buffer: {}", .{err});
+        };
     }
 
     pub inline fn commandEncoderCopyBufferToTexture(command_encoder_raw: *sysgpu.CommandEncoder, source: *const sysgpu.ImageCopyBuffer, destination: *const sysgpu.ImageCopyTexture, copy_size: *const sysgpu.Extent3D) void {
@@ -251,9 +272,12 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn commandEncoderFinish(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: ?*const sysgpu.CommandBuffer.Descriptor) *sysgpu.CommandBuffer {
+    pub inline fn commandEncoderFinish(command_encoder_raw: *sysgpu.CommandEncoder, descriptor: ?*const sysgpu.CommandBuffer.Descriptor) ?*sysgpu.CommandBuffer {
         const command_encoder: *impl.CommandEncoder = @ptrCast(@alignCast(command_encoder_raw));
-        const command_buffer = command_encoder.finish(descriptor orelse &.{}) catch @panic("api error");
+        const command_buffer = command_encoder.finish(descriptor orelse &.{}) catch |err| {
+            std.log.err("Failed to finish command encoder: {}", .{err});
+            return null;
+        };
         command_buffer.manager.reference();
         return @ptrCast(command_buffer);
     }
@@ -322,7 +346,9 @@ pub const Impl = sysgpu.Interface(struct {
 
     pub inline fn computePassEncoderDispatchWorkgroups(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder, workgroup_count_x: u32, workgroup_count_y: u32, workgroup_count_z: u32) void {
         const compute_pass_encoder: *impl.ComputePassEncoder = @ptrCast(@alignCast(compute_pass_encoder_raw));
-        compute_pass_encoder.dispatchWorkgroups(workgroup_count_x, workgroup_count_y, workgroup_count_z) catch @panic("api error");
+        compute_pass_encoder.dispatchWorkgroups(workgroup_count_x, workgroup_count_y, workgroup_count_z) catch |err| {
+            std.log.err("Failed to dispatch workgroups: {}", .{err});
+        };
     }
 
     pub inline fn computePassEncoderDispatchWorkgroupsIndirect(compute_pass_encoder: *sysgpu.ComputePassEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
@@ -357,7 +383,9 @@ pub const Impl = sysgpu.Interface(struct {
     pub inline fn computePassEncoderSetBindGroup(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder, group_index: u32, group_raw: *sysgpu.BindGroup, dynamic_offset_count: usize, dynamic_offsets: ?[*]const u32) void {
         const compute_pass_encoder: *impl.ComputePassEncoder = @ptrCast(@alignCast(compute_pass_encoder_raw));
         const group: *impl.BindGroup = @ptrCast(@alignCast(group_raw));
-        compute_pass_encoder.setBindGroup(group_index, group, dynamic_offset_count, dynamic_offsets) catch @panic("api error");
+        compute_pass_encoder.setBindGroup(group_index, group, dynamic_offset_count, dynamic_offsets) catch |err| {
+            std.log.err("Failed to set compute pass bind group: {}", .{err});
+        };
     }
 
     pub inline fn computePassEncoderSetLabel(compute_pass_encoder: *sysgpu.ComputePassEncoder, label: [*:0]const u8) void {
@@ -369,7 +397,9 @@ pub const Impl = sysgpu.Interface(struct {
     pub inline fn computePassEncoderSetPipeline(compute_pass_encoder_raw: *sysgpu.ComputePassEncoder, pipeline_raw: *sysgpu.ComputePipeline) void {
         const compute_pass_encoder: *impl.ComputePassEncoder = @ptrCast(@alignCast(compute_pass_encoder_raw));
         const pipeline: *impl.ComputePipeline = @ptrCast(@alignCast(pipeline_raw));
-        compute_pass_encoder.setPipeline(pipeline) catch @panic("api error");
+        compute_pass_encoder.setPipeline(pipeline) catch |err| {
+            std.log.err("Failed to set compute pipeline: {}", .{err});
+        };
     }
 
     pub inline fn computePassEncoderWriteTimestamp(compute_pass_encoder: *sysgpu.ComputePassEncoder, query_set: *sysgpu.QuerySet, query_index: u32) void {
@@ -412,33 +442,48 @@ pub const Impl = sysgpu.Interface(struct {
         compute_pipeline.manager.release();
     }
 
-    pub inline fn deviceCreateBindGroup(device_raw: *sysgpu.Device, descriptor: *const sysgpu.BindGroup.Descriptor) *sysgpu.BindGroup {
+    pub inline fn deviceCreateBindGroup(device_raw: *sysgpu.Device, descriptor: *const sysgpu.BindGroup.Descriptor) ?*sysgpu.BindGroup {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
-        const group = device.createBindGroup(descriptor) catch @panic("api error");
+        const group = device.createBindGroup(descriptor) catch |err| {
+            std.log.err("Failed to create bind group: {}", .{err});
+            return null;
+        };
         return @ptrCast(group);
     }
 
-    pub inline fn deviceCreateBindGroupLayout(device_raw: *sysgpu.Device, descriptor: *const sysgpu.BindGroupLayout.Descriptor) *sysgpu.BindGroupLayout {
+    pub inline fn deviceCreateBindGroupLayout(device_raw: *sysgpu.Device, descriptor: *const sysgpu.BindGroupLayout.Descriptor) ?*sysgpu.BindGroupLayout {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
-        const layout = device.createBindGroupLayout(descriptor) catch @panic("api error");
+        const layout = device.createBindGroupLayout(descriptor) catch |err| {
+            std.log.err("Failed to create bind group layout: {}", .{err});
+            return null;
+        };
         return @ptrCast(layout);
     }
 
-    pub inline fn deviceCreateBuffer(device_raw: *sysgpu.Device, descriptor: *const sysgpu.Buffer.Descriptor) *sysgpu.Buffer {
+    pub inline fn deviceCreateBuffer(device_raw: *sysgpu.Device, descriptor: *const sysgpu.Buffer.Descriptor) ?*sysgpu.Buffer {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
-        const buffer = device.createBuffer(descriptor) catch @panic("api error");
+        const buffer = device.createBuffer(descriptor) catch |err| {
+            std.log.err("Failed to create buffer: {}", .{err});
+            return null;
+        };
         return @ptrCast(buffer);
     }
 
-    pub inline fn deviceCreateCommandEncoder(device_raw: *sysgpu.Device, descriptor: ?*const sysgpu.CommandEncoder.Descriptor) *sysgpu.CommandEncoder {
+    pub inline fn deviceCreateCommandEncoder(device_raw: *sysgpu.Device, descriptor: ?*const sysgpu.CommandEncoder.Descriptor) ?*sysgpu.CommandEncoder {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
-        const command_encoder = device.createCommandEncoder(descriptor orelse &.{}) catch @panic("api error");
+        const command_encoder = device.createCommandEncoder(descriptor orelse &.{}) catch |err| {
+            std.log.err("Failed to create command encoder: {}", .{err});
+            return null;
+        };
         return @ptrCast(command_encoder);
     }
 
-    pub inline fn deviceCreateComputePipeline(device_raw: *sysgpu.Device, descriptor: *const sysgpu.ComputePipeline.Descriptor) *sysgpu.ComputePipeline {
+    pub inline fn deviceCreateComputePipeline(device_raw: *sysgpu.Device, descriptor: *const sysgpu.ComputePipeline.Descriptor) ?*sysgpu.ComputePipeline {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
-        const pipeline = device.createComputePipeline(descriptor) catch @panic("api error");
+        const pipeline = device.createComputePipeline(descriptor) catch |err| {
+            std.log.err("Failed to create compute pipeline: {}", .{err});
+            return null;
+        };
         return @ptrCast(pipeline);
     }
 
@@ -473,9 +518,12 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreatePipelineLayout(device_raw: *sysgpu.Device, pipeline_layout_descriptor: *const sysgpu.PipelineLayout.Descriptor) *sysgpu.PipelineLayout {
+    pub inline fn deviceCreatePipelineLayout(device_raw: *sysgpu.Device, pipeline_layout_descriptor: *const sysgpu.PipelineLayout.Descriptor) ?*sysgpu.PipelineLayout {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
-        const layout = device.createPipelineLayout(pipeline_layout_descriptor) catch @panic("api error");
+        const layout = device.createPipelineLayout(pipeline_layout_descriptor) catch |err| {
+            std.log.err("Failed to create pipeline layout: {}", .{err});
+            return null;
+        };
         return @ptrCast(layout);
     }
 
@@ -491,9 +539,12 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreateRenderPipeline(device_raw: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) *sysgpu.RenderPipeline {
+    pub inline fn deviceCreateRenderPipeline(device_raw: *sysgpu.Device, descriptor: *const sysgpu.RenderPipeline.Descriptor) ?*sysgpu.RenderPipeline {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
-        const render_pipeline = device.createRenderPipeline(descriptor) catch @panic("api error");
+        const render_pipeline = device.createRenderPipeline(descriptor) catch |err| {
+            std.log.err("Failed to create render pipeline: {}", .{err});
+            return null;
+        };
         return @ptrCast(render_pipeline);
     }
 
@@ -505,9 +556,12 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreateSampler(device_raw: *sysgpu.Device, descriptor: ?*const sysgpu.Sampler.Descriptor) *sysgpu.Sampler {
+    pub inline fn deviceCreateSampler(device_raw: *sysgpu.Device, descriptor: ?*const sysgpu.Sampler.Descriptor) ?*sysgpu.Sampler {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
-        const sampler = device.createSampler(descriptor orelse &sysgpu.Sampler.Descriptor{}) catch @panic("api error");
+        const sampler = device.createSampler(descriptor orelse &sysgpu.Sampler.Descriptor{}) catch |err| {
+            std.log.err("Failed to create sampler: {}", .{err});
+            return null;
+        };
         return @ptrCast(sampler);
     }
 
@@ -557,16 +611,23 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn deviceCreateSwapChain(device_raw: *sysgpu.Device, surface_raw: ?*sysgpu.Surface, descriptor: *const sysgpu.SwapChain.Descriptor) *sysgpu.SwapChain {
+    pub inline fn deviceCreateSwapChain(device_raw: *sysgpu.Device, surface_raw: ?*sysgpu.Surface, descriptor: *const sysgpu.SwapChain.Descriptor) ?*sysgpu.SwapChain {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
+        if (surface_raw == null) return null;
         const surface: *impl.Surface = @ptrCast(@alignCast(surface_raw.?));
-        const swapchain = device.createSwapChain(surface, descriptor) catch @panic("api error");
+        const swapchain = device.createSwapChain(surface, descriptor) catch |err| {
+            std.log.err("Failed to create swap chain: {}", .{err});
+            return null;
+        };
         return @ptrCast(swapchain);
     }
 
-    pub inline fn deviceCreateTexture(device_raw: *sysgpu.Device, descriptor: *const sysgpu.Texture.Descriptor) *sysgpu.Texture {
+    pub inline fn deviceCreateTexture(device_raw: *sysgpu.Device, descriptor: *const sysgpu.Texture.Descriptor) ?*sysgpu.Texture {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
-        const texture = device.createTexture(descriptor) catch @panic("api error");
+        const texture = device.createTexture(descriptor) catch |err| {
+            std.log.err("Failed to create texture: {}", .{err});
+            return null;
+        };
         return @ptrCast(texture);
     }
 
@@ -587,9 +648,12 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn deviceGetQueue(device_raw: *sysgpu.Device) *sysgpu.Queue {
+    pub inline fn deviceGetQueue(device_raw: *sysgpu.Device) ?*sysgpu.Queue {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
-        const queue = device.getQueue() catch @panic("api error");
+        const queue = device.getQueue() catch |err| {
+            std.log.err("Failed to get device queue: {}", .{err});
+            return null;
+        };
         queue.manager.reference();
         return @ptrCast(queue);
     }
@@ -663,7 +727,9 @@ pub const Impl = sysgpu.Interface(struct {
 
     pub inline fn deviceTick(device_raw: *sysgpu.Device) void {
         const device: *impl.Device = @ptrCast(@alignCast(device_raw));
-        device.tick() catch @panic("api error");
+        device.tick() catch |err| {
+            std.log.err("Failed to tick device: {}", .{err});
+        };
     }
 
     pub inline fn machDeviceWaitForCommandsToBeScheduled(device: *sysgpu.Device) void {
@@ -701,9 +767,12 @@ pub const Impl = sysgpu.Interface(struct {
         @panic("unimplemented");
     }
 
-    pub inline fn instanceCreateSurface(instance_raw: *sysgpu.Instance, descriptor: *const sysgpu.Surface.Descriptor) *sysgpu.Surface {
+    pub inline fn instanceCreateSurface(instance_raw: *sysgpu.Instance, descriptor: *const sysgpu.Surface.Descriptor) ?*sysgpu.Surface {
         const instance: *impl.Instance = @ptrCast(@alignCast(instance_raw));
-        const surface = instance.createSurface(descriptor) catch @panic("api error");
+        const surface = instance.createSurface(descriptor) catch |err| {
+            std.log.err("Failed to create surface: {}", .{err});
+            return null;
+        };
         return @ptrCast(surface);
     }
 
@@ -808,18 +877,24 @@ pub const Impl = sysgpu.Interface(struct {
     pub inline fn queueSubmit(queue_raw: *sysgpu.Queue, command_count: usize, commands_raw: [*]const *const sysgpu.CommandBuffer) void {
         const queue: *impl.Queue = @ptrCast(@alignCast(queue_raw));
         const commands: []const *impl.CommandBuffer = @ptrCast(commands_raw[0..command_count]);
-        queue.submit(commands) catch @panic("api error");
+        queue.submit(commands) catch |err| {
+            std.log.err("Failed to submit to queue: {}", .{err});
+        };
     }
 
     pub inline fn queueWriteBuffer(queue_raw: *sysgpu.Queue, buffer_raw: *sysgpu.Buffer, buffer_offset: u64, data: *const anyopaque, size: usize) void {
         const queue: *impl.Queue = @ptrCast(@alignCast(queue_raw));
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
-        queue.writeBuffer(buffer, buffer_offset, @ptrCast(data), size) catch @panic("api error");
+        queue.writeBuffer(buffer, buffer_offset, @ptrCast(data), size) catch |err| {
+            std.log.err("Failed to write buffer: {}", .{err});
+        };
     }
 
     pub inline fn queueWriteTexture(queue_raw: *sysgpu.Queue, destination: *const sysgpu.ImageCopyTexture, data: *const anyopaque, data_size: usize, data_layout: *const sysgpu.Texture.DataLayout, write_size: *const sysgpu.Extent3D) void {
         const queue: *impl.Queue = @ptrCast(@alignCast(queue_raw));
-        queue.writeTexture(destination, @ptrCast(data), data_size, data_layout, write_size) catch @panic("api error");
+        queue.writeTexture(destination, @ptrCast(data), data_size, data_layout, write_size) catch |err| {
+            std.log.err("Failed to write texture: {}", .{err});
+        };
     }
 
     pub inline fn queueReference(queue_raw: *sysgpu.Queue) void {
@@ -961,12 +1036,16 @@ pub const Impl = sysgpu.Interface(struct {
 
     pub inline fn renderPassEncoderDraw(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, vertex_count: u32, instance_count: u32, first_vertex: u32, first_instance: u32) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
-        render_pass_encoder.draw(vertex_count, instance_count, first_vertex, first_instance) catch @panic("api error");
+        render_pass_encoder.draw(vertex_count, instance_count, first_vertex, first_instance) catch |err| {
+            std.log.err("Failed to draw in render pass: {}", .{err});
+        };
     }
 
     pub inline fn renderPassEncoderDrawIndexed(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, index_count: u32, instance_count: u32, first_index: u32, base_vertex: i32, first_instance: u32) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
-        render_pass_encoder.drawIndexed(index_count, instance_count, first_index, base_vertex, first_instance) catch @panic("api error");
+        render_pass_encoder.drawIndexed(index_count, instance_count, first_index, base_vertex, first_instance) catch |err| {
+            std.log.err("Failed to draw indexed in render pass: {}", .{err});
+        };
     }
 
     pub inline fn renderPassEncoderDrawIndexedIndirect(render_pass_encoder: *sysgpu.RenderPassEncoder, indirect_buffer: *sysgpu.Buffer, indirect_offset: u64) void {
@@ -985,7 +1064,9 @@ pub const Impl = sysgpu.Interface(struct {
 
     pub inline fn renderPassEncoderEnd(render_pass_encoder_raw: *sysgpu.RenderPassEncoder) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
-        render_pass_encoder.end() catch @panic("api error");
+        render_pass_encoder.end() catch |err| {
+            std.log.err("Failed to end render pass: {}", .{err});
+        };
     }
 
     pub inline fn renderPassEncoderEndOcclusionQuery(render_pass_encoder: *sysgpu.RenderPassEncoder) void {
@@ -1026,7 +1107,9 @@ pub const Impl = sysgpu.Interface(struct {
     ) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         const group: *impl.BindGroup = @ptrCast(@alignCast(group_raw));
-        render_pass_encoder.setBindGroup(group_index, group, dynamic_offset_count, dynamic_offsets) catch @panic("api error");
+        render_pass_encoder.setBindGroup(group_index, group, dynamic_offset_count, dynamic_offsets) catch |err| {
+            std.log.err("Failed to set render pass bind group: {}", .{err});
+        };
     }
 
     pub inline fn renderPassEncoderSetBlendConstant(render_pass_encoder: *sysgpu.RenderPassEncoder, color: *const sysgpu.Color) void {
@@ -1038,7 +1121,9 @@ pub const Impl = sysgpu.Interface(struct {
     pub inline fn renderPassEncoderSetIndexBuffer(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, buffer_raw: *sysgpu.Buffer, format: sysgpu.IndexFormat, offset: u64, size: u64) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
-        render_pass_encoder.setIndexBuffer(buffer, format, offset, size) catch @panic("api error");
+        render_pass_encoder.setIndexBuffer(buffer, format, offset, size) catch |err| {
+            std.log.err("Failed to set index buffer in render pass: {}", .{err});
+        };
     }
 
     pub inline fn renderPassEncoderSetLabel(render_pass_encoder: *sysgpu.RenderPassEncoder, label: [*:0]const u8) void {
@@ -1050,12 +1135,16 @@ pub const Impl = sysgpu.Interface(struct {
     pub inline fn renderPassEncoderSetPipeline(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, pipeline_raw: *sysgpu.RenderPipeline) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         const pipeline: *impl.RenderPipeline = @ptrCast(@alignCast(pipeline_raw));
-        render_pass_encoder.setPipeline(pipeline) catch @panic("api error");
+        render_pass_encoder.setPipeline(pipeline) catch |err| {
+            std.log.err("Failed to set pipeline in render pass: {}", .{err});
+        };
     }
 
     pub inline fn renderPassEncoderSetScissorRect(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, x: u32, y: u32, width: u32, height: u32) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
-        render_pass_encoder.setScissorRect(x, y, width, height) catch @panic("api error");
+        render_pass_encoder.setScissorRect(x, y, width, height) catch |err| {
+            std.log.err("Failed to set scissor rect in render pass: {}", .{err});
+        };
     }
 
     pub inline fn renderPassEncoderSetStencilReference(render_pass_encoder: *sysgpu.RenderPassEncoder, reference: u32) void {
@@ -1067,12 +1156,16 @@ pub const Impl = sysgpu.Interface(struct {
     pub inline fn renderPassEncoderSetVertexBuffer(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, slot: u32, buffer_raw: *sysgpu.Buffer, offset: u64, size: u64) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
         const buffer: *impl.Buffer = @ptrCast(@alignCast(buffer_raw));
-        render_pass_encoder.setVertexBuffer(slot, buffer, offset, size) catch @panic("api error");
+        render_pass_encoder.setVertexBuffer(slot, buffer, offset, size) catch |err| {
+            std.log.err("Failed to set vertex buffer in render pass: {}", .{err});
+        };
     }
 
     pub inline fn renderPassEncoderSetViewport(render_pass_encoder_raw: *sysgpu.RenderPassEncoder, x: f32, y: f32, width: f32, height: f32, min_depth: f32, max_depth: f32) void {
         const render_pass_encoder: *impl.RenderPassEncoder = @ptrCast(@alignCast(render_pass_encoder_raw));
-        render_pass_encoder.setViewport(x, y, width, height, min_depth, max_depth) catch @panic("api error");
+        render_pass_encoder.setViewport(x, y, width, height, min_depth, max_depth) catch |err| {
+            std.log.err("Failed to set viewport in render pass: {}", .{err});
+        };
     }
 
     pub inline fn renderPassEncoderWriteTimestamp(render_pass_encoder: *sysgpu.RenderPassEncoder, query_set: *sysgpu.QuerySet, query_index: u32) void {
@@ -1243,13 +1336,18 @@ pub const Impl = sysgpu.Interface(struct {
 
     pub inline fn swapChainGetCurrentTextureView(swap_chain_raw: *sysgpu.SwapChain) ?*sysgpu.TextureView {
         const swap_chain: *impl.SwapChain = @ptrCast(@alignCast(swap_chain_raw));
-        const texture_view = swap_chain.getCurrentTextureView() catch @panic("api error");
+        const texture_view = swap_chain.getCurrentTextureView() catch |err| {
+            std.log.err("Failed to get current texture view from swap chain: {}", .{err});
+            return null;
+        };
         return @ptrCast(texture_view);
     }
 
     pub inline fn swapChainPresent(swap_chain_raw: *sysgpu.SwapChain) void {
         const swap_chain: *impl.SwapChain = @ptrCast(@alignCast(swap_chain_raw));
-        swap_chain.present() catch @panic("api error");
+        swap_chain.present() catch |err| {
+            std.log.err("Failed to present swap chain: {}", .{err});
+        };
     }
 
     pub inline fn swapChainReference(swap_chain_raw: *sysgpu.SwapChain) void {
@@ -1262,9 +1360,12 @@ pub const Impl = sysgpu.Interface(struct {
         swap_chain.manager.release();
     }
 
-    pub inline fn textureCreateView(texture_raw: *sysgpu.Texture, descriptor: ?*const sysgpu.TextureView.Descriptor) *sysgpu.TextureView {
+    pub inline fn textureCreateView(texture_raw: *sysgpu.Texture, descriptor: ?*const sysgpu.TextureView.Descriptor) ?*sysgpu.TextureView {
         const texture: *impl.Texture = @ptrCast(@alignCast(texture_raw));
-        const texture_view = texture.createView(descriptor orelse &sysgpu.TextureView.Descriptor{}) catch @panic("api error");
+        const texture_view = texture.createView(descriptor orelse &sysgpu.TextureView.Descriptor{}) catch |err| {
+            std.log.err("Failed to create texture view: {}", .{err});
+            return null;
+        };
         return @ptrCast(texture_view);
     }
 

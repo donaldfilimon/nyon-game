@@ -219,8 +219,7 @@ fn loadWorldMeta(allocator: std.mem.Allocator, folder: []const u8) !WorldMeta {
 
     const text_slice = std.mem.span(text_ptr.?);
 
-    const Parsed = std.json.Parsed(WorldMeta);
-    var parsed: Parsed = try std.json.parseFromSlice(WorldMeta, allocator, text_slice, .{ .ignore_unknown_fields = true });
+    var parsed = try std.json.parseFromSlice(WorldMeta, allocator, text_slice, .{ .ignore_unknown_fields = true });
     defer parsed.deinit();
 
     if (parsed.value.version == 0) return WorldError.WorldMetaInvalid;

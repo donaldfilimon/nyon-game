@@ -275,15 +275,14 @@ pub const SandboxState = struct {
         defer arena.deinit();
         const arena_alloc = arena.allocator();
 
-        const Parsed = std.json.Parsed(WorldData);
-        var parsed: Parsed = try std.json.parseFromSlice(WorldData, arena_alloc, file_bytes, .{
+        var parsed = try std.json.parseFromSlice(WorldData, arena_alloc, file_bytes, .{
             .ignore_unknown_fields = true,
         });
         defer parsed.deinit();
 
         // Pre-allocate blocks array with known capacity for better performance
         const block_count = parsed.value.blocks.len;
-        var blocks = std.ArrayList(Block).initCapacity(self.allocator, block_count) catch unreachable;
+        var blocks = std.ArrayList(Block).initCapacity(self.allocator, block_count) catch return error.OutOfMemory;
         defer blocks.deinit(self.allocator);
 
         for (parsed.value.blocks) |block| {
@@ -351,25 +350,22 @@ pub const SandboxState = struct {
         };
         try write_stream.write(data);
 
-        try retryWrite(3, path, out.written());
+        try retryWrite(arena, 3, path, out.written());
     }
 
-    fn retryWrite(max_attempts: u32, path: []const u8, data: []const u8) !void {
+    fn retryWrite(allocator: std.mem.Allocator, max_attempts: u32, path: []const u8, data: []const u8) !void {
         _ = max_attempts;
 
         // Raylib SaveFileText expects a null-terminated string.
         // We assume data is JSON (text) but it might not be null-terminated.
         // We need to create a null-terminated copy.
-        // We need an allocator. We don't have one passed in here.
-        // But wait! We can use a small buffer if path is small, but data can be large.
-        // We should change signature to take allocator or use C allocator.
-        // Actually, let's use c_allocator since we are linking libc explicitly.
+        // Use the provided allocator instead of c_allocator for thread safety.
 
-        const path_z = try std.heap.c_allocator.dupeZ(u8, path);
-        defer std.heap.c_allocator.free(path_z);
+        const path_z = try allocator.dupeZ(u8, path);
+        defer allocator.free(path_z);
 
-        const data_z = try std.heap.c_allocator.dupeZ(u8, data);
-        defer std.heap.c_allocator.free(data_z);
+        const data_z = try allocator.dupeZ(u8, data);
+        defer allocator.free(data_z);
 
         if (!raylib.saveFileText(path_z, data_z)) {
             return error.OperationFailed;

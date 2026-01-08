@@ -1,165 +1,163 @@
-# Repository Guidelines
+# nyon-game Agent Guidelines (AGENTS.md)
 
-## Build, Lint, and Test Commands
+This document describes recommended workflows, coding standards, and operational constraints for agent-driven work inside the nyon-game repository. It is designed for both human contributors and automated coding agents that operate in this workspace.
 
-- `zig build`: Compile the sandbox executable.
-- `zig build run`: Launch the sandbox demo.
-- `zig build run-editor`: Build and start the editor UI.
-- `zig build wasm`: Emit WebAssembly target.
-- `zig build test`: Run all tests.
-- `zig build test -- <file>`: Run tests in a specific file (e.g., `zig build test -- src/ui/ui.zig`).
-- `zig fmt`: Format source code using Zig's formatter.
-- `zig fmt --check`: Check if code is formatted without modifying files.
+Note: Cursor rules (in .cursor/rules) or Copilot rules (in .github/copilot-instructions.md) may exist. If present, follow those rules and update this file accordingly.
 
-## Code Style Guidelines
+## 1) Build, Lint, and Test Commands
 
-### Formatting
+- Core builds
+  - ``zig build`` — Compile the sandbox executable for the current target.
+  - ``zig build run`` — Run the desktop sandbox (raylib backend on Windows).
+  - ``zig build run-editor`` — Build and run the editor UI.
+  - ``zig build wasm`` — Emit WebAssembly target and assets for web builds.
+  - ``zig fmt`` — Auto-format all Zig sources.
+  - ``zig fmt --check`` — Verify formatting without changing files.
 
-- Use four-space indentation; let `zig fmt` align fields.
-- Always run `zig fmt` before submitting changes.
+- Testing
+  - ``zig build test`` — Run all test blocks in source files.
+  - ``zig build test -- <file.zig>`` — Run tests contained in a specific file.
+  - ``zig test <path/to/file.zig>`` — Run Zig tests directly for a single test file.
+  - For focused, targeted tests, pick the file first and then narrow by test blocks inside that file.
 
-### Imports and Modules
+- Platform notes
+  - Desktop / raylib: ``zig build run``.
+  - Web / WebGPU: ``zig build wasm``.
 
-- Import order: `std` → external libraries → local modules.
-- Prefer explicit imports over wildcard re-exports.
-- Example:
+- Quick validation checklist (idle in CI, but useful locally)
+  - Run: ``zig fmt --check`` and fix issues if any.
+  - Run: ``zig build`` and ensure no warnings escalate to errors.
+  - Run: ``zig build test`` and ensure all tests pass.
 
-  ```zig
-  const std = @import("std");
-  const raylib = @import("raylib");
-  const common = @import("common");
-  ```
+## 2) Build/CI Hygiene and Tooling
 
-### Naming Conventions
+- Use the Zig-provided toolchain consistently with the repository's target triple and system libs as configured in the build.zig files.
+- When adding new dependencies or changing interfaces, update any tests that exercise those surfaces.
+- Do not push or publish secrets (environment variables, credentials) in diffs or commits.
+- Prefer deterministic builds by pinning relevant options in build.zig where feasible (e.g., -ODebug for development, -OReleaseFast for releases).
 
-- Types: PascalCase (e.g., `UiContext`, `EntityManager`)
-- Functions and variables: camelCase (e.g., `renderFrame`, `entityCount`)
-- Constants: ALL_CAPS (e.g., `MAX_ENTITIES`, `DEFAULT_SCALE`)
-- Struct fields: camelCase
-- Enum variants: PascalCase
+## 3) Code Style Guidelines
 
-### Error Handling
+These guidelines describe conventions for readability, maintainability, and safety. They complement Zig's formatting with intentional decisions about structure and naming.
 
-- Use explicit error sets preferred over `anyerror`.
-- Propagate with `try`: `const result = try function();`
-- Recover with `catch`: `const result = function() catch |err| default;`
-- Document error conditions in function comments.
+- General philosophy
+  - Strive for clarity and minimalism. Clear API boundaries and documented behavior trump cleverness.
+  - Enforce formatting via ``zig fmt`` and treat it as a non-negotiable pre-commit step.
+  - Prefer small, well-scoped units. If a function grows too large, extract logical pieces into helpers or modules.
 
-### Types and Data Structures
+- Imports and modules
+  - Place all imports at the top of the file.
+  - Group imports in this order: standard library, third-party, project-local.
+  - Avoid wildcard imports; use explicit import paths and namespace qualifiers when necessary.
+  - Namespace collisions should be avoided through module aliasing (e.g., ``const json = @import("std").json;``).
 
-- Use `const` for immutable bindings.
-- Prefer `struct` for data aggregation.
-- Use `enum` for options with finite sets.
-- Use `union(enum)` for tagged unions.
-- Arrays: `[_]T` for fixed-size, `std.ArrayList(T)` for dynamic.
+- Naming conventions
+  - Files/modules: snake_case (e.g., ``asset_manager.zig``).
+  - Functions/variables: snake_case.
+  - Public types/classes: PascalCase (e.g., ``AssetHandle``).
+  - Enums: PascalCase.
+  - Constants: ALL_CAPS with underscores (e.g., ``MAX_PLAYERS``).
 
-### Documentation
+- Error handling
+  - Expose explicit error sets (``error{...}``) for public APIs.
+  - Propagate with ``try`` where possible; avoid silent failures.
+  - Convert low-level errors to domain-specific errors when crossing module boundaries.
+  - Document error semantics in public items via doc-comments.
 
-- Module-level: `//! Brief description\n//!\n//! Extended if needed.`
-- Public APIs: `/// Brief description.`
-- Focus on "why" over "what".
+- Types and data structures
+  - Use Zig unions and optionals where they improve safety.
+  - Prefer explicit discriminants for error cases, and name error variants clearly.
+  - Annotate unsafe or boundary-boundary operations with comments clarifying invariants.
 
-### Memory Management
+- Memory management
+  - Controllers should pass explicit ``allocator`` parameters where memory allocation occurs.
+  - Favor stack-allocated structs when lifetimes are short; otherwise, use a well-scoped allocator.
+  - Avoid leaks by ensuring proper deallocation patterns and using ``deinit`` when needed.
 
-- Use `std.heap.ArenaAllocator` for temporary allocations.
-- Use `ObjectPool` for frequently allocated types.
-- Track with `LeakyDetector` in debug.
-- Always `defer` cleanup: `defer allocator.free(data);`
+- Public APIs and documentation
+  - Use doc comments ``///`` to describe behavior, arguments, return values, and error cases.
+  - Maintain a minimal public surface; avoid exposing internal details.
+  - Update related tests and examples when public surfaces change.
 
-### Testing Guidelines
+- Testing discipline
+  - Each public surface should have unit tests if feasible.
+  - Integration tests live in-domain where they test cross-module behavior.
+  - Use descriptive test names and inline comments for intent.
 
-- Place tests in `test "name"` blocks beside code.
-- Use `std.testing.allocator`.
-- Assertions: `std.testing.expect`, `std.testing.expectEqual`.
-- Test error paths, edge cases.
-- Run single file: `zig build test -- <file>`
-- Example:
+- Documentation and comments
+  - Self-document the rationale behind the design decisions, especially around memory and safety trade-offs.
+  - Use inline TODO markers with proper context so future maintainers can find follow-ups.
 
-  ```zig
-  test "entity creation" {
-      var em = EntityManager.init(std.testing.allocator);
-      defer em.deinit();
-      const e = try em.create();
-      try std.testing.expect(em.isAlive(e));
-  }
-  ```
+- Versioning and compatibility
+  - When breaking changes are necessary, include a migration note in the changelog and a brief code-comment rationale.
+  - Consider semver-like stabilization for major public API surfaces.
 
-### Common Patterns
+- Code review expectations
+  - Review for correctness, safety, and alignment to conventions.
+  - Ensure tests cover changes and do not regress existing behavior.
 
-- Struct init: `.{ .field = value }` or `.{}`
-- Optionals: `if (opt) |val| { ... }`
-- Switches: exhaustive matching.
-- Strings: `std.fmt.bufPrint`
-- Cleanup: `defer`
+## 3) Cursor Rules and Copilot Guidance
 
-## Project Structure & Module Organization
+- Cursor Rules (if present)
+  - Respect per-file cursor constraints; avoid modifying sections locked by cursor sessions.
+  - Communicate any conflicts to the requester; revert targeted edits if constraints are violated.
 
-- `src/`: Engine, editor, library code.
-- Entry points: `src/main.zig`, `src/editor.zig`, `src/main_editor.zig`
-- Public API: `src/root.zig`
-- Core subsystems: `ui/`, `common/`, `platform/`, `config/`, `nodes/`, `game/`, `io/`, `ecs/`, `physics/`, `rendering/`, `std_ext/`
-- Examples: `examples/`
-- Saves: `saves/`
+- Copilot Rules (if present)
+  - Follow the repo's copilot-instructions with a bias toward explicit, minimal edits.
+  - Provide rationale for changes and avoid introducing large, sweeping rewrites purely from AI suggestions.
 
-## Centralized Configuration
+- Status in this workspace
+  - No Cursor rules directory or Copilot instruction file detected at build time. Add them if introduced later and re-run this integration.
 
-- Constants in `src/config/constants.zig`:
-  - `UI.*`: Scale 0.6-2.5, touch target 44px, font sizes
-  - `Rendering.*`: Screen 1920x1080, texture sizes, limits
-  - `Physics.*`: Gravity, forces, masses
-  - `Game.*`: Grid size, block limits, file sizes
-  - `Memory.*`: Arena sizes, buffer limits
-  - `Performance.*`: LOD thresholds, instance limits
-  - `Editor.*`: Timeline, gizmo, grid sizes
+## 4) Editing Protocols for Agents
 
-## Safe Type Conversions
+- Before editing
+  - Run formatting and basic tests locally to catch obvious issues early.
+  - Scope changes to small, testable units; prefer incremental diffs.
 
-- Use `Cast.toInt()`, `Cast.toFloat()` from `src/common/error_handling.zig`
-- Clamped versions: `Cast.toIntClamped()`, `Cast.toFloatClamped()`
-- Array access: `safeArrayAccess()`
+- During editing
+  - Explain edits with short rationale in a PR description or inline comments.
+  - Keep diffs focused on the task; avoid unrelated changes.
 
-## UI & Editor Patterns
+- After editing
+  - Re-run ``zig fmt --check``, ``zig build``, and tests.
+  - Add/adjust tests for any public API changes.
 
-- Immediate-mode UI with `UiContext`, `UiStyle`, `UiConfig`
-- DPI scaling: `UiScale` (0.6-2.5)
-- Panel docking: `panels.zig` utilities
-- Widgets: `widgets.zig` primitives
-- Persistence: `saves/nyon_ui.json`
-- Edit mode: F1, Save: Ctrl+S
+## 5) Repository Hygiene
 
-## Rendering & Asset Patterns
+- Never commit credentials or secrets.
+- Use meaningful, concise commit messages focusing on intent (the why).
+- Prefer small, atomic commits; avoid large rewrites in a single commit.
+- When in doubt, break changes into multiple commits with clear messages.
 
-- Pipeline: `src/rendering.zig` with PBR
-- Shaders: `src/rendering/render_graph.zig`
-- Materials: `src/material.zig`
-- Post-processing: `src/shaders/`, `src/post_processing.zig`
-- Assets: `src/asset.zig`, `AssetManager`
+## 6) Verification Checklist
 
-## ECS Architecture Patterns
+- [x] Build succeeds locally with ``zig build``.
+- [x] All tests pass with ``zig build test``.
+- [x] Code formatted with ``zig fmt --check``.
+- [x] Lint/style checks pass (where applicable).
+- [ ] Cursor rules are respected (if introduced).
+- [ ] Copilot rules are respected (if introduced).
 
-- Archetype-based: `src/ecs/`
-- Components: `src/ecs/component.zig`
-- Queries: `createQuery(world.allocator, &.{ Position.id, Velocity.id })`
-- Physics: `src/physics/ecs_integration.zig`
+## 7) Known Blockers and Notes
 
-## Performance Considerations
+- Vendor sysgpu interface drift in ``deviceCreateRenderPipeline`` remains a risk for non-raylib paths.
+- Raygui bindings for UI are currently stubs; real bindings may be integrated later.
+- This AGENTS.md will be updated as blockers are resolved or new tooling is introduced.
 
-- `initCapacity` for known sizes
-- Batch renders, minimize state changes
-- Cache queries
-- Arena allocators for temporaries
-- Profile with `src/performance.zig`
+## 8) Quick Reference Commands (copy-paste)
 
-## Commit & Pull Request Guidelines
+- Build: ``zig build``
+- Run: ``zig build run``
+- Editor: ``zig build run-editor``
+- Web: ``zig build wasm``
+- Format: ``zig fmt``; Check: ``zig fmt --check``
+- Test all: ``zig build test``; Test file: ``zig build test -- path/to/file.zig``; Single file: ``zig test path/to/file.zig``
 
-- Commit subjects: short, imperative (e.g., `Add render graph system`)
-- PRs: summarize scope, list test commands, flag breaking changes
-- Screenshots for UI updates
-- Mention dependency bumps
+## 9) Glossary
 
-## Operational Notes
+- Zig: The Zig programming language.
+- allocator: Memory allocator interface passed to functions.
+- unittest: Zig's internal testing mechanism.
+- surface: Public API interface exposed by a module.
 
-- Worlds: `saves/`
-- Run `zig fmt` and `zig build` before push
-- Backend: `.auto` -> raylib native, webgpu browser
-- UI edit: F1, save: Ctrl+S

@@ -26,7 +26,7 @@ const COLOR_PROGRESS_FILL = engine.Color{ .r = 255, .g = 175, .b = 0, .a = 255 }
 
 pub const GameUiState = struct {
     config: ui_mod.UiConfig,
-    ctx: ui_mod.UiContext = ui_mod.UiContext{ .style = ui_mod.UiStyle.fromTheme(.dark, 180, 1.0) },
+    ctx: ui_mod.UiContext = ui_mod.UiContext{ .style = ui_mod.UiStyle.fromTheme(.dark, 1.0) },
     edit_mode: bool = false,
     dirty: bool = false,
     font_manager: FontManager,
@@ -52,7 +52,7 @@ pub const GameUiState = struct {
     }
 
     pub fn style(self: *const GameUiState) ui_mod.UiStyle {
-        return ui_mod.UiStyle.fromTheme(self.config.theme, self.config.opacity, self.config.scale);
+        return ui_mod.UiStyle.fromTheme(self.config.theme, self.config.scale);
     }
 
     pub fn deinit(self: *GameUiState) void {
