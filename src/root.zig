@@ -1,154 +1,174 @@
-//! Nyon Game Engine Library
+//! Nyon Game Engine - GPU-Accelerated Game Engine
 //!
-//! This is the root module for the Nyon game engine library.
-//! It provides a unified game engine API that supports multiple backends
-//! (raylib, GLFW, WebGPU) for cross-platform game development.
+//! A cutting-edge game engine built on Zig's experimental SPIR-V/PTX backend
+//! for native GPU compute shader support. This engine leverages Zig 0.16's
+//! std library extensively and compiles shaders directly to GPU bytecode.
 //!
-//! The main entry point for applications is `main.zig`, which uses this
-//! library module to create games.
+//! ## Architecture
+//!
+//! - **GPU Backend**: SPIR-V for Vulkan, PTX for NVIDIA CUDA
+//! - **Compute Shaders**: Written in Zig, compiled to GPU bytecode
+//! - **Rendering**: Software rasterizer with GPU compute acceleration
+//! - **ECS**: Cache-friendly entity-component-system
+//! - **Math**: SIMD-optimized vector/matrix operations
+//! - **Memory**: Arena allocators, GPU buffer management
 
-// ============================================================================
-// Core Engine Systems
-// ============================================================================
+const std = @import("std");
 
-// Raylib C bindings (direct access for low-level operations)
-pub const raylib = @import("raylib");
+// Core modules
+pub const math = @import("math/math.zig");
+pub const gpu = @import("gpu/gpu.zig");
+pub const ecs = @import("ecs/ecs.zig");
+pub const render = @import("render/render.zig");
+pub const window = @import("platform/window.zig");
+pub const input = @import("platform/input.zig");
+pub const audio = @import("audio/audio.zig");
+pub const ui = @import("ui/ui.zig");
+pub const scene = @import("scene/scene.zig");
+pub const assets = @import("assets/assets.zig");
 
-// Multi-backend engine abstraction
-pub const engine = @import("engine.zig");
+// Re-export common types
+pub const Vec2 = math.Vec2;
+pub const Vec3 = math.Vec3;
+pub const Vec4 = math.Vec4;
+pub const Mat4 = math.Mat4;
+pub const Quat = math.Quat;
+pub const Color = render.Color;
+pub const Entity = ecs.Entity;
 
-// ============================================================================
-// Entity Component System (ECS)
-// ============================================================================
-
-pub const ecs = struct {
-    pub const Entity = @import("ecs/entity.zig").Entity;
-    pub const EntityId = @import("ecs/entity.zig").EntityId;
-    pub const EntityManager = @import("ecs/entity.zig").EntityManager;
-
-    // Components
-    pub const Position = @import("ecs/component.zig").Position;
-    pub const Rotation = @import("ecs/component.zig").Rotation;
-    pub const Scale = @import("ecs/component.zig").Scale;
-    pub const Transform = @import("ecs/component.zig").Transform;
-    pub const Renderable = @import("ecs/component.zig").Renderable;
-    pub const Camera = @import("ecs/component.zig").Camera;
-    pub const Light = @import("ecs/component.zig").Light;
-    pub const RigidBody = @import("ecs/component.zig").RigidBody;
-    pub const Collider = @import("ecs/component.zig").Collider;
-    pub const AudioSource = @import("ecs/component.zig").AudioSource;
-    pub const AudioListener = @import("ecs/component.zig").AudioListener;
-
-    // Archetype storage
-    pub const Archetype = @import("ecs/archetype.zig").Archetype;
-    pub const ComponentType = @import("ecs/archetype.zig").ComponentType;
-
-    // Query system
-    pub const Query = @import("ecs/query.zig").Query;
-    pub const QueryBuilder = @import("ecs/query.zig").QueryBuilder;
-    pub const createQuery = @import("ecs/query.zig").createQuery;
-
-    // Main ECS World
-    pub const World = @import("ecs/world.zig").World;
-
-    // Physics system
-    pub const PhysicsSystem = @import("physics/ecs_integration.zig").PhysicsSystem;
+/// Engine configuration
+pub const Config = struct {
+    window_width: u32 = 1280,
+    window_height: u32 = 720,
+    window_title: []const u8 = "Nyon Engine",
+    vsync: bool = true,
+    gpu_backend: gpu.Backend = .spirv_vulkan,
+    target_fps: u32 = 60,
+    enable_debug: bool = false,
 };
 
-// ============================================================================
-// Legacy Systems (being migrated to ECS)
-// ============================================================================
+/// Main engine instance
+pub const Engine = struct {
+    allocator: std.mem.Allocator,
+    config: Config,
+    gpu_context: ?gpu.Context,
+    world: ecs.World,
+    renderer: render.Renderer,
+    window_handle: ?window.Handle,
+    input_state: input.State,
+    audio_engine: ?audio.Engine,
+    running: bool,
+    delta_time: f64,
+    total_time: f64,
+    frame_count: u64,
 
-// Scene management (legacy - migrate to ECS)
-pub const scene = @import("scene.zig");
-pub const Scene = scene.Scene;
+    const Self = @This();
 
-// Material system
-pub const material = @import("material.zig");
-pub const Material = material.Material;
+    /// Initialize the engine with the given configuration
+    pub fn init(allocator: std.mem.Allocator, config: Config) !Self {
+        // Initialize GPU context
+        const gpu_ctx = gpu.Context.init(allocator, config.gpu_backend) catch |err| blk: {
+            std.log.warn("GPU init failed: {}, falling back to software", .{err});
+            break :blk null;
+        };
 
-// Rendering system
-pub const rendering = @import("rendering.zig");
-pub const RenderingSystem = rendering.RenderingSystem;
+        // Create window
+        const win = try window.create(config.window_width, config.window_height, config.window_title);
 
-// Animation system
-pub const animation = @import("animation.zig");
-pub const AnimationSystem = animation.AnimationSystem;
+        // Initialize renderer
+        const renderer = try render.Renderer.init(allocator, gpu_ctx, config.window_width, config.window_height);
 
-// Keyframe system
-pub const keyframe = @import("keyframe.zig");
-pub const KeyframeSystem = keyframe.KeyframeSystem;
+        // Initialize ECS world
+        const world = try ecs.World.init(allocator);
 
-// Asset management
-pub const asset = @import("asset.zig");
-pub const AssetManager = asset.AssetManager;
+        // Initialize audio (optional)
+        const audio_eng = audio.Engine.init(allocator) catch |err| blk: {
+            std.log.warn("Audio init failed: {}", .{err});
+            break :blk null;
+        };
 
-// Undo/Redo system
-pub const undo_redo = @import("undo_redo.zig");
-pub const UndoRedoSystem = undo_redo.UndoRedoSystem;
+        return Self{
+            .allocator = allocator,
+            .config = config,
+            .gpu_context = gpu_ctx,
+            .world = world,
+            .renderer = renderer,
+            .window_handle = win,
+            .input_state = input.State.init(),
+            .audio_engine = audio_eng,
+            .running = true,
+            .delta_time = 0,
+            .total_time = 0,
+            .frame_count = 0,
+        };
+    }
 
-// Performance monitoring
-pub const performance = @import("performance.zig");
-pub const PerformanceSystem = performance.PerformanceSystem;
+    /// Deinitialize and clean up all engine resources
+    pub fn deinit(self: *Self) void {
+        if (self.audio_engine) |*ae| ae.deinit();
+        self.renderer.deinit();
+        self.world.deinit();
+        if (self.gpu_context) |*ctx| ctx.deinit();
+        if (self.window_handle) |h| window.destroy(h);
+    }
 
-// Node graph system
-pub const nodes = @import("nodes/node_graph.zig");
-pub const geometry_nodes = @import("geometry_nodes.zig");
-pub const main_editor = @import("editor/main_editor.zig");
+    /// Run the main game loop
+    pub fn run(self: *Self, update_fn: ?*const fn (*Self) void) void {
+        var timer = std.time.Timer.start() catch return;
 
-// World/save management
-pub const worlds = @import("game/worlds.zig");
-pub const WorldEntry = worlds.WorldEntry;
-pub const game_state = @import("game/state.zig");
-pub const audio_system = @import("game/audio_system.zig");
-pub const AudioSystem = audio_system.AudioSystem;
-pub const sandbox = @import("game/sandbox.zig");
-pub const SandboxState = sandbox.SandboxState;
-pub const SandboxWorld = sandbox.SandboxWorld;
-pub const Block = sandbox.Block;
-pub const BlockPos = sandbox.BlockPos;
+        while (self.running) {
+            const frame_start = timer.read();
 
-// UI system
-pub const ui = @import("ui/ui.zig");
-pub const UiConfig = ui.UiConfig;
-pub const UiContext = ui.UiContext;
-pub const UiStyle = ui.UiStyle;
+            // Poll input
+            self.input_state.poll(self.window_handle);
 
-pub const status_message = @import("ui/status_message.zig");
-pub const StatusMessage = status_message.StatusMessage;
+            // Check for quit
+            if (self.input_state.shouldQuit() or window.shouldClose(self.window_handle)) {
+                self.running = false;
+                break;
+            }
 
-pub const font_manager = @import("font_manager.zig");
-pub const FontManager = font_manager.FontManager;
+            // User update callback
+            if (update_fn) |f| f(self);
 
-// File I/O utilities
-pub const file_detail = @import("io/file_detail.zig");
-pub const FileDetail = file_detail.FileDetail;
+            // Update ECS systems
+            self.world.update(self.delta_time);
 
-pub const file_metadata = @import("io/file_metadata.zig");
+            // Render frame
+            self.renderer.beginFrame();
+            self.renderer.renderWorld(&self.world);
+            self.renderer.endFrame();
 
-// Application wrapper
-pub const application = @import("application.zig");
-pub const Application = application.Application;
+            // Calculate delta time
+            const frame_end = timer.read();
+            self.delta_time = @as(f64, @floatFromInt(frame_end - frame_start)) / std.time.ns_per_s;
+            self.total_time += self.delta_time;
+            self.frame_count += 1;
+        }
+    }
 
-// ============================================================================
-// Convenience Type Aliases
-// ============================================================================
+    /// Get frames per second
+    pub fn getFPS(self: *const Self) f64 {
+        if (self.delta_time > 0) {
+            return 1.0 / self.delta_time;
+        }
+        return 0;
+    }
+};
 
-pub const Engine = engine.Engine;
-pub const EngineError = engine.EngineError;
-pub const Backend = engine.Backend;
-pub const Config = engine.Config;
-pub const Color = engine.Color;
-pub const Vector2 = engine.Vector2;
-pub const Vector3 = engine.Vector3;
-pub const Rectangle = engine.Rectangle;
-pub const KeyboardKey = engine.KeyboardKey;
-pub const MouseButton = engine.MouseButton;
+/// Engine version
+pub const VERSION = struct {
+    pub const major: u32 = 2;
+    pub const minor: u32 = 0;
+    pub const patch: u32 = 0;
+    pub const string: []const u8 = "2.0.0-gpu";
+};
 
-// Re-export commonly used namespaces
-pub const Audio = engine.Audio;
-pub const Input = engine.Input;
-pub const Shapes = engine.Shapes;
-pub const Text = engine.Text;
-pub const Drawing = engine.Drawing;
-pub const Window = engine.Window;
+test "engine initialization" {
+    const allocator = std.testing.allocator;
+    var engine = try Engine.init(allocator, .{});
+    defer engine.deinit();
+
+    try std.testing.expect(engine.running);
+    try std.testing.expectEqual(@as(u64, 0), engine.frame_count);
+}
