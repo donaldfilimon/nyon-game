@@ -4,5 +4,10 @@
     .fingerprint = 0x369b208fd10649a7,
     .paths = .{ ".", "build.zig", "build.zig.zon", "src" },
     .minimum_zig_version = "0.16.0-dev.2075+62d6bbc7d",
-    .dependencies = .{},
+    .dependencies = .{
+        .raylib = .{
+            .url = "git+https://github.com/raysan5/raylib.git#16e6d325b9f787bb99dc11c6504f8b73d37706ac",
+            .hash = "raylib-5.6.0-dev-whq8uOiaDAU79wa9y5GD1jEAkvk8kFUTQacADFXaaRIO",
+        },
+    },
 }

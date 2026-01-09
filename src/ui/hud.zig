@@ -110,7 +110,7 @@ fn drawHotbar(ui: *ui_mod.Context, sandbox: *const game.SandboxGame, width: u32,
 /// Draw debug overlay
 fn drawDebugOverlay(ui: *ui_mod.Context, sandbox: *const game.SandboxGame) void {
     const info = sandbox.getDebugInfo();
-    _ = ui;
+    // ui is used for drawing below
 
     // Simple text-less debug for now (text rendering would need font support)
     // The debug info struct is available for future text rendering

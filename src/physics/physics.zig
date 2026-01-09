@@ -181,7 +181,7 @@ pub const PhysicsWorld = struct {
 
         for (self.static_colliders.items) |static| {
             if (y_aabb.intersects(static.aabb)) {
-                if (const info = collision.resolveAABBCollision(y_aabb, static.aabb)) |col| {
+                if (collision.resolveAABBCollision(y_aabb, static.aabb)) |col| {
                     if (col.normal.y() > 0.5) {
                         // Hit ground
                         grounded = true;
@@ -201,7 +201,7 @@ pub const PhysicsWorld = struct {
 
         for (self.static_colliders.items) |static| {
             if (x_aabb.intersects(static.aabb)) {
-                if (const info = collision.resolveAABBCollision(x_aabb, static.aabb)) |col| {
+                if (collision.resolveAABBCollision(x_aabb, static.aabb)) |col| {
                     if (@abs(col.normal.x()) > 0.5) {
                         new_vel.data[0] = 0;
                         new_pos.data[0] += col.normal.x() * col.depth;
@@ -216,7 +216,7 @@ pub const PhysicsWorld = struct {
 
         for (self.static_colliders.items) |static| {
             if (z_aabb.intersects(static.aabb)) {
-                if (const info = collision.resolveAABBCollision(z_aabb, static.aabb)) |col| {
+                if (collision.resolveAABBCollision(z_aabb, static.aabb)) |col| {
                     if (@abs(col.normal.z()) > 0.5) {
                         new_vel.data[2] = 0;
                         new_pos.data[2] += col.normal.z() * col.depth;

@@ -59,6 +59,34 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(editor_exe);
 
+    // Build agent executable
+    const automation_mod = b.createModule(.{
+        .root_source_file = b.path("src/platform/automation_win32.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const agent_exe = b.addExecutable(.{
+        .name = "perihelion_agent",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/agent/main.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "automation", .module = automation_mod },
+            },
+        }),
+    });
+    if (target.result.os.tag == .windows) {
+        agent_exe.root_module.linkSystemLibrary("ole32", .{});
+        agent_exe.root_module.linkSystemLibrary("oleaut32", .{});
+    }
+    b.installArtifact(agent_exe);
+
+    const run_agent_step = b.step("run-agent", "Run the AI Agent");
+    const run_agent_cmd = b.addRunArtifact(agent_exe);
+    run_agent_step.dependOn(&run_agent_cmd.step);
+
     // GPU compute shader target (SPIR-V)
     const gpu_target_spirv = b.resolveTargetQuery(.{
         .cpu_arch = .spirv64,
