@@ -149,7 +149,7 @@ pub const Context = struct {
 pub const CommandQueue = struct {
     allocator: std.mem.Allocator,
     backend: Backend,
-    pending_commands: std.ArrayList(Command),
+    pending_commands: std.ArrayListUnmanaged(Command),
 
     pub const Command = struct {
         kernel: compute.Kernel,
@@ -160,16 +160,16 @@ pub const CommandQueue = struct {
         return CommandQueue{
             .allocator = allocator,
             .backend = backend,
-            .pending_commands = std.ArrayList(Command).init(allocator),
+            .pending_commands = .{},
         };
     }
 
     pub fn deinit(self: *CommandQueue) void {
-        self.pending_commands.deinit();
+        self.pending_commands.deinit(self.allocator);
     }
 
     pub fn submit(self: *CommandQueue, cmd: Command) !void {
-        try self.pending_commands.append(cmd);
+        try self.pending_commands.append(self.allocator, cmd);
     }
 
     pub fn flush(self: *CommandQueue) !void {
@@ -209,6 +209,8 @@ fn queryDeviceInfo(backend: Backend) !DeviceInfo {
         .supports_fp16 = false,
     };
 
+    @memset(&info.name, 0);
+
     switch (backend) {
         .software => {
             const name = "Software Renderer (CPU)";
@@ -217,11 +219,69 @@ fn queryDeviceInfo(backend: Backend) !DeviceInfo {
             info.vendor = .software;
             info.compute_units = @intCast(std.Thread.getCpuCount() catch 1);
         },
-        else => {
-            // TODO: Query actual hardware info via Vulkan/CUDA/etc
-            const name = "GPU (Backend: " ++ @tagName(backend) ++ ")";
+        .spirv_vulkan => {
+            const vk_loader = @import("vulkan_loader.zig");
+            if (vk_loader.Loader.init()) |loader_val| {
+                var loader = loader_val;
+                defer loader.deinit();
+                var instance: vk_loader.VkInstance = undefined;
+                var app_info = vk_loader.VkApplicationInfo{
+                    .pApplicationName = "Nyon Game",
+                    .apiVersion = 1, // VK_API_VERSION_1_0 roughly
+                };
+                var create_info = vk_loader.VkInstanceCreateInfo{
+                    .pApplicationInfo = &app_info,
+                };
+
+                if (loader.createInstance(&create_info, null, &instance) == 0) { // VK_SUCCESS
+                    var device_count: u32 = 0;
+                    _ = loader.enumeratePhysicalDevices(instance, &device_count, null);
+                    if (device_count > 0) {
+
+                        // Just allocate on stack for simplicity of this example if small enough
+                        var phys_dev: vk_loader.VkPhysicalDevice = undefined;
+                        // For this basic query we just take the first one
+                        device_count = 1;
+                        if (loader.enumeratePhysicalDevices(instance, &device_count, @ptrCast(&phys_dev)) == 0) {
+                            var props: vk_loader.VkPhysicalDeviceProperties = undefined;
+                            loader.getPhysicalDeviceProperties(phys_dev, &props);
+
+                            // Copy name
+                            const name_slice = std.mem.sliceTo(&props.deviceName, 0);
+                            const copy_len = @min(name_slice.len, info.name.len);
+                            @memcpy(info.name[0..copy_len], name_slice[0..copy_len]);
+                            info.name_len = copy_len;
+                            info.vendor = switch (props.vendorID) {
+                                0x10DE => .nvidia,
+                                0x1002 => .amd,
+                                0x8086 => .intel,
+                                else => .unknown,
+                            };
+                        }
+                    }
+                }
+            } else |_| {
+                const name = "Vulkan (Loader Failed)";
+                @memcpy(info.name[0..name.len], name);
+                info.name_len = name.len;
+            }
+        },
+        .spirv_opencl => {
+            const name = "GPU (SPIR-V OpenCL)";
             @memcpy(info.name[0..name.len], name);
             info.name_len = name.len;
+        },
+        .nvptx => {
+            const name = "GPU (NVIDIA PTX)";
+            @memcpy(info.name[0..name.len], name);
+            info.name_len = name.len;
+            info.vendor = .nvidia;
+        },
+        .amdgcn => {
+            const name = "GPU (AMD GCN)";
+            @memcpy(info.name[0..name.len], name);
+            info.name_len = name.len;
+            info.vendor = .amd;
         },
     }
 
@@ -229,20 +289,10 @@ fn queryDeviceInfo(backend: Backend) !DeviceInfo {
 }
 
 fn executeCommand(backend: Backend, cmd: CommandQueue.Command) !void {
-    _ = cmd;
-    switch (backend) {
-        .spirv_vulkan => {
-            // TODO: Submit to Vulkan compute queue
-        },
-        .nvptx => {
-            // TODO: Submit to CUDA
-        },
-        .software => {
-            // Execute on CPU
-            try executeSoftwareCompute(cmd);
-        },
-        else => {},
+    if (backend == .software) {
+        try executeSoftwareCompute(cmd);
     }
+    // Other backends: TODO implementation
 }
 
 fn executeSoftwareCompute(cmd: CommandQueue.Command) !void {

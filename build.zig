@@ -1,14 +1,11 @@
 const std = @import("std");
 
 // ============================================================================
-// Build Configuration Definitions
+// Nyon Engine - GPU-Accelerated Build Configuration
 // ============================================================================
 
 /// The name of the main executable.
 pub const EXECUTABLE_NAME = "nyon_game";
-
-/// The name for the library module, used as an import name.
-pub const MODULE_NAME = "nyon_game";
 
 /// The root source file for the main library module.
 pub const ROOT_MODULE_PATH = "src/root.zig";
@@ -16,95 +13,25 @@ pub const ROOT_MODULE_PATH = "src/root.zig";
 /// The main entry source file for the application.
 pub const MAIN_SOURCE_PATH = "src/main.zig";
 
-/// The import name for raylib, to be used with @import().
-pub const RAYLIB_IMPORT_NAME = "raylib";
-
-/// The import name for raygui, to be used with @import().
-pub const RAYGUI_IMPORT_NAME = "raygui";
-
-/// The import name for zglfw, to be used with @import().
-pub const ZGLFW_IMPORT_NAME = "zglfw";
-
-/// The import name for this project's library module.
-pub const NYON_GAME_IMPORT_NAME = "nyon_game";
-
-/// Data structure used to track dependencies prepared by the build system.
-pub const Dependencies = struct {
-    raylib: *std.Build.Module,
-    raylib_artifact: ?*std.Build.Step.Compile,
-    zglfw: ?*std.Build.Module,
-};
-
-/// Data record for an example target.
-pub const Example = struct {
-    name: []const u8,
-    source: []const u8,
-    description: []const u8,
-};
-
-/// List of all available example targets.
-pub const EXAMPLES = [_]Example{
-    Example{
-        .name = "example-file-browser",
-        .source = "examples/raylib/file_browser.zig",
-        .description = "Compile and run the Raylib file browser sample",
-    },
-    Example{
-        .name = "example-drop-viewer",
-        .source = "examples/raylib/drop_viewer.zig",
-        .description = "Show drag-and-drop metadata via Raylib file IO",
-    },
-    Example{
-        .name = "example-webgpu-basic",
-        .source = "examples/webgpu_basic.zig",
-        .description = "Basic WebGPU backend example",
-    },
-};
-
-// ============================================================================
-// End Definitions -- Build/logic code below
-// ============================================================================
+/// Editor entry point
+pub const EDITOR_SOURCE_PATH = "src/editor.zig";
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Create raylib dependency (using stub for compatibility)
-    const raylib_mod = b.createModule(.{
-        .root_source_file = b.path("src/raylib_stub.zig"),
-    });
-    // Mock raygui with the same stub
-    const raygui_mod = raylib_mod;
-    const raylib_lib: ?*std.Build.Step.Compile = null;
-
-    // Create zglfw stub module
-    const zglfw_mod = b.createModule(.{
-        .root_source_file = b.path("src/raylib_stub.zig"),
-    });
-    const zglfw_lib: ?*std.Build.Step.Compile = null;
-
-    // Create sysgpu vendor module
-    const sysgpu_mod = b.createModule(.{
-        .root_source_file = b.path("src/vendor/sysgpu/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
+    // Create the main nyon_game module (pure Zig, no external dependencies)
     const nyon_game_mod = b.createModule(.{
         .root_source_file = b.path(ROOT_MODULE_PATH),
         .target = target,
         .optimize = optimize,
-        .imports = &.{
-            .{ .name = RAYLIB_IMPORT_NAME, .module = raylib_mod },
-            .{ .name = RAYGUI_IMPORT_NAME, .module = raygui_mod },
-            .{ .name = ZGLFW_IMPORT_NAME, .module = zglfw_mod },
-            .{ .name = "sysgpu", .module = sysgpu_mod },
-        },
     });
-    nyon_game_mod.addImport(NYON_GAME_IMPORT_NAME, nyon_game_mod);
-    nyon_game_mod.link_libc = true;
+    if (target.result.os.tag == .windows) {
+        nyon_game_mod.linkSystemLibrary("user32", .{});
+        nyon_game_mod.linkSystemLibrary("gdi32", .{});
+    }
 
-    // Build executable targets directly (simplified for refactoring)
+    // Build main executable
     const exe = b.addExecutable(.{
         .name = EXECUTABLE_NAME,
         .root_module = b.createModule(.{
@@ -112,160 +39,43 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "raylib", .module = raylib_mod },
-                .{ .name = "raygui", .module = raygui_mod },
-                .{ .name = "zglfw", .module = zglfw_mod },
-                .{ .name = NYON_GAME_IMPORT_NAME, .module = nyon_game_mod },
+                .{ .name = "nyon_game", .module = nyon_game_mod },
             },
         }),
     });
-
-    if (raylib_lib) |rl_lib| {
-        exe.root_module.linkLibrary(rl_lib);
-    }
-    if (zglfw_lib) |glfw_lib| {
-        exe.root_module.linkLibrary(glfw_lib);
-    }
-    exe.root_module.link_libc = true;
-    linkSystemLibraries(exe, target);
     b.installArtifact(exe);
 
+    // Build editor executable
     const editor_exe = b.addExecutable(.{
         .name = "nyon_editor",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/editor.zig"),
+            .root_source_file = b.path(EDITOR_SOURCE_PATH),
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "raylib", .module = raylib_mod },
-                .{ .name = "raygui", .module = raygui_mod },
-                .{ .name = "zglfw", .module = zglfw_mod },
-                .{ .name = NYON_GAME_IMPORT_NAME, .module = nyon_game_mod },
+                .{ .name = "nyon_game", .module = nyon_game_mod },
             },
         }),
     });
-    if (raylib_lib) |rl_lib| {
-        editor_exe.root_module.linkLibrary(rl_lib);
-    }
-    if (zglfw_lib) |glfw_lib| {
-        editor_exe.root_module.linkLibrary(glfw_lib);
-    }
-    editor_exe.root_module.link_libc = true;
-    linkSystemLibraries(editor_exe, target);
     b.installArtifact(editor_exe);
 
-    setupBuildSteps(b, exe, editor_exe, nyon_game_mod, raylib_lib, zglfw_lib);
-}
+    // GPU compute shader target (SPIR-V)
+    const gpu_target_spirv = b.resolveTargetQuery(.{
+        .cpu_arch = .spirv64,
+        .os_tag = .vulkan,
+    });
 
-/// Create the editor executable.
-pub fn createEditorExecutable(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    mod: *std.Build.Module,
-    _: Dependencies,
-) *std.Build.Step.Compile {
-    const exe = b.addExecutable(.{
-        .name = "nyon_editor",
+    // GPU compute module (compiles to SPIR-V)
+    const gpu_compute_mod = b.addObject(.{
+        .name = "nyon_compute",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/editor.zig"),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = NYON_GAME_IMPORT_NAME, .module = mod },
-            },
+            .root_source_file = b.path("src/gpu/compute.zig"),
+            .target = gpu_target_spirv,
+            .optimize = .ReleaseFast,
         }),
     });
-    exe.root_module.link_libc = true;
-    return exe;
-}
 
-/// Create a WASM build target (WebAssembly, Emscripten).
-pub fn createWasmExecutable(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    mod: *std.Build.Module,
-) *std.Build.Step.Compile {
-    const exe = b.addExecutable(.{
-        .name = "nyon_game",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path(MAIN_SOURCE_PATH),
-            .target = target,
-            .optimize = optimize,
-            .imports = &.{
-                .{ .name = NYON_GAME_IMPORT_NAME, .module = mod },
-            },
-        }),
-    });
-    exe.entry = .disabled;
-    exe.rdynamic = true;
-    exe.root_module.link_libc = true;
-    return exe;
-}
-
-/// Create an example executable.
-pub fn createExampleExecutable(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    deps: Dependencies,
-    source: []const u8,
-    name: []const u8,
-) *std.Build.Step.Compile {
-    const exe = b.addExecutable(.{
-        .name = name,
-        .root_module = b.createModule(.{
-            .root_source_file = b.path(source),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
-    if (deps.raylib_artifact) |raylib_lib| {
-        exe.root_module.linkLibrary(raylib_lib);
-    }
-    return exe;
-}
-
-/// Link system libraries/frameworks as needed for the build target.
-pub fn linkSystemLibraries(exe: *std.Build.Step.Compile, target: std.Build.ResolvedTarget) void {
-    if (target.result.cpu.arch == .wasm32) return;
-    exe.root_module.link_libc = true;
-    switch (target.result.os.tag) {
-        .windows => {
-            exe.root_module.linkSystemLibrary("opengl32", .{});
-            exe.root_module.linkSystemLibrary("gdi32", .{});
-            exe.root_module.linkSystemLibrary("winmm", .{});
-            // D3D12 and DXGI for WebGPU/sysgpu backend
-            exe.root_module.linkSystemLibrary("d3d12", .{});
-            exe.root_module.linkSystemLibrary("dxgi", .{});
-            exe.root_module.linkSystemLibrary("dxguid", .{});
-        },
-        .macos => {
-            exe.root_module.linkFramework("OpenGL", .{});
-            exe.root_module.linkFramework("Cocoa", .{});
-            exe.root_module.linkFramework("IOKit", .{});
-            exe.root_module.linkFramework("CoreVideo", .{});
-        },
-        .linux => {
-            exe.root_module.linkSystemLibrary("GL", .{});
-            exe.root_module.linkSystemLibrary("m", .{});
-            exe.root_module.linkSystemLibrary("pthread", .{});
-            exe.root_module.linkSystemLibrary("dl", .{});
-        },
-        else => {},
-    }
-}
-
-/// Set up the run/test build steps.
-pub fn setupBuildSteps(
-    b: *std.Build,
-    exe: *std.Build.Step.Compile,
-    editor_exe: *std.Build.Step.Compile,
-    mod: *std.Build.Module,
-    raylib_lib: ?*std.Build.Step.Compile,
-    zglfw_lib: ?*std.Build.Step.Compile,
-) void {
+    // Build steps
     const run_step = b.step("run", "Build and run the game");
     const run_cmd = b.addRunArtifact(exe);
     run_step.dependOn(&run_cmd.step);
@@ -279,29 +89,59 @@ pub fn setupBuildSteps(
     run_editor_step.dependOn(&run_editor_cmd.step);
     run_editor_cmd.setCwd(b.path("."));
 
-    const mod_tests = b.addTest(.{
-        .root_module = mod,
-    });
-    if (raylib_lib) |rl_lib| {
-        mod_tests.root_module.linkLibrary(rl_lib);
-    }
-    if (zglfw_lib) |glfw_lib| {
-        mod_tests.root_module.linkLibrary(glfw_lib);
-    }
-    const run_mod_tests = b.addRunArtifact(mod_tests);
+    // SPIR-V build step
+    const spirv_step = b.step("spirv", "Compile GPU shaders to SPIR-V");
+    spirv_step.dependOn(&gpu_compute_mod.step);
 
-    const exe_tests = b.addTest(.{
-        .root_module = exe.root_module,
+    // Tests
+    const mod_tests = b.addTest(.{
+        .root_module = nyon_game_mod,
     });
-    if (raylib_lib) |rl_lib| {
-        exe_tests.root_module.linkLibrary(rl_lib);
-    }
-    if (zglfw_lib) |glfw_lib| {
-        exe_tests.root_module.linkLibrary(glfw_lib);
-    }
-    const run_exe_tests = b.addRunArtifact(exe_tests);
+    const run_mod_tests = b.addRunArtifact(mod_tests);
 
     const test_step = b.step("test", "Run all tests");
     test_step.dependOn(&run_mod_tests.step);
-    test_step.dependOn(&run_exe_tests.step);
+
+    // WASM target
+    const wasm_step = b.step("wasm", "Build for WebAssembly");
+    const wasm_target = b.resolveTargetQuery(.{
+        .cpu_arch = .wasm32,
+        .os_tag = .freestanding,
+    });
+    const wasm_mod = b.createModule(.{
+        .root_source_file = b.path(ROOT_MODULE_PATH),
+        .target = wasm_target,
+        .optimize = .ReleaseSmall,
+    });
+    const wasm_exe = b.addExecutable(.{
+        .name = "nyon_game",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path(MAIN_SOURCE_PATH),
+            .target = wasm_target,
+            .optimize = .ReleaseSmall,
+            .imports = &.{
+                .{ .name = "nyon_game", .module = wasm_mod },
+            },
+        }),
+    });
+    wasm_exe.entry = .disabled;
+    wasm_exe.rdynamic = true;
+    const wasm_install = b.addInstallArtifact(wasm_exe, .{});
+    wasm_step.dependOn(&wasm_install.step);
+
+    // NVPTX target (NVIDIA GPU)
+    const nvptx_step = b.step("nvptx", "Compile GPU shaders to PTX (NVIDIA)");
+    const nvptx_target = b.resolveTargetQuery(.{
+        .cpu_arch = .nvptx64,
+        .os_tag = .cuda,
+    });
+    const nvptx_mod = b.addObject(.{
+        .name = "nyon_compute_ptx",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/gpu/compute.zig"),
+            .target = nvptx_target,
+            .optimize = .ReleaseFast,
+        }),
+    });
+    nvptx_step.dependOn(&nvptx_mod.step);
 }

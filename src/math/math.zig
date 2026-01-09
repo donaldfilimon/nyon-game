@@ -14,8 +14,8 @@ pub const Vec2 = struct {
     pub const X = Vec2{ .data = .{ 1, 0 } };
     pub const Y = Vec2{ .data = .{ 0, 1 } };
 
-    pub fn init(x: f32, y: f32) Vec2 {
-        return .{ .data = .{ x, y } };
+    pub fn init(vx: f32, vy: f32) Vec2 {
+        return .{ .data = .{ vx, vy } };
     }
 
     pub fn x(self: Vec2) f32 {
@@ -166,8 +166,8 @@ pub const Vec4 = struct {
         return .{ .data = .{ vx, vy, vz, vw } };
     }
 
-    pub fn fromVec3(v: Vec3, w: f32) Vec4 {
-        return .{ .data = .{ v.x(), v.y(), v.z(), w } };
+    pub fn fromVec3(v: Vec3, vw: f32) Vec4 {
+        return .{ .data = .{ v.x(), v.y(), v.z(), vw } };
     }
 
     pub fn x(self: Vec4) f32 {
@@ -503,12 +503,12 @@ pub const TAU: f32 = std.math.tau;
 pub const DEG_TO_RAD: f32 = PI / 180.0;
 pub const RAD_TO_DEG: f32 = 180.0 / PI;
 
-pub fn radians(degrees: f32) f32 {
-    return degrees * DEG_TO_RAD;
+pub fn radians(deg: f32) f32 {
+    return deg * DEG_TO_RAD;
 }
 
-pub fn degrees(rads: f32) f32 {
-    return rads * RAD_TO_DEG;
+pub fn degrees(rad: f32) f32 {
+    return rad * RAD_TO_DEG;
 }
 
 pub fn clamp(val: f32, min_val: f32, max_val: f32) f32 {

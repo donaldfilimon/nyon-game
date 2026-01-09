@@ -57,6 +57,7 @@ pub const Engine = struct {
     window_handle: ?window.Handle,
     input_state: input.State,
     audio_engine: ?audio.Engine,
+    ui_context: ui.Context,
     running: bool,
     delta_time: f64,
     total_time: f64,
@@ -87,7 +88,7 @@ pub const Engine = struct {
             break :blk null;
         };
 
-        return Self{
+        var self = Self{
             .allocator = allocator,
             .config = config,
             .gpu_context = gpu_ctx,
@@ -96,11 +97,14 @@ pub const Engine = struct {
             .window_handle = win,
             .input_state = input.State.init(),
             .audio_engine = audio_eng,
+            .ui_context = undefined,
             .running = true,
             .delta_time = 0,
             .total_time = 0,
             .frame_count = 0,
         };
+        self.ui_context = ui.Context.init(allocator, &self.renderer);
+        return self;
     }
 
     /// Deinitialize and clean up all engine resources
@@ -129,6 +133,7 @@ pub const Engine = struct {
             }
 
             // User update callback
+            self.ui_context.beginFrame(self.input_state.mouse_x, self.input_state.mouse_y, self.input_state.mouse_buttons[0]);
             if (update_fn) |f| f(self);
 
             // Update ECS systems
@@ -137,6 +142,7 @@ pub const Engine = struct {
             // Render frame
             self.renderer.beginFrame();
             self.renderer.renderWorld(&self.world);
+            self.ui_context.endFrame();
             self.renderer.endFrame();
 
             // Calculate delta time
