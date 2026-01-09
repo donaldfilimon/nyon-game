@@ -227,7 +227,7 @@ fn queryDeviceInfo(backend: Backend) !DeviceInfo {
                 var instance: vk_loader.VkInstance = undefined;
                 var app_info = vk_loader.VkApplicationInfo{
                     .pApplicationName = "Nyon Game",
-                    .apiVersion = 1, // VK_API_VERSION_1_0 roughly
+                    .apiVersion = (1 << 22) | (0 << 12) | 0, // VK_API_VERSION_1_0
                 };
                 var create_info = vk_loader.VkInstanceCreateInfo{
                     .pApplicationInfo = &app_info,

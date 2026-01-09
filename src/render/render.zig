@@ -130,7 +130,7 @@ pub const Renderer = struct {
         }
     }
 
-    fn drawWireframeCube(self: *Renderer, model: math.Mat4, color: Color) void {
+    pub fn drawWireframeCube(self: *Renderer, model: math.Mat4, color: Color) void {
         const mvp = math.Mat4.mul(math.Mat4.mul(self.projection_matrix, self.view_matrix), model);
 
         const corners = [_]math.Vec3{

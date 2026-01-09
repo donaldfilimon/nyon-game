@@ -27,6 +27,12 @@ pub const ui = @import("ui/ui.zig");
 pub const scene = @import("scene/scene.zig");
 pub const assets = @import("assets/assets.zig");
 
+// Game modules
+pub const physics = @import("physics/physics.zig");
+pub const game = @import("game/sandbox.zig");
+pub const block_renderer = @import("render/block_renderer.zig");
+pub const hud = @import("ui/hud.zig");
+
 // Re-export common types
 pub const Vec2 = math.Vec2;
 pub const Vec3 = math.Vec3;
@@ -118,6 +124,11 @@ pub const Engine = struct {
 
     /// Run the main game loop
     pub fn run(self: *Self, update_fn: ?*const fn (*Self) void) void {
+        // Bind input state to window for event handling
+        if (self.window_handle) |h| {
+            window.setUserPointer(h, &self.input_state);
+        }
+
         var timer = std.time.Timer.start() catch return;
 
         while (self.running) {
