@@ -16,10 +16,10 @@ pub const AABB = struct {
     };
 
     /// Create AABB from center and half-extents
-    pub fn fromCenterExtents(center: math.Vec3, half_extents: math.Vec3) AABB {
+    pub fn fromCenterExtents(center_pos: math.Vec3, half_extents: math.Vec3) AABB {
         return .{
-            .min = math.Vec3.sub(center, half_extents),
-            .max = math.Vec3.add(center, half_extents),
+            .min = math.Vec3.sub(center_pos, half_extents),
+            .max = math.Vec3.add(center_pos, half_extents),
         };
     }
 

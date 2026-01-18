@@ -5,6 +5,15 @@
 const std = @import("std");
 const math = @import("../math/math.zig");
 const physics = @import("../physics/physics.zig");
+const world_gen = @import("../world/world.zig");
+
+// Re-export terrain generation types
+pub const TerrainGenerator = world_gen.TerrainGenerator;
+pub const BiomeGenerator = world_gen.BiomeGenerator;
+pub const Biome = world_gen.Biome;
+pub const BiomeType = world_gen.BiomeType;
+pub const SeededNoise = world_gen.SeededNoise;
+pub const SEA_LEVEL = world_gen.SEA_LEVEL;
 
 /// Block types
 pub const Block = enum(u8) {
@@ -18,17 +27,36 @@ pub const Block = enum(u8) {
     leaves,
     brick,
     glass,
+    // Additional block types
+    cobblestone,
+    planks,
+    gravel,
+    gold,
+    iron,
+    coal,
+    snow,
+    ice,
+    clay,
+    obsidian,
+    crafting_table,
+    furnace,
+    chest,
+    torch,
+    diamond_ore,
+
+    /// Total number of block types (excluding air)
+    pub const COUNT: usize = 25;
 
     pub fn isSolid(self: Block) bool {
         return switch (self) {
-            .air, .water => false,
+            .air, .water, .torch => false,
             else => true,
         };
     }
 
     pub fn isTransparent(self: Block) bool {
         return switch (self) {
-            .air, .water, .glass, .leaves => true,
+            .air, .water, .glass, .leaves, .ice, .torch => true,
             else => false,
         };
     }
@@ -46,6 +74,52 @@ pub const Block = enum(u8) {
             .leaves => .{ 30, 120, 30, 200 },
             .brick => .{ 178, 34, 34, 255 },
             .glass => .{ 200, 220, 255, 100 },
+            .cobblestone => .{ 100, 100, 100, 255 },
+            .planks => .{ 180, 140, 80, 255 },
+            .gravel => .{ 140, 130, 120, 255 },
+            .gold => .{ 255, 215, 0, 255 },
+            .iron => .{ 200, 200, 210, 255 },
+            .coal => .{ 40, 40, 40, 255 },
+            .snow => .{ 250, 250, 255, 255 },
+            .ice => .{ 180, 220, 255, 200 },
+            .clay => .{ 160, 160, 180, 255 },
+            .obsidian => .{ 20, 15, 30, 255 },
+            .crafting_table => .{ 140, 90, 50, 255 }, // Brown wood with darker top
+            .furnace => .{ 100, 100, 100, 255 }, // Gray stone
+            .chest => .{ 160, 110, 50, 255 }, // Wooden brown
+            .torch => .{ 255, 200, 50, 255 }, // Bright yellow/orange
+            .diamond_ore => .{ 80, 200, 220, 255 }, // Light blue/cyan
+        };
+    }
+
+    /// Get block name for display
+    pub fn getName(self: Block) []const u8 {
+        return switch (self) {
+            .air => "Air",
+            .stone => "Stone",
+            .dirt => "Dirt",
+            .grass => "Grass",
+            .sand => "Sand",
+            .water => "Water",
+            .wood => "Wood",
+            .leaves => "Leaves",
+            .brick => "Brick",
+            .glass => "Glass",
+            .cobblestone => "Cobblestone",
+            .planks => "Planks",
+            .gravel => "Gravel",
+            .gold => "Gold",
+            .iron => "Iron",
+            .coal => "Coal",
+            .snow => "Snow",
+            .ice => "Ice",
+            .clay => "Clay",
+            .obsidian => "Obsidian",
+            .crafting_table => "Crafting Table",
+            .furnace => "Furnace",
+            .chest => "Chest",
+            .torch => "Torch",
+            .diamond_ore => "Diamond Ore",
         };
     }
 };
@@ -106,13 +180,37 @@ pub const BlockWorld = struct {
     allocator: std.mem.Allocator,
     chunks: std.AutoHashMap(i64, *Chunk),
     physics_world: physics.PhysicsWorld,
+    /// World seed for terrain generation
+    seed: u64,
+    /// Terrain generator instance
+    terrain_gen: ?TerrainGenerator,
 
     pub fn init(allocator: std.mem.Allocator) BlockWorld {
+        return initWithSeed(allocator, 0);
+    }
+
+    /// Initialize with a specific world seed
+    pub fn initWithSeed(allocator: std.mem.Allocator, seed: u64) BlockWorld {
         return .{
             .allocator = allocator,
             .chunks = std.AutoHashMap(i64, *Chunk).init(allocator),
             .physics_world = physics.PhysicsWorld.init(allocator),
+            .seed = seed,
+            .terrain_gen = TerrainGenerator.init(allocator, seed),
         };
+    }
+
+    /// Get the current world seed
+    pub fn getSeed(self: *const BlockWorld) u64 {
+        return self.seed;
+    }
+
+    /// Get biome at world position
+    pub fn getBiome(self: *const BlockWorld, x: i32, z: i32) Biome {
+        if (self.terrain_gen) |gen| {
+            return gen.biome_gen.getBiome(x, z);
+        }
+        return Biome.get(.plains);
     }
 
     pub fn deinit(self: *BlockWorld) void {
@@ -141,6 +239,25 @@ pub const BlockWorld = struct {
 
         const chunk = try self.allocator.create(Chunk);
         chunk.* = Chunk.init(cx, cy, cz);
+        try self.chunks.put(key, chunk);
+        return chunk;
+    }
+
+    /// Get or create chunk with terrain generation
+    pub fn getOrCreateGeneratedChunk(self: *BlockWorld, cx: i32, cy: i32, cz: i32) !*Chunk {
+        const key = chunkKey(cx, cy, cz);
+        if (self.chunks.get(key)) |chunk| {
+            return chunk;
+        }
+
+        const chunk = try self.allocator.create(Chunk);
+        chunk.* = Chunk.init(cx, cy, cz);
+
+        // Generate terrain for this chunk
+        if (self.terrain_gen) |*gen| {
+            gen.generateChunk(chunk);
+        }
+
         try self.chunks.put(key, chunk);
         return chunk;
     }
@@ -179,7 +296,7 @@ pub const BlockWorld = struct {
         chunk.setBlock(coords.lx, coords.ly, coords.lz, block);
     }
 
-    /// Generate flat terrain
+    /// Generate flat terrain (legacy method)
     pub fn generateFlat(self: *BlockWorld, chunk_radius: i32, height: i32) !void {
         var cx: i32 = -chunk_radius;
         while (cx <= chunk_radius) : (cx += 1) {
@@ -213,6 +330,47 @@ pub const BlockWorld = struct {
                 }
             }
         }
+    }
+
+    /// Generate terrain with biomes using procedural generation
+    pub fn generateTerrain(self: *BlockWorld, chunk_radius: i32) !void {
+        var cx: i32 = -chunk_radius;
+        while (cx <= chunk_radius) : (cx += 1) {
+            var cz: i32 = -chunk_radius;
+            while (cz <= chunk_radius) : (cz += 1) {
+                // Generate chunks from underground to above surface
+                var cy: i32 = -2;
+                while (cy <= 3) : (cy += 1) {
+                    _ = try self.getOrCreateGeneratedChunk(cx, cy, cz);
+                }
+            }
+        }
+    }
+
+    /// Generate terrain around a specific position
+    pub fn generateTerrainAround(self: *BlockWorld, center_x: i32, center_z: i32, radius: i32) !void {
+        const center_cx = @divFloor(center_x, CHUNK_SIZE_I);
+        const center_cz = @divFloor(center_z, CHUNK_SIZE_I);
+
+        var cz: i32 = center_cz - radius;
+        while (cz <= center_cz + radius) : (cz += 1) {
+            var cx: i32 = center_cx - radius;
+            while (cx <= center_cx + radius) : (cx += 1) {
+                var cy: i32 = -2;
+                while (cy <= 3) : (cy += 1) {
+                    _ = try self.getOrCreateGeneratedChunk(cx, cy, cz);
+                }
+            }
+        }
+    }
+
+    /// Get terrain height at world XZ position
+    pub fn getTerrainHeight(self: *const BlockWorld, x: i32, z: i32) i32 {
+        if (self.terrain_gen) |gen| {
+            const biome = gen.biome_gen.getBlendedBiome(x, z, 8);
+            return gen.getTerrainHeight(x, z, &biome);
+        }
+        return 0; // Default height for flat world
     }
 
     /// Raycast to find block

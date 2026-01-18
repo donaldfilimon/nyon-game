@@ -13,6 +13,11 @@ pub const spirv = @import("spirv.zig");
 pub const compute = @import("compute.zig");
 pub const buffer = @import("buffer.zig");
 
+/// Whether threading is supported on this platform
+const has_threads = builtin.os.tag != .freestanding and builtin.os.tag != .wasi;
+/// Whether dynamic library loading is supported
+const has_dynlib = has_threads;
+
 /// Supported GPU backends
 pub const Backend = enum {
     /// SPIR-V for Vulkan compute shaders
@@ -217,11 +222,15 @@ fn queryDeviceInfo(backend: Backend) !DeviceInfo {
             @memcpy(info.name[0..name.len], name);
             info.name_len = name.len;
             info.vendor = .software;
-            info.compute_units = @intCast(std.Thread.getCpuCount() catch 1);
+            info.compute_units = if (has_threads) @intCast(std.Thread.getCpuCount() catch 1) else 1;
         },
         .spirv_vulkan => {
             const vk_loader = @import("vulkan_loader.zig");
-            if (vk_loader.Loader.init()) |loader_val| {
+            if (!vk_loader.is_supported) {
+                const name = "Vulkan (Unsupported Platform)";
+                @memcpy(info.name[0..name.len], name);
+                info.name_len = name.len;
+            } else if (vk_loader.Loader.init()) |loader_val| {
                 var loader = loader_val;
                 defer loader.deinit();
                 var instance: vk_loader.VkInstance = undefined;
@@ -288,41 +297,199 @@ fn queryDeviceInfo(backend: Backend) !DeviceInfo {
     return info;
 }
 
+/// Maximum number of threads for parallel software compute
+const MAX_SOFTWARE_THREADS = 32;
+
 fn executeCommand(backend: Backend, cmd: CommandQueue.Command) !void {
-    if (backend == .software) {
-        try executeSoftwareCompute(cmd);
+    switch (backend) {
+        .software => try executeSoftwareCompute(cmd),
+        .spirv_vulkan => {
+            // Vulkan compute dispatch would go here
+            // For now, fallback to software if kernel has CPU fallback
+            if (cmd.kernel.cpu_fallback != null) {
+                try executeSoftwareCompute(cmd);
+            } else {
+                std.log.warn("Vulkan compute dispatch not fully implemented, no CPU fallback available", .{});
+            }
+        },
+        .nvptx => {
+            // CUDA compute dispatch would go here
+            // For now, fallback to software if kernel has CPU fallback
+            if (cmd.kernel.cpu_fallback != null) {
+                try executeSoftwareCompute(cmd);
+            } else {
+                std.log.warn("CUDA compute dispatch not fully implemented, no CPU fallback available", .{});
+            }
+        },
+        .spirv_opencl, .amdgcn => {
+            // Not implemented - fallback to software
+            if (cmd.kernel.cpu_fallback != null) {
+                try executeSoftwareCompute(cmd);
+            } else {
+                std.log.warn("{s} compute dispatch not implemented, no CPU fallback available", .{@tagName(backend)});
+            }
+        },
     }
-    // Other backends: TODO implementation
+}
+
+/// Worker thread entry point for parallel software compute
+fn softwareWorkerThread(
+    fallback: compute.Kernel.CpuKernelFn,
+    workgroup_size: [3]u32,
+    work_groups: [3]u32,
+    start_group: usize,
+    end_group: usize,
+) void {
+    executeSoftwareWorkgroups(fallback, workgroup_size, work_groups, start_group, end_group);
+}
+
+/// Execute a range of workgroups on the current thread
+fn executeSoftwareWorkgroups(
+    fallback: compute.Kernel.CpuKernelFn,
+    workgroup_size: [3]u32,
+    work_groups: [3]u32,
+    start_group: usize,
+    end_group: usize,
+) void {
+    const groups_x = work_groups[0];
+    const groups_y = work_groups[1];
+    const groups_xy = groups_x * groups_y;
+
+    for (start_group..end_group) |group_idx| {
+        // Convert linear index to 3D workgroup ID
+        const gz: u32 = @intCast(group_idx / groups_xy);
+        const remainder = group_idx % groups_xy;
+        const gy: u32 = @intCast(remainder / groups_x);
+        const gx: u32 = @intCast(remainder % groups_x);
+        const group_id = [3]u32{ gx, gy, gz };
+
+        // Execute all work items in this workgroup
+        for (0..workgroup_size[2]) |lz| {
+            for (0..workgroup_size[1]) |ly| {
+                for (0..workgroup_size[0]) |lx| {
+                    const local_id = [3]u32{
+                        @intCast(lx),
+                        @intCast(ly),
+                        @intCast(lz),
+                    };
+                    const global_id = [3]u32{
+                        gx * workgroup_size[0] + local_id[0],
+                        gy * workgroup_size[1] + local_id[1],
+                        gz * workgroup_size[2] + local_id[2],
+                    };
+
+                    // Call the kernel function with a null context
+                    // In a real implementation, this would pass buffer bindings
+                    fallback(global_id, local_id, group_id, @ptrFromInt(0));
+                }
+            }
+        }
+    }
 }
 
 fn executeSoftwareCompute(cmd: CommandQueue.Command) !void {
     const total_groups = cmd.work_groups[0] * cmd.work_groups[1] * cmd.work_groups[2];
-    _ = total_groups;
-    // TODO: Parallel CPU execution using thread pool
+
+    if (total_groups == 0) return;
+
+    // If kernel has a CPU fallback, use the parallel executor
+    if (cmd.kernel.cpu_fallback) |fallback| {
+        if (!has_threads) {
+            // Single-threaded execution for platforms without thread support (WASM, freestanding)
+            executeSoftwareWorkgroups(fallback, cmd.kernel.workgroup_size, cmd.work_groups, 0, total_groups);
+            return;
+        }
+
+        const cpu_count = std.Thread.getCpuCount() catch 1;
+        const thread_count: usize = @min(cpu_count, total_groups);
+
+        if (thread_count <= 1 or total_groups <= 4) {
+            // Single-threaded execution for small workloads
+            executeSoftwareWorkgroups(fallback, cmd.kernel.workgroup_size, cmd.work_groups, 0, total_groups);
+        } else {
+            // Parallel execution using threads
+            const groups_per_thread = total_groups / thread_count;
+            const remainder = total_groups % thread_count;
+
+            var threads: [MAX_SOFTWARE_THREADS]?std.Thread = .{null} ** MAX_SOFTWARE_THREADS;
+            const actual_threads = @min(thread_count, MAX_SOFTWARE_THREADS);
+
+            var start_group: usize = 0;
+            for (0..actual_threads) |i| {
+                const extra: usize = if (i < remainder) 1 else 0;
+                const count = groups_per_thread + extra;
+                const end_group = start_group + count;
+
+                threads[i] = std.Thread.spawn(.{}, softwareWorkerThread, .{
+                    fallback,
+                    cmd.kernel.workgroup_size,
+                    cmd.work_groups,
+                    start_group,
+                    end_group,
+                }) catch null;
+
+                start_group = end_group;
+            }
+
+            // Wait for all threads to complete
+            for (&threads) |*maybe_thread| {
+                if (maybe_thread.*) |thread| {
+                    thread.join();
+                    maybe_thread.* = null;
+                }
+            }
+        }
+    }
+    // If no CPU fallback is set, this is a no-op for software backend
 }
 
 fn checkVulkanSupport() bool {
-    // TODO: Check for Vulkan instance creation
-    return switch (builtin.os.tag) {
-        .windows, .linux => true,
-        else => false,
+    if (!has_dynlib) return false;
+
+    // Check for Vulkan support by attempting to load the Vulkan library
+    const lib_name = switch (builtin.os.tag) {
+        .windows => "vulkan-1.dll",
+        .linux => "libvulkan.so.1",
+        .macos => "libvulkan.1.dylib",
+        else => return false,
     };
+
+    var lib = std.DynLib.open(lib_name) catch return false;
+    defer lib.close();
+
+    // Verify we can find the core Vulkan entry point
+    _ = lib.lookup(*const fn () callconv(.c) void, "vkCreateInstance") orelse return false;
+
+    return true;
 }
 
 fn checkOpenCLSupport() bool {
-    return false; // TODO
+    // OpenCL compute support not implemented - using software fallback
+    return false;
 }
 
 fn checkCudaSupport() bool {
-    // TODO: Check for CUDA driver
-    return switch (builtin.os.tag) {
-        .windows, .linux => true,
-        else => false,
+    if (!has_dynlib) return false;
+
+    // Check for CUDA support by attempting to load the CUDA driver library
+    const lib_name = switch (builtin.os.tag) {
+        .windows => "nvcuda.dll",
+        .linux => "libcuda.so.1",
+        else => return false,
     };
+
+    var lib = std.DynLib.open(lib_name) catch return false;
+    defer lib.close();
+
+    // Verify we can find the CUDA driver entry point
+    _ = lib.lookup(*const fn () callconv(.c) i32, "cuInit") orelse return false;
+
+    return true;
 }
 
 fn checkAmdSupport() bool {
-    return false; // TODO
+    // AMD GPU compute support not implemented - using software fallback
+    return false;
 }
 
 test "GPU context initialization" {

@@ -62,7 +62,7 @@ pub const RigidBody = struct {
         }
 
         // Apply gravity
-        var gravity = math.Vec3.init(0, Config.GRAVITY * self.gravity_scale, 0);
+        const gravity = math.Vec3.init(0, Config.GRAVITY * self.gravity_scale, 0);
         self.velocity = math.Vec3.add(self.velocity, math.Vec3.scale(gravity, dt));
 
         // Apply drag

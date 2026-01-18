@@ -109,3 +109,52 @@ pub const WM_LBUTTONUP = 0x0202;
 pub const WM_MOUSEMOVE = 0x0200;
 
 pub const IDC_ARROW: ?[*:0]const u8 = @ptrFromInt(32512);
+
+// GDI types and functions for framebuffer blitting
+pub const BITMAPINFOHEADER = extern struct {
+    biSize: u32,
+    biWidth: i32,
+    biHeight: i32,
+    biPlanes: u16,
+    biBitCount: u16,
+    biCompression: u32,
+    biSizeImage: u32,
+    biXPelsPerMeter: i32,
+    biYPelsPerMeter: i32,
+    biClrUsed: u32,
+    biClrImportant: u32,
+};
+
+pub const RGBQUAD = extern struct {
+    rgbBlue: u8,
+    rgbGreen: u8,
+    rgbRed: u8,
+    rgbReserved: u8,
+};
+
+pub const BITMAPINFO = extern struct {
+    bmiHeader: BITMAPINFOHEADER,
+    bmiColors: [1]RGBQUAD,
+};
+
+pub const BI_RGB: u32 = 0;
+pub const DIB_RGB_COLORS: u32 = 0;
+pub const SRCCOPY: u32 = 0x00CC0020;
+
+pub extern "user32" fn GetDC(hWnd: ?HWND) callconv(WINAPI) ?HDC;
+pub extern "user32" fn ReleaseDC(hWnd: ?HWND, hDC: HDC) callconv(WINAPI) i32;
+pub extern "gdi32" fn StretchDIBits(
+    hdc: HDC,
+    xDest: i32,
+    yDest: i32,
+    DestWidth: i32,
+    DestHeight: i32,
+    xSrc: i32,
+    ySrc: i32,
+    SrcWidth: i32,
+    SrcHeight: i32,
+    lpBits: ?*const anyopaque,
+    lpbmi: *const BITMAPINFO,
+    iUsage: u32,
+    rop: u32,
+) callconv(WINAPI) i32;

@@ -23,6 +23,7 @@ pub const render = @import("render/render.zig");
 pub const window = @import("platform/window.zig");
 pub const input = @import("platform/input.zig");
 pub const audio = @import("audio/audio.zig");
+pub const sounds = audio.sounds;
 pub const ui = @import("ui/ui.zig");
 pub const scene = @import("scene/scene.zig");
 pub const assets = @import("assets/assets.zig");
@@ -32,6 +33,51 @@ pub const physics = @import("physics/physics.zig");
 pub const game = @import("game/sandbox.zig");
 pub const block_renderer = @import("render/block_renderer.zig");
 pub const hud = @import("ui/hud.zig");
+pub const inventory_ui = @import("ui/inventory_ui.zig");
+
+// Item and inventory systems
+pub const items = @import("game/items.zig");
+pub const inventory = @import("game/inventory.zig");
+pub const crafting = @import("game/crafting.zig");
+pub const save = @import("game/save.zig");
+pub const game_config = @import("game/config.zig");
+
+// Entity system for mobs and NPCs
+pub const entity = @import("entity/entity.zig");
+
+// World generation modules
+pub const world_gen = @import("world/world.zig");
+pub const noise = world_gen.noise;
+pub const biome = world_gen.biome;
+pub const terrain = world_gen.terrain;
+pub const weather = world_gen.weather;
+pub const chunk_lod = world_gen.chunk_lod;
+pub const chunk_manager = world_gen.chunk_manager;
+
+// Weather system types
+pub const Weather = world_gen.Weather;
+pub const WeatherType = world_gen.WeatherType;
+pub const BiomeWeather = world_gen.BiomeWeather;
+pub const WeatherAudio = world_gen.WeatherAudio;
+
+// Chunk LOD and streaming types
+pub const LODLevel = world_gen.LODLevel;
+pub const ChunkLOD = world_gen.ChunkLOD;
+pub const RenderDistance = world_gen.RenderDistance;
+pub const LODStats = world_gen.LODStats;
+pub const ChunkCoord = world_gen.ChunkCoord;
+pub const ChunkManager = world_gen.ChunkManager;
+pub const ChunkState = world_gen.ChunkState;
+pub const ChunkPool = world_gen.ChunkPool;
+pub const GreedyMesher = world_gen.GreedyMesher;
+pub const OcclusionCuller = world_gen.OcclusionCuller;
+
+// Frustum culling types
+pub const Frustum = render.Frustum;
+pub const Plane = render.Plane;
+pub const FrustumPlane = render.FrustumPlane;
+pub const IntersectionResult = render.IntersectionResult;
+pub const CullingStats = render.CullingStats;
 
 // Re-export common types
 pub const Vec2 = math.Vec2;
@@ -41,6 +87,37 @@ pub const Mat4 = math.Mat4;
 pub const Quat = math.Quat;
 pub const Color = render.Color;
 pub const Entity = ecs.Entity;
+
+// Audio system types
+pub const SoundManager = sounds.SoundManager;
+pub const SoundEvent = sounds.SoundEvent;
+pub const VolumeSettings = sounds.VolumeSettings;
+
+// Entity system types for mobs/NPCs
+pub const EntityWorld = entity.EntityWorld;
+pub const MobType = entity.MobType;
+pub const MobSpawner = entity.MobSpawner;
+
+// Particle system types
+pub const ParticleSystem = render.ParticleSystem;
+pub const Particle = render.Particle;
+pub const ParticlePreset = render.ParticlePreset;
+pub const ParticleEmitter = render.ParticleEmitter;
+
+// Water rendering types
+pub const Water = render.Water;
+pub const WaterRenderer = render.WaterRenderer;
+pub const UnderwaterEffects = render.UnderwaterEffects;
+
+// Save system types
+pub const SaveSystem = save.SaveSystem;
+pub const SaveInfo = save.SaveInfo;
+pub const LoadedWorld = save.LoadedWorld;
+pub const GameMode = save.GameMode;
+
+// Save menu UI
+pub const SaveMenu = ui.SaveMenu;
+pub const SaveMenuState = ui.SaveMenuState;
 
 /// Engine configuration
 pub const Config = struct {
@@ -109,6 +186,8 @@ pub const Engine = struct {
             .total_time = 0,
             .frame_count = 0,
         };
+        // Connect renderer to window for framebuffer presentation
+        self.renderer.setWindowHandle(win);
         self.ui_context = ui.Context.init(allocator, &self.renderer);
         return self;
     }
@@ -150,9 +229,13 @@ pub const Engine = struct {
             // Update ECS systems
             self.world.update(self.delta_time);
 
+            // Update particles
+            self.renderer.updateParticles(@floatCast(self.delta_time));
+
             // Render frame
             self.renderer.beginFrame();
             self.renderer.renderWorld(&self.world);
+            self.renderer.renderParticles();
             self.ui_context.endFrame();
             self.renderer.endFrame();
 

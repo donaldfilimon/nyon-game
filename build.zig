@@ -130,8 +130,11 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run all tests");
     test_step.dependOn(&run_mod_tests.step);
 
-    // WASM target
-    const wasm_step = b.step("wasm", "Build for WebAssembly");
+    // WASM target (experimental)
+    // Note: wasm32-freestanding has std library limitations in Zig 0.16 that prevent
+    // full compilation of the engine (no Thread, DynLib, or posix support).
+    // A dedicated WASM entry point with conditional compilation would be needed.
+    const wasm_step = b.step("wasm", "Build for WebAssembly (experimental)");
     const wasm_target = b.resolveTargetQuery(.{
         .cpu_arch = .wasm32,
         .os_tag = .freestanding,

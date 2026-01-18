@@ -71,6 +71,61 @@ pub fn getSize(handle: ?Handle) struct { width: u32, height: u32 } {
     return .{ .width = w, .height = h };
 }
 
+/// Present a framebuffer to the window
+/// The framebuffer is expected to be RGBA (4 bytes per pixel), stored row-major from top-left.
+pub fn presentFramebuffer(handle: ?Handle, pixels: []const u8, width: u32, height: u32) void {
+    if (handle == null) return;
+
+    switch (builtin.os.tag) {
+        .windows => presentFramebufferWin32(handle.?, pixels, width, height),
+        else => {},
+    }
+}
+
+fn presentFramebufferWin32(handle: Handle, pixels: []const u8, width: u32, height: u32) void {
+    const hwnd: win32.HWND = @ptrCast(@alignCast(handle));
+    const hdc = win32.GetDC(hwnd) orelse return;
+    defer _ = win32.ReleaseDC(hwnd, hdc);
+
+    // Set up BITMAPINFO for 32-bit RGBA
+    // Note: Windows DIB uses bottom-up by default; negative height = top-down
+    var bmi: win32.BITMAPINFO = undefined;
+    bmi.bmiHeader = .{
+        .biSize = @sizeOf(win32.BITMAPINFOHEADER),
+        .biWidth = @intCast(width),
+        .biHeight = -@as(i32, @intCast(height)), // Negative for top-down
+        .biPlanes = 1,
+        .biBitCount = 32,
+        .biCompression = win32.BI_RGB,
+        .biSizeImage = 0,
+        .biXPelsPerMeter = 0,
+        .biYPelsPerMeter = 0,
+        .biClrUsed = 0,
+        .biClrImportant = 0,
+    };
+
+    // Get current client size for stretching
+    const size = getSize(handle);
+    const dest_width: i32 = @intCast(size.width);
+    const dest_height: i32 = @intCast(size.height);
+
+    _ = win32.StretchDIBits(
+        hdc,
+        0,
+        0,
+        dest_width,
+        dest_height,
+        0,
+        0,
+        @intCast(width),
+        @intCast(height),
+        pixels.ptr,
+        &bmi,
+        win32.DIB_RGB_COLORS,
+        win32.SRCCOPY,
+    );
+}
+
 // Platform-specific implementations
 
 fn createWin32Window(width: u32, height: u32, title: []const u8) !?Handle {

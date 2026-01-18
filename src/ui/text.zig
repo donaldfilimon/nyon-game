@@ -116,7 +116,7 @@ fn drawGlyph(
     for (0..8) |row| {
         const row_data = glyph.bitmap[row];
         for (0..8) |col| {
-            const bit: u8 = @intCast(7 - col);
+            const bit: u3 = @intCast(7 - col);
             if ((row_data >> bit) & 1 == 1) {
                 // Draw scaled pixel
                 const px = x + @as(i32, @intCast(col)) * scale;

@@ -59,6 +59,12 @@ pub const Color = packed struct {
             (@as(u32, self.b) << 8) | @as(u32, self.a);
     }
 
+    /// Convert to BGRA format (used by Windows GDI)
+    pub fn toBgra(self: Color) u32 {
+        return (@as(u32, self.a) << 24) | (@as(u32, self.r) << 16) |
+            (@as(u32, self.g) << 8) | @as(u32, self.b);
+    }
+
     pub fn lerp(a: Color, b: Color, t: f32) Color {
         const t_clamped = std.math.clamp(t, 0, 1);
         return .{
@@ -79,9 +85,72 @@ pub const Color = packed struct {
         return .{
             .r = @intFromFloat((@as(f32, @floatFromInt(src.r)) * src_a + @as(f32, @floatFromInt(dst.r)) * dst_a * (1 - src_a)) / out_a),
             .g = @intFromFloat((@as(f32, @floatFromInt(src.g)) * src_a + @as(f32, @floatFromInt(dst.g)) * dst_a * (1 - src_a)) / out_a),
-            .b = @intFromFloat((@as(f32, @floatFromInt(src.b)) * src_a + @as(f32, @floatFromInt(dst.b)) * dst_a * (1 - src_a)) / out_a),
+            .b = @intFromFloat((@as(f32, @floatFromInt(src.b)) * src_a + @as(f32, @floatFromInt(dst.g)) * dst_a * (1 - src_a)) / out_a),
             .a = @intFromFloat(out_a * 255),
         };
+    }
+
+    /// Multiply blend mode - darkens based on overlay
+    pub fn multiply(dst: Color, src: Color) Color {
+        return .{
+            .r = @intCast((@as(u16, dst.r) * @as(u16, src.r)) / 255),
+            .g = @intCast((@as(u16, dst.g) * @as(u16, src.g)) / 255),
+            .b = @intCast((@as(u16, dst.b) * @as(u16, src.b)) / 255),
+            .a = dst.a,
+        };
+    }
+
+    /// Additive blend mode - brightens
+    pub fn additive(dst: Color, src: Color) Color {
+        return .{
+            .r = @intCast(@min(@as(u16, dst.r) + @as(u16, src.r), 255)),
+            .g = @intCast(@min(@as(u16, dst.g) + @as(u16, src.g), 255)),
+            .b = @intCast(@min(@as(u16, dst.b) + @as(u16, src.b), 255)),
+            .a = dst.a,
+        };
+    }
+
+    /// Screen blend mode - brightens, opposite of multiply
+    pub fn screen(dst: Color, src: Color) Color {
+        return .{
+            .r = @intCast(255 - ((@as(u16, 255 - dst.r) * @as(u16, 255 - src.r)) / 255)),
+            .g = @intCast(255 - ((@as(u16, 255 - dst.g) * @as(u16, 255 - src.g)) / 255)),
+            .b = @intCast(255 - ((@as(u16, 255 - dst.b) * @as(u16, 255 - src.b)) / 255)),
+            .a = dst.a,
+        };
+    }
+
+    /// Apply a tint to a color (preserves luminance better than lerp)
+    pub fn tint(base: Color, tint_color: Color, intensity: f32) Color {
+        const t = std.math.clamp(intensity, 0.0, 1.0);
+        // Mix tint color while preserving some of the original brightness
+        const base_f = base.toFloat();
+        const tint_f = tint_color.toFloat();
+
+        // Calculate luminance of base
+        const lum = base_f[0] * 0.299 + base_f[1] * 0.587 + base_f[2] * 0.114;
+
+        return fromFloat(
+            base_f[0] * (1 - t) + tint_f[0] * lum * t,
+            base_f[1] * (1 - t) + tint_f[1] * lum * t,
+            base_f[2] * (1 - t) + tint_f[2] * lum * t,
+            base_f[3],
+        );
+    }
+
+    /// Create color with modified alpha
+    pub fn withAlpha(self: Color, new_alpha: u8) Color {
+        return .{ .r = self.r, .g = self.g, .b = self.b, .a = new_alpha };
+    }
+
+    /// Check if color is fully transparent
+    pub fn isTransparent(self: Color) bool {
+        return self.a == 0;
+    }
+
+    /// Check if color is fully opaque
+    pub fn isOpaque(self: Color) bool {
+        return self.a == 255;
     }
 };
 

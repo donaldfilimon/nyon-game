@@ -4,6 +4,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+/// Whether dynamic library loading is supported on this platform
+pub const is_supported = builtin.os.tag != .freestanding and builtin.os.tag != .wasi;
+
 // Vulkan Handle Types
 pub const VkInstance = *opaque {};
 pub const VkPhysicalDevice = *opaque {};
@@ -48,7 +51,7 @@ pub const PFN_vkCreateInstance = *const fn (pCreateInfo: *const VkInstanceCreate
 pub const PFN_vkEnumeratePhysicalDevices = *const fn (instance: VkInstance, pPhysicalDeviceCount: *u32, pPhysicalDevices: ?[*]VkPhysicalDevice) callconv(.c) i32;
 pub const PFN_vkGetPhysicalDeviceProperties = *const fn (physicalDevice: VkPhysicalDevice, pProperties: *VkPhysicalDeviceProperties) callconv(.c) void;
 
-pub const Loader = struct {
+pub const Loader = if (is_supported) struct {
     library: std.DynLib,
     createInstance: PFN_vkCreateInstance,
     enumeratePhysicalDevices: PFN_vkEnumeratePhysicalDevices,
@@ -69,4 +72,11 @@ pub const Loader = struct {
     pub fn deinit(self: *Loader) void {
         self.library.close();
     }
+} else struct {
+    // Stub for unsupported platforms (WASM, freestanding)
+    pub fn init() !@This() {
+        return error.UnsupportedPlatform;
+    }
+
+    pub fn deinit(_: *@This()) void {}
 };

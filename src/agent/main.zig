@@ -5,30 +5,28 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
 
-    const stdout = std.io.getStdOut().writer();
-
-    try stdout.print("Starting Perihelion Ring AI Agent...\n", .{});
+    std.log.info("Starting Perihelion Ring AI Agent...", .{});
 
     if (@import("builtin").os.tag != .windows) {
-        try stdout.print("Error: AI Agent requires Windows for UI Automation.\n", .{});
+        std.log.err("Error: AI Agent requires Windows for UI Automation.", .{});
         return;
     }
 
     // Initialize Automation
     var auto = automation.Automation.init() catch |err| {
-        try stdout.print("Failed to initialize UI Automation: {}\n", .{err});
+        std.log.err("Failed to initialize UI Automation: {}", .{err});
         return;
     };
     defer auto.deinit();
 
-    try stdout.print("UI Automation Initialized Successfully.\n", .{});
+    std.log.info("UI Automation Initialized Successfully.", .{});
 
     // Try to get root element
     const root = auto.getRoot() catch |err| {
-        try stdout.print("Failed to get Root Element: {}\n", .{err});
+        std.log.err("Failed to get Root Element: {}", .{err});
         return;
     };
     defer _ = root.Release();
 
-    try stdout.print("Successfully acquired Root Element.\n", .{});
+    std.log.info("Successfully acquired Root Element.", .{});
 }

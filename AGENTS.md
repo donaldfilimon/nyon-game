@@ -10,15 +10,17 @@ Note: Cursor rules (in .cursor/rules) or Copilot rules (in .github/copilot-instr
   - ``zig build`` — Compile the sandbox executable for the current target.
   - ``zig build run`` — Run the desktop sandbox (raylib backend on Windows).
   - ``zig build run-editor`` — Build and run the editor UI.
+  - ``zig build run-agent`` — Run the AI automation agent.
   - ``zig build wasm`` — Emit WebAssembly target and assets for web builds.
+  - ``zig build spirv`` — Compile GPU compute shaders to SPIR-V.
+  - ``zig build nvptx`` — Compile GPU shaders to PTX (NVIDIA).
   - ``zig fmt`` — Auto-format all Zig sources.
   - ``zig fmt --check`` — Verify formatting without changing files.
 
 - Testing
   - ``zig build test`` — Run all test blocks in source files.
-  - ``zig build test -- <file.zig>`` — Run tests contained in a specific file.
   - ``zig test <path/to/file.zig>`` — Run Zig tests directly for a single test file.
-  - For focused, targeted tests, pick the file first and then narrow by test blocks inside that file.
+  - Note: Most files have cross-module dependencies requiring ``zig build test``. Use ``zig test`` only for standalone utility modules (e.g., ``src/math/math.zig``).
 
 - Platform notes
   - Desktop / raylib: ``zig build run``.
@@ -53,21 +55,25 @@ These guidelines describe conventions for readability, maintainability, and safe
 
 - Naming conventions
   - Files/modules: snake_case (e.g., ``asset_manager.zig``).
-  - Functions/variables: snake_case.
-  - Public types/classes: PascalCase (e.g., ``AssetHandle``).
-  - Enums: PascalCase.
-  - Constants: ALL_CAPS with underscores (e.g., ``MAX_PLAYERS``).
+  - Functions/methods: camelCase (e.g., ``getEyePosition``, ``applyForce``, ``moveAndSlide``).
+  - Variables: snake_case (e.g., ``delta_time``, ``is_grounded``, ``wish_dir``).
+  - Public types/structs: PascalCase (e.g., ``AssetHandle``, ``RigidBody``).
+  - Enum types: PascalCase; enum variants: snake_case (e.g., ``Projection.perspective``).
+  - Constants: ALL_CAPS with underscores (e.g., ``MAX_PLAYERS``, ``GRAVITY``).
 
 - Error handling
-  - Expose explicit error sets (``error{...}``) for public APIs.
+  - Prefer inferred error unions (``!T``) over explicit error sets for most APIs.
   - Propagate with ``try`` where possible; avoid silent failures.
-  - Convert low-level errors to domain-specific errors when crossing module boundaries.
-  - Document error semantics in public items via doc-comments.
+  - Use ``catch`` with labeled blocks for fallback behavior when recovery is possible.
+  - Return optionals (``?T``) for "not found" cases rather than errors.
+  - Log errors with ``std.log.warn`` or ``std.log.err`` before fallback paths.
 
 - Types and data structures
+  - Use ``const Self = @This()`` pattern in struct implementations.
+  - Provide ``init``/``deinit`` methods for structs that manage resources.
   - Use Zig unions and optionals where they improve safety.
-  - Prefer explicit discriminants for error cases, and name error variants clearly.
-  - Annotate unsafe or boundary-boundary operations with comments clarifying invariants.
+  - Use anonymous structs for multi-value returns: ``struct { pos: Vec3, grounded: bool }``.
+  - Annotate unsafe or boundary operations with comments clarifying invariants.
 
 - Memory management
   - Controllers should pass explicit ``allocator`` parameters where memory allocation occurs.
@@ -75,14 +81,18 @@ These guidelines describe conventions for readability, maintainability, and safe
   - Avoid leaks by ensuring proper deallocation patterns and using ``deinit`` when needed.
 
 - Public APIs and documentation
-  - Use doc comments ``///`` to describe behavior, arguments, return values, and error cases.
+  - Use ``//!`` for file-level module documentation at the top of files.
+  - Use ``///`` for function/type doc comments describing behavior and arguments.
+  - Use ``//`` for inline implementation comments.
   - Maintain a minimal public surface; avoid exposing internal details.
   - Update related tests and examples when public surfaces change.
 
 - Testing discipline
+  - Tests live at the bottom of source files (no separate test directory).
+  - Use ``std.testing.allocator`` for memory-leak detection in tests.
+  - Use descriptive test names: ``test "world spawn and despawn" { ... }``.
   - Each public surface should have unit tests if feasible.
-  - Integration tests live in-domain where they test cross-module behavior.
-  - Use descriptive test names and inline comments for intent.
+  - Common assertions: ``std.testing.expect``, ``expectEqual``, ``expectApproxEqAbs``.
 
 - Documentation and comments
   - Self-document the rationale behind the design decisions, especially around memory and safety trade-offs.
@@ -96,7 +106,7 @@ These guidelines describe conventions for readability, maintainability, and safe
   - Review for correctness, safety, and alignment to conventions.
   - Ensure tests cover changes and do not regress existing behavior.
 
-## 3) Cursor Rules and Copilot Guidance
+## 4) Cursor Rules and Copilot Guidance
 
 - Cursor Rules (if present)
   - Respect per-file cursor constraints; avoid modifying sections locked by cursor sessions.
@@ -109,7 +119,7 @@ These guidelines describe conventions for readability, maintainability, and safe
 - Status in this workspace
   - No Cursor rules directory or Copilot instruction file detected at build time. Add them if introduced later and re-run this integration.
 
-## 4) Editing Protocols for Agents
+## 5) Editing Protocols for Agents
 
 - Before editing
   - Run formatting and basic tests locally to catch obvious issues early.
@@ -123,14 +133,14 @@ These guidelines describe conventions for readability, maintainability, and safe
   - Re-run ``zig fmt --check``, ``zig build``, and tests.
   - Add/adjust tests for any public API changes.
 
-## 5) Repository Hygiene
+## 6) Repository Hygiene
 
 - Never commit credentials or secrets.
 - Use meaningful, concise commit messages focusing on intent (the why).
 - Prefer small, atomic commits; avoid large rewrites in a single commit.
 - When in doubt, break changes into multiple commits with clear messages.
 
-## 6) Verification Checklist
+## 7) Verification Checklist
 
 - [x] Build succeeds locally with ``zig build``.
 - [x] All tests pass with ``zig build test``.
@@ -139,24 +149,25 @@ These guidelines describe conventions for readability, maintainability, and safe
 - [ ] Cursor rules are respected (if introduced).
 - [ ] Copilot rules are respected (if introduced).
 
-## 7) Known Blockers and Notes
+## 8) Known Blockers and Notes
 
 - Vendor sysgpu interface drift in ``deviceCreateRenderPipeline`` remains a risk for non-raylib paths.
 - Raygui bindings for UI are currently stubs; real bindings may be integrated later.
 - This AGENTS.md will be updated as blockers are resolved or new tooling is introduced.
 
-## 8) Quick Reference Commands (copy-paste)
+## 9) Quick Reference Commands (copy-paste)
 
 - Build: ``zig build``
 - Run: ``zig build run``
 - Editor: ``zig build run-editor``
 - Web: ``zig build wasm``
 - Format: ``zig fmt``; Check: ``zig fmt --check``
-- Test all: ``zig build test``; Test file: ``zig build test -- path/to/file.zig``; Single file: ``zig test path/to/file.zig``
+- Test all: ``zig build test``; Single file: ``zig test path/to/file.zig``
 
-## 9) Glossary
+## 10) Glossary
 
-- Zig: The Zig programming language.
+- Zig: The Zig programming language (v0.16.0-dev).
 - allocator: Memory allocator interface passed to functions.
-- unittest: Zig's internal testing mechanism.
+- test block: Zig's ``test "name" { ... }`` mechanism for unit tests.
 - surface: Public API interface exposed by a module.
+- Self: Common alias for ``@This()`` in struct implementations.

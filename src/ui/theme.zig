@@ -1,10 +1,111 @@
 //! UI Theming System
 //!
-//! Provides configurable color themes for the UI system.
+//! Provides configurable color themes and sizing for the UI system.
 //! Includes predefined themes for game HUD, editor, and menus.
 
 const std = @import("std");
 const render = @import("../render/render.zig");
+
+// =============================================================================
+// Sizing Configuration
+// =============================================================================
+
+/// UI sizing and spacing configuration
+pub const Sizing = struct {
+    /// Border radius for rounded corners (in pixels)
+    border_radius: u32 = 4,
+    /// Standard padding inside widgets
+    padding: u32 = 8,
+    /// Spacing between widgets
+    spacing: u32 = 4,
+    /// Standard font size
+    font_size: u32 = 14,
+    /// Button height
+    button_height: u32 = 28,
+    /// Input field height
+    input_height: u32 = 28,
+    /// Checkbox/radio size
+    control_size: u32 = 18,
+    /// Icon size (default)
+    icon_size: u32 = 16,
+    /// Panel title bar height
+    title_bar_height: u32 = 28,
+    /// Shadow offset
+    shadow_offset: u32 = 2,
+    /// Shadow blur (simulated via alpha gradient)
+    shadow_blur: u32 = 4,
+    /// Progress bar height
+    progress_height: u32 = 6,
+    /// Tab bar height
+    tab_height: u32 = 32,
+    /// Scrollbar width
+    scrollbar_width: u32 = 10,
+    /// Toast notification width
+    toast_width: u32 = 300,
+    /// Modal overlay alpha
+    modal_overlay_alpha: u8 = 160,
+
+    /// Default sizing preset
+    pub fn default() Sizing {
+        return .{};
+    }
+
+    /// Compact sizing for smaller UIs
+    pub fn compact() Sizing {
+        return .{
+            .border_radius = 3,
+            .padding = 6,
+            .spacing = 3,
+            .font_size = 12,
+            .button_height = 24,
+            .input_height = 24,
+            .control_size = 14,
+            .icon_size = 12,
+            .title_bar_height = 24,
+            .shadow_offset = 1,
+            .shadow_blur = 2,
+            .progress_height = 4,
+            .tab_height = 26,
+            .scrollbar_width = 8,
+            .toast_width = 250,
+            .modal_overlay_alpha = 140,
+        };
+    }
+
+    /// Large sizing for accessibility
+    pub fn large() Sizing {
+        return .{
+            .border_radius = 6,
+            .padding = 12,
+            .spacing = 6,
+            .font_size = 18,
+            .button_height = 36,
+            .input_height = 36,
+            .control_size = 24,
+            .icon_size = 20,
+            .title_bar_height = 36,
+            .shadow_offset = 3,
+            .shadow_blur = 6,
+            .progress_height = 8,
+            .tab_height = 40,
+            .scrollbar_width = 14,
+            .toast_width = 360,
+            .modal_overlay_alpha = 180,
+        };
+    }
+};
+
+/// Current sizing configuration
+pub var sizing: Sizing = Sizing.default();
+
+/// Set the sizing configuration
+pub fn setSizing(new_sizing: Sizing) void {
+    sizing = new_sizing;
+}
+
+// =============================================================================
+// Color Theme
+// =============================================================================
 
 /// Complete UI color theme
 pub const Theme = struct {
@@ -48,6 +149,23 @@ pub const Theme = struct {
     panel_header: render.Color,
     panel_body: render.Color,
 
+    // Shadow
+    shadow: render.Color,
+
+    // Selection/highlight
+    selection: render.Color,
+    hover_overlay: render.Color,
+
+    // Tab specific
+    tab_active: render.Color,
+    tab_inactive: render.Color,
+
+    // Toast/notification backgrounds
+    toast_success: render.Color,
+    toast_warning: render.Color,
+    toast_error: render.Color,
+    toast_info: render.Color,
+
     // Game-specific
     health_bar: render.Color,
     health_bar_low: render.Color,
@@ -59,6 +177,38 @@ pub const Theme = struct {
     hotbar_normal: render.Color,
 
     crosshair: render.Color,
+
+    /// Lighten a color by a factor (0.0 = original, 1.0 = white)
+    pub fn lighten(color: render.Color, factor: f32) render.Color {
+        const f = std.math.clamp(factor, 0, 1);
+        return render.Color{
+            .r = @intFromFloat(@min(255.0, @as(f32, @floatFromInt(color.r)) + (255.0 - @as(f32, @floatFromInt(color.r))) * f)),
+            .g = @intFromFloat(@min(255.0, @as(f32, @floatFromInt(color.g)) + (255.0 - @as(f32, @floatFromInt(color.g))) * f)),
+            .b = @intFromFloat(@min(255.0, @as(f32, @floatFromInt(color.b)) + (255.0 - @as(f32, @floatFromInt(color.b))) * f)),
+            .a = color.a,
+        };
+    }
+
+    /// Darken a color by a factor (0.0 = original, 1.0 = black)
+    pub fn darken(color: render.Color, factor: f32) render.Color {
+        const f = 1.0 - std.math.clamp(factor, 0, 1);
+        return render.Color{
+            .r = @intFromFloat(@as(f32, @floatFromInt(color.r)) * f),
+            .g = @intFromFloat(@as(f32, @floatFromInt(color.g)) * f),
+            .b = @intFromFloat(@as(f32, @floatFromInt(color.b)) * f),
+            .a = color.a,
+        };
+    }
+
+    /// Create a color with modified alpha
+    pub fn withAlpha(color: render.Color, alpha: u8) render.Color {
+        return render.Color{
+            .r = color.r,
+            .g = color.g,
+            .b = color.b,
+            .a = alpha,
+        };
+    }
 
     /// Get interpolated color between two theme colors
     pub fn lerp(self: *const Theme, other: *const Theme, t: f32) Theme {
@@ -90,6 +240,15 @@ pub const Theme = struct {
             .input_focus = lerpColor(self.input_focus, other.input_focus, t),
             .panel_header = lerpColor(self.panel_header, other.panel_header, t),
             .panel_body = lerpColor(self.panel_body, other.panel_body, t),
+            .shadow = lerpColor(self.shadow, other.shadow, t),
+            .selection = lerpColor(self.selection, other.selection, t),
+            .hover_overlay = lerpColor(self.hover_overlay, other.hover_overlay, t),
+            .tab_active = lerpColor(self.tab_active, other.tab_active, t),
+            .tab_inactive = lerpColor(self.tab_inactive, other.tab_inactive, t),
+            .toast_success = lerpColor(self.toast_success, other.toast_success, t),
+            .toast_warning = lerpColor(self.toast_warning, other.toast_warning, t),
+            .toast_error = lerpColor(self.toast_error, other.toast_error, t),
+            .toast_info = lerpColor(self.toast_info, other.toast_info, t),
             .health_bar = lerpColor(self.health_bar, other.health_bar, t),
             .health_bar_low = lerpColor(self.health_bar_low, other.health_bar_low, t),
             .stamina_bar = lerpColor(self.stamina_bar, other.stamina_bar, t),
@@ -155,6 +314,18 @@ pub const dark = Theme{
     .panel_header = render.Color.fromRgba(45, 45, 55, 255),
     .panel_body = render.Color.fromRgba(30, 30, 38, 245),
 
+    .shadow = render.Color.fromRgba(0, 0, 0, 80),
+    .selection = render.Color.fromRgba(80, 140, 220, 100),
+    .hover_overlay = render.Color.fromRgba(255, 255, 255, 15),
+
+    .tab_active = render.Color.fromRgba(50, 50, 60, 255),
+    .tab_inactive = render.Color.fromRgba(35, 35, 42, 255),
+
+    .toast_success = render.Color.fromRgba(40, 120, 70, 240),
+    .toast_warning = render.Color.fromRgba(160, 120, 30, 240),
+    .toast_error = render.Color.fromRgba(140, 50, 50, 240),
+    .toast_info = render.Color.fromRgba(50, 100, 140, 240),
+
     .health_bar = render.Color.fromRgb(220, 60, 60),
     .health_bar_low = render.Color.fromRgb(180, 40, 40),
     .stamina_bar = render.Color.fromRgb(60, 180, 60),
@@ -203,6 +374,18 @@ pub const light = Theme{
 
     .panel_header = render.Color.fromRgba(200, 200, 215, 255),
     .panel_body = render.Color.fromRgba(235, 235, 242, 250),
+
+    .shadow = render.Color.fromRgba(0, 0, 0, 40),
+    .selection = render.Color.fromRgba(60, 120, 200, 80),
+    .hover_overlay = render.Color.fromRgba(0, 0, 0, 10),
+
+    .tab_active = render.Color.fromRgba(240, 240, 245, 255),
+    .tab_inactive = render.Color.fromRgba(210, 210, 220, 255),
+
+    .toast_success = render.Color.fromRgba(200, 240, 210, 250),
+    .toast_warning = render.Color.fromRgba(255, 240, 200, 250),
+    .toast_error = render.Color.fromRgba(255, 210, 210, 250),
+    .toast_info = render.Color.fromRgba(210, 230, 250, 250),
 
     .health_bar = render.Color.fromRgb(200, 50, 50),
     .health_bar_low = render.Color.fromRgb(160, 30, 30),
@@ -253,6 +436,18 @@ pub const game_hud = Theme{
     .panel_header = render.Color.fromRgba(40, 40, 55, 220),
     .panel_body = render.Color.fromRgba(25, 25, 35, 200),
 
+    .shadow = render.Color.fromRgba(0, 0, 0, 100),
+    .selection = render.Color.fromRgba(255, 200, 60, 80),
+    .hover_overlay = render.Color.fromRgba(255, 255, 255, 20),
+
+    .tab_active = render.Color.fromRgba(50, 50, 65, 220),
+    .tab_inactive = render.Color.fromRgba(30, 30, 40, 200),
+
+    .toast_success = render.Color.fromRgba(50, 150, 80, 230),
+    .toast_warning = render.Color.fromRgba(180, 140, 40, 230),
+    .toast_error = render.Color.fromRgba(160, 60, 60, 230),
+    .toast_info = render.Color.fromRgba(60, 120, 180, 230),
+
     .health_bar = render.Color.fromRgb(255, 80, 80),
     .health_bar_low = render.Color.fromRgb(255, 50, 50),
     .stamina_bar = render.Color.fromRgb(80, 220, 100),
@@ -302,6 +497,18 @@ pub const editor = Theme{
     .panel_header = render.Color.fromRgba(48, 52, 62, 255),
     .panel_body = render.Color.fromRgba(38, 42, 50, 255),
 
+    .shadow = render.Color.fromRgba(0, 0, 0, 60),
+    .selection = render.Color.fromRgba(70, 150, 255, 80),
+    .hover_overlay = render.Color.fromRgba(255, 255, 255, 12),
+
+    .tab_active = render.Color.fromRgba(48, 52, 62, 255),
+    .tab_inactive = render.Color.fromRgba(38, 42, 50, 255),
+
+    .toast_success = render.Color.fromRgba(45, 130, 80, 245),
+    .toast_warning = render.Color.fromRgba(170, 130, 45, 245),
+    .toast_error = render.Color.fromRgba(150, 55, 55, 245),
+    .toast_info = render.Color.fromRgba(55, 110, 160, 245),
+
     .health_bar = render.Color.fromRgb(235, 75, 75),
     .health_bar_low = render.Color.fromRgb(200, 50, 50),
     .stamina_bar = render.Color.fromRgb(75, 195, 95),
@@ -349,4 +556,40 @@ test "color lerp" {
     try std.testing.expectEqual(@as(u8, 50), mid.r);
     try std.testing.expectEqual(@as(u8, 50), mid.g);
     try std.testing.expectEqual(@as(u8, 50), mid.b);
+}
+
+test "sizing presets" {
+    const default_sizing = Sizing.default();
+    const compact_sizing = Sizing.compact();
+    const large_sizing = Sizing.large();
+
+    try std.testing.expect(compact_sizing.padding < default_sizing.padding);
+    try std.testing.expect(large_sizing.padding > default_sizing.padding);
+    try std.testing.expect(compact_sizing.button_height < default_sizing.button_height);
+    try std.testing.expect(large_sizing.button_height > default_sizing.button_height);
+}
+
+test "color lighten" {
+    const color = render.Color.fromRgb(100, 100, 100);
+    const lightened = Theme.lighten(color, 0.5);
+    try std.testing.expect(lightened.r > color.r);
+    try std.testing.expect(lightened.g > color.g);
+    try std.testing.expect(lightened.b > color.b);
+}
+
+test "color darken" {
+    const color = render.Color.fromRgb(100, 100, 100);
+    const darkened = Theme.darken(color, 0.5);
+    try std.testing.expect(darkened.r < color.r);
+    try std.testing.expect(darkened.g < color.g);
+    try std.testing.expect(darkened.b < color.b);
+}
+
+test "color withAlpha" {
+    const color = render.Color.fromRgb(100, 150, 200);
+    const with_alpha = Theme.withAlpha(color, 128);
+    try std.testing.expectEqual(@as(u8, 100), with_alpha.r);
+    try std.testing.expectEqual(@as(u8, 150), with_alpha.g);
+    try std.testing.expectEqual(@as(u8, 200), with_alpha.b);
+    try std.testing.expectEqual(@as(u8, 128), with_alpha.a);
 }

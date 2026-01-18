@@ -12,6 +12,8 @@ pub const Config = struct {
     pub const WALK_SPEED: f32 = 4.5;
     pub const RUN_SPEED: f32 = 7.0;
     pub const CROUCH_SPEED: f32 = 2.0;
+    pub const FLY_SPEED: f32 = 10.0;
+    pub const FLY_FAST_SPEED: f32 = 25.0;
     pub const JUMP_VELOCITY: f32 = 8.0;
     pub const MOUSE_SENSITIVITY: f32 = 0.002;
     pub const EYE_HEIGHT: f32 = 1.6;
@@ -30,6 +32,7 @@ pub const PlayerController = struct {
     is_grounded: bool = false,
     is_crouching: bool = false,
     is_running: bool = false,
+    is_flying: bool = false,
 
     // Collider
     collider: physics.Collider = physics.Collider.player(),
@@ -37,6 +40,15 @@ pub const PlayerController = struct {
     // Input state
     wish_dir: math.Vec3 = math.Vec3.ZERO,
     wish_jump: bool = false,
+    wish_fly_up: bool = false,
+    wish_fly_down: bool = false,
+
+    // Double-tap detection for flight toggle
+    last_jump_time: f64 = 0,
+    double_tap_window: f64 = 0.3, // 300ms window for double tap
+
+    // External modifiers (weather, effects, etc.)
+    speed_multiplier: f32 = 1.0,
 
     /// Get eye position (camera position)
     pub fn getEyePosition(self: *const PlayerController) math.Vec3 {
@@ -88,20 +100,37 @@ pub const PlayerController = struct {
         // Clamp pitch to prevent flipping
         self.pitch = std.math.clamp(self.pitch, -std.math.pi / 2.0 + 0.1, std.math.pi / 2.0 - 0.1);
 
-        // Movement input
+        // Movement input - in fly mode, use look direction for forward
         var move_input = math.Vec3.ZERO;
 
-        if (input_state.isKeyDown(.w)) {
-            move_input = math.Vec3.add(move_input, self.getForward());
-        }
-        if (input_state.isKeyDown(.s)) {
-            move_input = math.Vec3.sub(move_input, self.getForward());
-        }
-        if (input_state.isKeyDown(.a)) {
-            move_input = math.Vec3.sub(move_input, self.getRight());
-        }
-        if (input_state.isKeyDown(.d)) {
-            move_input = math.Vec3.add(move_input, self.getRight());
+        if (self.is_flying) {
+            // Flying movement uses look direction
+            if (input_state.isKeyDown(.w)) {
+                move_input = math.Vec3.add(move_input, self.getLookDirection());
+            }
+            if (input_state.isKeyDown(.s)) {
+                move_input = math.Vec3.sub(move_input, self.getLookDirection());
+            }
+            if (input_state.isKeyDown(.a)) {
+                move_input = math.Vec3.sub(move_input, self.getRight());
+            }
+            if (input_state.isKeyDown(.d)) {
+                move_input = math.Vec3.add(move_input, self.getRight());
+            }
+        } else {
+            // Ground movement uses horizontal forward
+            if (input_state.isKeyDown(.w)) {
+                move_input = math.Vec3.add(move_input, self.getForward());
+            }
+            if (input_state.isKeyDown(.s)) {
+                move_input = math.Vec3.sub(move_input, self.getForward());
+            }
+            if (input_state.isKeyDown(.a)) {
+                move_input = math.Vec3.sub(move_input, self.getRight());
+            }
+            if (input_state.isKeyDown(.d)) {
+                move_input = math.Vec3.add(move_input, self.getRight());
+            }
         }
 
         // Normalize movement
@@ -114,22 +143,44 @@ pub const PlayerController = struct {
         // Sprint
         self.is_running = input_state.isKeyDown(.left_shift);
 
-        // Crouch
+        // Crouch / descend in flight
         self.is_crouching = input_state.isKeyDown(.left_ctrl);
+        self.wish_fly_down = self.is_crouching;
 
-        // Jump
+        // Jump / ascend in flight
         self.wish_jump = input_state.isKeyPressed(.space);
+        self.wish_fly_up = input_state.isKeyDown(.space);
+    }
+
+    /// Toggle flight mode (called from game update with time tracking)
+    pub fn toggleFlight(self: *PlayerController) void {
+        self.is_flying = !self.is_flying;
+        if (self.is_flying) {
+            // Stop vertical velocity when entering flight
+            self.velocity.data[1] = 0;
+        }
     }
 
     /// Update physics
     pub fn update(self: *PlayerController, physics_world: *physics.PhysicsWorld, dt: f32) void {
-        // Calculate movement speed
-        const speed: f32 = if (self.is_crouching)
+        if (self.is_flying) {
+            self.updateFlying(dt);
+        } else {
+            self.updateWalking(physics_world, dt);
+        }
+    }
+
+    /// Update walking/ground physics
+    fn updateWalking(self: *PlayerController, physics_world: *physics.PhysicsWorld, dt: f32) void {
+        // Calculate movement speed with external modifiers
+        const base_speed: f32 = if (self.is_crouching)
             Config.CROUCH_SPEED
         else if (self.is_running)
             Config.RUN_SPEED
         else
             Config.WALK_SPEED;
+
+        const speed = base_speed * self.speed_multiplier;
 
         // Apply movement to velocity
         const target_vel = math.Vec3.scale(self.wish_dir, speed);
@@ -161,6 +212,39 @@ pub const PlayerController = struct {
         self.position = result.position;
         self.velocity = result.velocity;
         self.is_grounded = result.grounded;
+    }
+
+    /// Update flying physics (no gravity, no collision)
+    fn updateFlying(self: *PlayerController, dt: f32) void {
+        // Calculate movement speed with external modifiers
+        const base_speed: f32 = if (self.is_running)
+            Config.FLY_FAST_SPEED
+        else
+            Config.FLY_SPEED;
+
+        const speed = base_speed * self.speed_multiplier;
+
+        // Apply horizontal movement
+        const target_vel = math.Vec3.scale(self.wish_dir, speed);
+
+        // Smooth acceleration (faster in flight)
+        const accel: f32 = 8.0;
+        self.velocity.data[0] = math.lerp(self.velocity.x(), target_vel.x(), accel * dt);
+        self.velocity.data[1] = math.lerp(self.velocity.y(), target_vel.y(), accel * dt);
+        self.velocity.data[2] = math.lerp(self.velocity.z(), target_vel.z(), accel * dt);
+
+        // Vertical movement
+        var vert_speed: f32 = 0;
+        if (self.wish_fly_up) {
+            vert_speed = speed;
+        } else if (self.wish_fly_down) {
+            vert_speed = -speed;
+        }
+        self.velocity.data[1] = math.lerp(self.velocity.y(), vert_speed, accel * dt);
+
+        // Apply velocity directly (no collision in flight)
+        self.position = math.Vec3.add(self.position, math.Vec3.scale(self.velocity, dt));
+        self.is_grounded = false;
     }
 };
 
