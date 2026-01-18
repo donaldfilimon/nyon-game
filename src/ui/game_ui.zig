@@ -4,6 +4,7 @@ const nyon_game = @import("../root.zig");
 const ui_mod = nyon_game.ui;
 const StatusMessage = nyon_game.status_message.StatusMessage;
 const FontManager = nyon_game.font_manager.FontManager;
+const game_state_module = @import("../game/state.zig");
 
 // Grid constants
 const GRID_SIZE: f32 = 50.0;
@@ -19,7 +20,7 @@ const STATUS_MESSAGE_DURATION: f32 = 3.0;
 const STATUS_MESSAGE_Y_OFFSET: i32 = 8;
 
 // Colors
-const COLOR_BACKGROUND = nyon_game.engine.Color{ .r = 30, .g = 30, .b = 50, .a = 255 };
+pub const COLOR_BACKGROUND = nyon_game.engine.Color{ .r = 30, .g = 30, .b = 50, .a = 255 };
 const COLOR_GRID = nyon_game.engine.Color{ .r = 40, .g = 40, .b = 60, .a = 255 };
 const COLOR_ITEM = nyon_game.engine.Color{ .r = 255, .g = 215, .b = 0, .a = 255 };
 const COLOR_ITEM_OUTLINE = nyon_game.engine.Color{ .r = 255, .g = 255, .b = 100, .a = 255 };
@@ -32,7 +33,7 @@ const COLOR_PROGRESS_BG = nyon_game.engine.Color{ .r = 60, .g = 60, .b = 80, .a 
 const COLOR_PROGRESS_FILL = nyon_game.engine.Color{ .r = 255, .g = 175, .b = 0, .a = 255 };
 const COLOR_STATUS_MESSAGE = nyon_game.engine.Color{ .r = 200, .g = 220, .b = 255, .a = 255 };
 
-const GameUiState = struct {
+pub const GameUiState = struct {
     config: ui_mod.UiConfig,
     ctx: ui_mod.UiContext = ui_mod.UiContext{ .style = ui_mod.UiStyle.fromTheme(.dark, 180, 1.0) },
     edit_mode: bool = false,
@@ -72,7 +73,7 @@ const GameUiState = struct {
     }
 };
 
-fn defaultUiScaleFromDpi() f32 {
+pub fn defaultUiScaleFromDpi() f32 {
     const scale = nyon_game.engine.Window.getScaleDPI();
     const avg = (scale.x + scale.y) / 2.0;
     if (avg <= 0.0) return 1.0;

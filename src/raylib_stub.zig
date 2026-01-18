@@ -49,10 +49,11 @@ pub const KeyboardKey = enum(c_int) {
     space = 32,
     escape = 256,
     enter = 257,
-    tab = 258,
     backspace = 259,
+    tab = 258,
     right = 262,
     left = 263,
+    delete = 261,
     down = 264,
     up = 265,
     f1 = 290,
@@ -60,6 +61,7 @@ pub const KeyboardKey = enum(c_int) {
     left_control = 341,
     right_control = 345,
     a = 65,
+    c = 67,
     d = 68,
     r = 82,
     s = 83,
@@ -129,6 +131,11 @@ pub fn getScreenWidth() c_int {
 pub fn getScreenHeight() c_int {
     // Stub - return default height
     return 600;
+}
+
+pub fn getWindowPosition() Vector2 {
+    // Stub - return default position
+    return Vector2{ .x = 100, .y = 100 };
 }
 
 pub fn getFrameTime() f32 {
@@ -294,6 +301,15 @@ pub fn drawRectangleLinesEx(rec: Rectangle, lineThick: f32, color: Color) void {
     // Stub - does nothing
 }
 
+pub fn drawRectangleLines(posX: c_int, posY: c_int, width: c_int, height: c_int, color: Color) void {
+    _ = posX;
+    _ = posY;
+    _ = width;
+    _ = height;
+    _ = color;
+    // Stub - does nothing
+}
+
 pub fn drawRectangleRounded(rec: Rectangle, roundness: f32, segments: c_int, color: Color) void {
     _ = rec;
     _ = roundness;
@@ -390,9 +406,124 @@ pub const Mesh = extern struct {
     animNormals: ?[*]f32,
     boneIds: ?[*]u8,
     boneWeights: ?[*]f32,
+    boneCount: c_int,
+    boneMatrices: ?[*]Matrix,
     vaoId: c_uint,
     vboId: ?[*]c_uint,
 };
+
+pub fn genMeshCube(width: f32, height: f32, length: f32) Mesh {
+    _ = width;
+    _ = height;
+    _ = length;
+    // Stub - return empty mesh
+    return Mesh{
+        .vertexCount = 0,
+        .triangleCount = 0,
+        .vertices = null,
+        .texcoords = null,
+        .texcoords2 = null,
+        .normals = null,
+        .tangents = null,
+        .colors = null,
+        .indices = null,
+        .animVertices = null,
+        .animNormals = null,
+        .boneIds = null,
+        .boneWeights = null,
+        .boneCount = 0,
+        .boneMatrices = null,
+        .vaoId = 0,
+        .vboId = null,
+    };
+}
+
+pub fn genMeshSphere(radius: f32, rings: c_int, slices: c_int) Mesh {
+    _ = radius;
+    _ = rings;
+    _ = slices;
+    // Stub - return empty mesh
+    return Mesh{
+        .vertexCount = 0,
+        .triangleCount = 0,
+        .vertices = null,
+        .texcoords = null,
+        .texcoords2 = null,
+        .normals = null,
+        .tangents = null,
+        .colors = null,
+        .indices = null,
+        .animVertices = null,
+        .animNormals = null,
+        .boneIds = null,
+        .boneWeights = null,
+        .boneCount = 0,
+        .boneMatrices = null,
+        .vaoId = 0,
+        .vboId = null,
+    };
+}
+
+pub fn uploadMesh(mesh: *Mesh, dynamic: bool) void {
+    _ = mesh;
+    _ = dynamic;
+    // Stub - does nothing
+}
+
+pub fn beginScissorMode(x: c_int, y: c_int, width: c_int, height: c_int) void {
+    _ = x;
+    _ = y;
+    _ = width;
+    _ = height;
+    // Stub - does nothing
+}
+
+pub fn endScissorMode() void {
+    // Stub - does nothing
+}
+
+pub fn beginMode3D(camera: Camera3D) void {
+    _ = camera;
+    // Stub - does nothing
+}
+
+pub fn endMode3D() void {
+    // Stub - does nothing
+}
+
+pub fn loadModelFromMesh(mesh: Mesh) !Model {
+    _ = mesh;
+    // Stub - return zeroed model
+    return std.mem.zeroes(Model);
+}
+
+pub fn unloadModel(model: Model) void {
+    _ = model;
+    // Stub - does nothing
+}
+
+pub fn drawModel(model: Model, position: Vector3, scale: f32, tint: Color) void {
+    _ = model;
+    _ = position;
+    _ = scale;
+    _ = tint;
+    // Stub - does nothing
+}
+
+pub fn drawModelWires(model: Model, position: Vector3, scale: f32, tint: Color) void {
+    _ = model;
+    _ = position;
+    _ = scale;
+    _ = tint;
+    // Stub - does nothing
+}
+
+pub fn drawLine3D(startPos: Vector3, endPos: Vector3, color: Color) void {
+    _ = startPos;
+    _ = endPos;
+    _ = color;
+    // Stub - does nothing
+}
 
 pub const Model = extern struct {
     transform: Matrix,
@@ -615,6 +746,12 @@ pub fn getRandomValue(_: c_int, _: c_int) c_int {
     return 0;
 }
 
+pub fn checkCollisionPointRec(point: Vector2, rec: Rectangle) bool {
+    // Stub - basic rectangle collision check
+    return point.x >= rec.x and point.x <= rec.x + rec.width and
+        point.y >= rec.y and point.y <= rec.y + rec.height;
+}
+
 // ============================================================================
 // Constants
 // ============================================================================
@@ -657,6 +794,7 @@ pub const BLACK = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
 pub const BLANK = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 pub const MAGENTA = Color{ .r = 255, .g = 0, .b = 255, .a = 255 };
 pub const RAYWHITE = Color{ .r = 245, .g = 245, .b = 245, .a = 255 };
+pub const ray_white = RAYWHITE;
 
 // ============================================================================
 // Error Types

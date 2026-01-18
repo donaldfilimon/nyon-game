@@ -494,7 +494,7 @@ pub const UiContext = struct {
 
         const radius = self.style.corner_radius * 0.3;
         Shapes.drawRectangleRounded(rect, radius / @min(rect.width, rect.height), 6, self.style.panel_bg);
-        Shapes.drawRectangleRoundedLines(rect, radius / @min(rect.width, rect.height), 6, self.style.panel_border);
+        Shapes.drawRectangleRoundedLines(rect, radius / @min(rect.width, rect.height), 6, self.style.border_width, self.style.panel_border);
 
         const ratio = (value.* - min) / (max - min);
         const fill_w = rect.width * (if (ratio < 0.0) 0.0 else if (ratio > 1.0) 1.0 else ratio);

@@ -81,7 +81,8 @@ pub const WorldSession = struct {
     pub fn deinit(self: *WorldSession) void {
         self.allocator.free(self.folder);
         self.allocator.free(self.name);
-        self.* = undefined;
+        self.folder = &[_]u8{};
+        self.name = &[_]u8{};
     }
 };
 
