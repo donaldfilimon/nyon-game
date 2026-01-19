@@ -1,6 +1,6 @@
 //! Entity Component System (ECS) - Query System
 //!
-//! This module provides query system for efficient iteration over entities
+//! This module provides the query system for efficient iteration over entities
 //! with specific component combinations. Queries are compiled to work with
 //! archetype-based storage for cache-friendly access patterns.
 
@@ -45,27 +45,11 @@ pub const QueryBuilder = struct {
         return self;
     }
 
-    /// Build a query
+    /// Build the query
     pub fn build(self: *QueryBuilder) !Query {
         return Query.init(self.allocator, self.include_types.items, self.exclude_types.items);
-    }
-};
-
-/// Entity data structure for query results
-pub const EntityData = struct {
-    entity: entity.EntityId,
-    archetype: *archetype.Archetype,
-    entity_index: usize,
-
-    /// Get a component from this entity
-    pub fn get(self: EntityData, comptime T: type) ?*T {
-        return self.archetype.getComponentAtIndex(T, self.entity_index);
-    }
-
-    /// Set a component on this entity
-    pub fn set(self: EntityData, value: anytype) bool {
-        return self.archetype.setComponentAtIndex(self.entity_index, value);
-    }
+        }
+    };
 };
 
 /// Compiled query for efficient entity iteration
@@ -106,6 +90,7 @@ pub const Query = struct {
         return self.cached_entity_count;
     }
 
+    /// Deinitialize the query
     /// Deinitialize the query with proper cleanup
     pub fn deinit(self: *Query) void {
         // Free allocated arrays
@@ -120,7 +105,7 @@ pub const Query = struct {
         self.matching_archetypes.deinit(self.allocator);
     }
 
-    /// Update query with current archetypes from the world
+    /// Update the query with current archetypes from the world
     pub fn updateMatches(self: *Query, archetypes: []*archetype.Archetype) void {
         self.matching_archetypes.clearRetainingCapacity();
 
@@ -179,7 +164,7 @@ pub const Query = struct {
         }
 
         /// Get the next entity and its components
-        pub fn next(self: *Iterator) ?EntityData {
+        pub fn next(self: *Iterator) ?Query.EntityData {
             while (self.current_archetype < self.archetypes.len) {
                 const arch = self.archetypes[self.current_archetype];
 
@@ -201,6 +186,23 @@ pub const Query = struct {
             return null;
         }
     };
+
+    /// Entity data returned by the iterator
+    pub const EntityData = struct {
+        entity: entity.EntityId,
+        archetype: *archetype.Archetype,
+        entity_index: usize,
+
+        /// Get a component from this entity
+        pub fn get(self: EntityData, comptime T: type) ?*T {
+            return self.archetype.getComponentAtIndex(T, self.entity_index);
+        }
+
+        /// Set a component on this entity
+        pub fn set(self: EntityData, value: anytype) bool {
+            return self.archetype.setComponentAtIndex(self.entity_index, value);
+        }
+    };
 };
 
 // ============================================================================
@@ -211,8 +213,13 @@ pub const Query = struct {
 pub const QueryBatch = struct {
     allocator: std.mem.Allocator,
     queries: std.ArrayList(*Query),
-    entity_data_buffer: std.ArrayList(EntityData),
+    entity_data_buffer: std.ArrayList(Query.EntityData),
     frame_count: u64 = 0,
+    entity_data: Query.EntityData = .{
+        .entity = entity.EntityId.init(0, 0),
+        .archetype = undefined,
+        .entity_index = 0,
+    },
 
     pub fn init(allocator: std.mem.Allocator) QueryBatch {
         return .{
@@ -255,7 +262,7 @@ pub const QueryBatch = struct {
     }
 
     /// Run a function on all entities from all queries in batch
-    pub fn forEachEntity(self: *QueryBatch, callback: *const fn (EntityData) void) void {
+    pub fn forEachEntity(self: *QueryBatch, callback: *const fn (Query.EntityData) void) void {
         for (self.queries.items) |query| {
             var iter = query.iter();
             while (iter.next()) |entity_data| {
@@ -265,7 +272,7 @@ pub const QueryBatch = struct {
     }
 
     /// Run a function on all entities from all queries (with error handling)
-    pub fn forEachEntityErr(self: *QueryBatch, callback: *const fn (EntityData) anyerror!void) !void {
+    pub fn forEachEntityErr(self: *QueryBatch, callback: *const fn (Query.EntityData) anyerror!void) !void {
         for (self.queries.items) |query| {
             var iter = query.iter();
             while (iter.next()) |entity_data| {

@@ -108,6 +108,9 @@ pub const UiStyle = ui.UiStyle;
 pub const status_message = @import("ui/status_message.zig");
 pub const StatusMessage = status_message.StatusMessage;
 
+pub const font_manager = @import("font_manager.zig");
+pub const FontManager = font_manager.FontManager;
+
 // File I/O utilities
 pub const file_detail = @import("io/file_detail.zig");
 pub const FileDetail = file_detail.FileDetail;
