@@ -1,185 +1,123 @@
-# Nyon Game Engine
+# NYON — Sandbox and Engine Lineage
 
-**Unleash Your Creativity: The Future of Game Development is Here!**
+The earlier NYON creative-sandbox and engine source tree, implemented in Zig.
+It preserves experiments around editable 3D worlds, editor interfaces,
+procedural geometry, and platform integration.
 
-A blazingly fast, minimal Zig-based game engine that empowers developers to build stunning 3D worlds with unprecedented ease. Featuring cutting-edge raylib integration, an intuitive node-based geometry editor, and a revolutionary plugin system that adapts to your wildest imagination.
+**Looking for the retained Rust game and Galaxy Workshop?** Start at
+[`donaldfilimon/NYON`](https://github.com/donaldfilimon/NYON). That repository has
+its own Rust toolchain, simulation contracts, player manual, and native/browser
+qualification. It is not interchangeable with this Zig source tree.
 
-## 🚀 Revolutionary Features That Set You Free
+NYON's broader direction is creative-first, with optional Survival and
+Geometry Nodes. Those product goals do not prove that every subsystem in this
+historical engine is complete. The Donald Company's separate LYLX intelligence
+program does not automatically migrate this repository or replace its code.
 
-- **⚡ Lightning-Fast Cross-Platform Power**: Seamlessly deploy to desktop (Windows/macOS/Linux) and the web with WebAssembly - reach players everywhere!
-- **🎨 Intuitive Immediate-Mode UI**: Revolutionary F1 edit mode lets you customize your interface on-the-fly with drag-and-drop panels and persistent JSON layouts
-- **🌍 Immersive 3D Sandbox**: Dive into creative freedom with free-fly camera controls, instant block manipulation, and persistent world saving
-- **🧠 Node-Based Geometry Wizardry**: Craft procedural masterpieces with our powerful geometry nodes system - no coding required!
-- **🎭 Professional Asset Management**: Industry-grade material system with hot-reloadable textures and advanced material management
-- **⏪ Time-Travel Development**: Undo/Redo system with full serialization support - experiment fearlessly!
-- **🔌 Plugin Architecture Revolution**: Extend the engine infinitely with custom materials, geometry nodes, game modes, and UI panels
-- **📊 Performance Mastery**: Built-in profiling tools and real-time performance monitoring keep your games running at peak performance
+## Source and status
 
-## 🎯 Getting Started - Your Journey Begins Now!
+The checked-in [`build.zig`](build.zig) defines a game executable, an editor,
+an automation-agent executable, tests, and experimental shader/WebAssembly
+targets. Source declarations and prior documentation are not fresh build,
+performance, portability, or runtime results.
 
-### Prerequisites
+The raylib dependency remains declared in [`build.zig.zon`](build.zig.zon).
+Do not infer that every backend is integrated or working from the dependency
+list. [AGENTS.md](AGENTS.md) records unfinished raygui bindings and non-raylib
+interface risks. Earlier claims such as "bulletproof," "industry-grade," or
+unqualified cross-platform deployment are not acceptance evidence.
 
-- **Zig 0.16.x or later** - The language that's revolutionizing systems programming
-- **For WebAssembly builds: Emscripten toolchain** - Bring your games to the browser!
+## Toolchain and setup
 
-### Quick Start - Launch into Creativity!
+`build.zig.zon` declares:
+
+```text
+minimum_zig_version = 0.16.0-dev.2075+62d6bbc7d
+```
+
+This is the manifest's **minimum**, not a guarantee that all later development
+compilers are compatible. Record the exact Zig version used and validate it
+against this source. The Rust 1.99.1 target of the separate NYON/LYLX programs
+must not be substituted into this repository's build instructions without an
+actual port.
 
 ```bash
-# Clone the revolution
-git clone <repository>
+git clone https://github.com/donaldfilimon/nyon-game.git
 cd nyon-game
+zig version
+zig build --help
 zig build
-
-# Experience the magic
 zig build run
+```
 
-# Unleash your inner creator
-zig build run-editor
+`zig build` installs the declared game, editor, and agent artifacts, so its
+requirements can be broader than running one specific target. Review the
+platform modules and system-library requirements before assuming portability.
+The agent imports a Win32 automation module; building or listing it does not
+establish working automation on other platforms.
 
-# Ensure perfection
+## Build targets defined in source
+
+| Command | Declared purpose | Qualification boundary |
+| --- | --- | --- |
+| `zig build` | Build/install the game, editor, and agent artifacts. | Requires a compatible compiler and target environment. |
+| `zig build run` | Build and run `nyon_game`. | Requires live desktop/graphics acceptance. |
+| `zig build run-editor` | Build and run `nyon_editor`. | Does not establish every documented editor feature. |
+| `zig build test` | Run tests reached through the root module. | Not proof that every source file or platform path is covered. |
+| `zig build run-agent` | Run `perihelion_agent`. | Automation is a separate operational action; inspect permissions and platform support first. |
+| `zig build spirv` | Compile the declared SPIR-V compute object. | Compilation is not Vulkan execution or a speedup measurement. |
+| `zig build nvptx` | Compile the declared NVIDIA PTX object. | Compilation is not CUDA runtime evidence. |
+| `zig build wasm` | Attempt the experimental freestanding wasm target. | The build source documents standard-library limitations; not a qualified browser release. |
+
+The old README advertised `example-file-browser`, `example-drop-viewer`, and
+`nyon-cli`; these are **not registered by the current `build.zig`**. Do not use
+those commands as supported setup steps without restoring and validating the
+corresponding build targets.
+
+The wasm definition explicitly notes missing `Thread`, `DynLib`, and POSIX
+support in the selected freestanding path and the need for a dedicated entry
+point/conditional compilation. Do not promise a working browser build or add
+an Emscripten requirement merely because an older README mentioned it.
+
+## Source map
+
+| Path | Responsibility |
+| --- | --- |
+| [`build.zig`](build.zig) | Executables, target selection, tests, and experimental builds. |
+| [`build.zig.zon`](build.zig.zon) | Package identity, compiler minimum, and pinned dependency source. |
+| [`src/root.zig`](src/root.zig) | Root engine module and test entry. |
+| [`src/main.zig`](src/main.zig) | Game entry point. |
+| [`src/editor.zig`](src/editor.zig) | Editor entry point. |
+| [`src/agent/main.zig`](src/agent/main.zig) | Automation-agent entry. |
+| [`src/platform/automation_win32.zig`](src/platform/automation_win32.zig) | Win32 automation integration. |
+| [`src/gpu/compute.zig`](src/gpu/compute.zig) | Compute source used by the shader targets. |
+
+## Validation and contribution
+
+```bash
+zig fmt --check build.zig src
+zig build
 zig build test
 ```
 
-### Build Targets
+These are validation steps to run on a supported environment, not outcomes from
+this documentation update. Most modules have cross-module dependencies; use
+`zig test <file>` only for genuinely standalone utilities. Build, test, shader
+compilation, graphical launch, and actual platform behavior must be reported
+separately.
 
-- `zig build`: Build the main game executable
-- `zig build run`: Build and run the game
-- `zig build run-editor`: Build and run the editor
-- `zig build example-file-browser`: Build file browser example
-- `zig build example-drop-viewer`: Build file drop viewer example
-- `zig build wasm`: Build for WebAssembly
-- `zig build nyon-cli`: Build CLI helper tool
-- `zig build test`: Run all tests
-- `zig build test -- <path/to/test.zig>`: Run specific test file
+Read [AGENTS.md](AGENTS.md), preserve historical code and saved data, keep
+changes focused, and document compiler/API migrations explicitly. Do not treat
+old checked boxes as results for a new commit. Do not run the automation agent
+or overwrite user worlds as part of a documentation check.
 
-## Project Structure
+## Development direction
 
-```
-nyon-game/
-├── build.zig                 # Build configuration
-├── src/
-│   ├── root.zig             # Public API re-exports
-│   ├── main.zig             # Game demo entry point
-│   ├── editor.zig           # Editor entry point
-│   ├── main_editor.zig      # Editor main loop
-│   ├── engine.zig           # Core engine systems
-│   ├── scene.zig            # Scene management
-│   ├── rendering.zig        # Rendering pipeline
-│   ├── ui/                  # User interface system
-│   │   ├── ui.zig
-│   │   └── status_message.zig
-│   ├── nodes/               # Node graph system
-│   │   └── node_graph.zig
-│   ├── game/                # Game-specific logic
-│   │   ├── sandbox.zig
-│   │   └── worlds.zig
-│   ├── io/                  # File I/O utilities
-│   │   ├── file_detail.zig
-│   │   └── file_metadata.zig
-│   └── [other modules...]
-├── examples/
-│   └── raylib/              # Raylib integration examples
-├── saves/                   # Game save data
-└── AGENTS.md               # Development guidelines
-```
+Prioritize reproducible baseline builds, explicit backend boundaries, and
+verified sandbox/editor behavior before expanding procedural geometry,
+materials, plugins, or assets. Preserve the useful creative lineage without
+presenting research targets as finished systems. New Rust game development
+belongs to the separately governed [NYON workspace](https://github.com/donaldfilimon/NYON).
 
-## 🏗️ Architecture of Innovation
-
-### Core Systems - Engineered for Excellence
-
-- **🚀 Engine**: Ultra-flexible backend abstraction supporting Raylib, GLFW, and cutting-edge WebGPU
-- **🎭 Scene**: Sophisticated entity-component system with seamless hierarchical transforms
-- **🎨 Rendering**: Professional material-based rendering pipeline with stunning post-processing effects
-- **💫 UI**: Revolutionary immediate-mode interface with intelligent persistent layouts
-- **📦 Assets**: Lightning-fast texture/material management with instant hot reloading
-- **🔄 Undo/Redo**: Bulletproof command pattern ensuring your creative flow never breaks
-
-### Editor Features - Where Magic Happens
-
-- **🔍 Property Inspector**: Intuitive component editing that makes complex objects feel simple
-- **🌟 Geometry Nodes**: Revolutionary procedural geometry creation - sculpt worlds from pure imagination
-- **🎨 Material Editor**: Professional-grade texture and shader management at your fingertips
-- **🎬 Animation System**: Powerful keyframe-based animation tools that bring your creations to life
-
-## 🛠️ Development - Crafted by Visionaries
-
-### Coding Conventions - Excellence Through Discipline
-
-Follow the battle-tested guidelines in `AGENTS.md`:
-
-- **📚 Imports**: Strategic organization - std → external → local with crystal-clear descriptive aliases
-- **🏷️ Naming**: PascalCase types, camelCase functions, ALL_CAPS constants - consistency that scales
-- **🛡️ Error handling**: Robust custom error sets with `try`/`catch` for bulletproof reliability
-- **📖 Documentation**: Comprehensive `//!` module docs and `///` API docs for crystal-clear understanding
-- **🧪 Testing**: Embedded tests with `std.testing.allocator` ensuring rock-solid stability
-
-### UI Customization
-
-- Press `F1` to enter UI edit mode
-- Drag panel title bars to reposition
-- Use resize handles for sizing
-- `Ctrl+S` to save layout to `nyon_ui.json`
-- Drop JSON files to load custom layouts
-
-### Key Bindings (Game)
-
-- `WASD`: Move
-- `Q` / `E`: Move down/up
-- `Right Mouse`: Look around
-- `Left Click`: Place block
-- `Ctrl` + `Left Click`: Remove block
-- `Tab`: Cycle block color
-- `R`: Reset camera
-- `Ctrl` + `S`: Save world
-- `F1`: Toggle UI edit mode
-- `F2`: Settings panel
-
-### Key Bindings (Editor)
-
-- `Ctrl+S`: Save project
-- `Ctrl+D`: Debug print node graph
-- Mouse: Select and manipulate nodes
-
-## Examples
-
-### File Browser
-
-```bash
-zig build example-file-browser
-```
-
-Lists directory contents with metadata display.
-
-### Drop Viewer
-
-```bash
-zig build example-drop-viewer
-```
-
-Demonstrates drag-and-drop file handling with size display.
-
-## Contributing
-
-1. Follow coding conventions in `AGENTS.md`
-2. Add tests for new functionality
-3. Update README.md for new features
-4. Run `zig build test` before submitting
-
-## 🗺️ Roadmap - The Future We're Building
-
-- [x] **Complete undo/redo serialization** - ✅ Revolutionary time-travel development achieved!
-- [ ] **Expand geometry node library** - Crafting an infinite palette of creative possibilities
-- [ ] **WebGPU backend implementation** - Next-gen graphics performance for the modern web
-- [ ] **CI/CD pipeline with headless testing** - Automated excellence ensuring perfect releases
-- [ ] **Additional asset types (models, audio)** - Complete your multimedia masterpiece
-- [ ] **Plugin API documentation** - Empowering developers worldwide to extend the revolution
-
-### 🌟 Vision: Democratizing Game Development
-
-Nyon isn't just an engine - it's a movement. We're breaking down barriers, eliminating complexity, and giving every developer the tools to create extraordinary experiences. From indie dreamers to AAA innovators, Nyon adapts to your vision and scales with your ambition.
-
-**Join the revolution. Build the impossible.**
-
-## License
-
-See LICENSE file for details.
+Review the repository's applicable licensing and third-party dependency terms
+before redistribution; project names alone do not establish a shared license.
